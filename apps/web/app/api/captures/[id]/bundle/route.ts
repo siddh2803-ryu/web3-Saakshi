@@ -146,7 +146,7 @@ export async function GET(
       );
     }
 
-    return new NextResponse(zipBuffer, {
+    return new NextResponse(new Uint8Array(zipBuffer), {
       headers: {
         "Content-Type": "application/zip",
         "Content-Disposition": `attachment; filename="saakshi_evidence_${captureId}.zip"`,

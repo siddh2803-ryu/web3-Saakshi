@@ -27,7 +27,8 @@ export async function uploadBufferToIpfs(
 
   try {
     const formData = new FormData();
-    const blob = new Blob([buffer]);
+    const uint8 = new Uint8Array(buffer);
+    const blob = new Blob([uint8]);
     formData.append("file", blob, filename);
 
     const pinataMetadata = JSON.stringify({ name: filename });
