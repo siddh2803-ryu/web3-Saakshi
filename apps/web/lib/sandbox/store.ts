@@ -103,19 +103,26 @@ if (!globalStore.__chirpPosts) {
   globalStore.__chirpPosts = JSON.parse(JSON.stringify(SEED_POSTS));
 }
 
+function getPostsStore(): Record<string, ChirpPost> {
+  if (!globalStore.__chirpPosts) {
+    globalStore.__chirpPosts = JSON.parse(JSON.stringify(SEED_POSTS));
+  }
+  return globalStore.__chirpPosts || SEED_POSTS;
+}
+
 export function getChirpPost(slug: string): ChirpPost | null {
-  const posts = globalStore.__chirpPosts || SEED_POSTS;
+  const posts = getPostsStore();
   return posts[slug] || null;
 }
 
 export function getAllChirpPosts(): ChirpPost[] {
-  const posts = globalStore.__chirpPosts || SEED_POSTS;
+  const posts = getPostsStore();
   return Object.values(posts);
 }
 
 export function updateChirpPost(slug: string, updates: Partial<ChirpPost>): ChirpPost | null {
-  if (!globalStore.__chirpPosts) globalStore.__chirpPosts = JSON.parse(JSON.stringify(SEED_POSTS));
-  const post = globalStore.__chirpPosts[slug];
+  const posts = getPostsStore();
+  const post = posts[slug];
   if (!post) return null;
 
   const updated: ChirpPost = {
@@ -123,13 +130,13 @@ export function updateChirpPost(slug: string, updates: Partial<ChirpPost>): Chir
     ...updates,
     updatedAt: new Date().toISOString(),
   };
-  globalStore.__chirpPosts[slug] = updated;
+  posts[slug] = updated;
   return updated;
 }
 
 export function deleteChirpPost(slug: string): boolean {
-  if (!globalStore.__chirpPosts) globalStore.__chirpPosts = JSON.parse(JSON.stringify(SEED_POSTS));
-  const post = globalStore.__chirpPosts[slug];
+  const posts = getPostsStore();
+  const post = posts[slug];
   if (!post) return false;
   post.isDeleted = true;
   post.updatedAt = new Date().toISOString();
@@ -137,8 +144,8 @@ export function deleteChirpPost(slug: string): boolean {
 }
 
 export function restoreChirpPost(slug: string): boolean {
-  if (!globalStore.__chirpPosts) globalStore.__chirpPosts = JSON.parse(JSON.stringify(SEED_POSTS));
-  const post = globalStore.__chirpPosts[slug];
+  const posts = getPostsStore();
+  const post = posts[slug];
   if (!post) return false;
   post.isDeleted = false;
   post.updatedAt = new Date().toISOString();

@@ -86,12 +86,34 @@ export async function captureWithBrowserApi(targetUrl: string): Promise<BrowserC
           if (!tlsInfo && req.isNavigationRequest()) {
             const sec = await response.securityDetails();
             if (sec) {
+              const anySec = sec as {
+                protocol?: string | (() => string);
+                issuer?: string | (() => string);
+                subjectName?: string | (() => string);
+                validFrom?: number | (() => number);
+                validTo?: number | (() => number);
+              };
               tlsInfo = {
-                protocol: sec.protocol(),
-                issuer: sec.issuer(),
-                subject: sec.subjectName(),
-                validFrom: sec.validFrom(),
-                validTo: sec.validTo(),
+                protocol:
+                  typeof anySec.protocol === "function"
+                    ? anySec.protocol()
+                    : anySec.protocol || "TLS 1.3",
+                issuer:
+                  typeof anySec.issuer === "function"
+                    ? anySec.issuer()
+                    : anySec.issuer || "Unknown",
+                subject:
+                  typeof anySec.subjectName === "function"
+                    ? anySec.subjectName()
+                    : anySec.subjectName || "Unknown",
+                validFrom:
+                  typeof anySec.validFrom === "function"
+                    ? anySec.validFrom()
+                    : anySec.validFrom || 0,
+                validTo:
+                  typeof anySec.validTo === "function"
+                    ? anySec.validTo()
+                    : anySec.validTo || 0,
               };
             }
           }
