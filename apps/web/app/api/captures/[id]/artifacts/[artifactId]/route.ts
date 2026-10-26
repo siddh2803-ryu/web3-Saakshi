@@ -28,11 +28,11 @@ export async function GET(
         const buf = artifact.kind === "fullpage_screenshot"
           ? FIXTURE_BROWSER_CAPTURE.fullpageScreenshot
           : Buffer.from(MOCK_JPEG_BASE64.replace(/^data:image\/\w+;base64,/, ""), "base64");
-        return new NextResponse(buf, {
+        return new NextResponse(new Uint8Array(buf), {
           headers: { "Content-Type": artifact.mime },
         });
       }
-      return new NextResponse(Buffer.from("Preview fixture data"), {
+      return new NextResponse("Preview fixture data", {
         headers: { "Content-Type": artifact.mime },
       });
     }
@@ -55,7 +55,7 @@ export async function GET(
 
     try {
       const plaintext = decryptWithKey(ciphertext, dek, artifact.iv, artifact.authTag);
-      return new NextResponse(plaintext, {
+      return new NextResponse(new Uint8Array(plaintext), {
         headers: {
           "Content-Type": artifact.mime || "application/octet-stream",
           "Content-Disposition": `inline; filename="${artifact.id}"`,
@@ -64,7 +64,7 @@ export async function GET(
     } catch {
       // If decryption fails (e.g. simulated CID in offline dev), provide safe preview
       return new NextResponse(
-        Buffer.from("Artifact encrypted with AES-256-GCM. Plaintext accessible in verified bundle."),
+        "Artifact encrypted with AES-256-GCM. Plaintext accessible in verified bundle.",
         {
           headers: { "Content-Type": "text/plain" },
         }
