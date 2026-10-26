@@ -99,7 +99,7 @@ export async function analyzeEvidenceWithGemini(
       },
     });
 
-    const text = response.text?.() || response.text || "";
+    const text = response.text || "";
     const parsed = JSON.parse(text);
     const validated = AiAnalysisSchema.safeParse(parsed);
 
@@ -120,7 +120,7 @@ export async function analyzeEvidenceWithGemini(
       },
     });
 
-    const retryText = retryResponse.text?.() || retryResponse.text || "";
+    const retryText = retryResponse.text || "";
     const retryParsed = JSON.parse(retryText);
     return AiAnalysisSchema.parse(retryParsed);
   } catch (err) {

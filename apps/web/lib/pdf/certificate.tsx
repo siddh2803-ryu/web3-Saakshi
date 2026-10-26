@@ -346,6 +346,7 @@ export async function renderCertificatePdf(
       qrDataUrl={qrDataUrl}
     />
   );
-  const pdfStream = await pdf(doc).toBuffer();
-  return pdfStream;
+  const blob = await pdf(doc).toBlob();
+  const arrayBuffer = await blob.arrayBuffer();
+  return Buffer.from(arrayBuffer);
 }

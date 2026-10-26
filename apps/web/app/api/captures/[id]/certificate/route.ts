@@ -28,7 +28,7 @@ export async function GET(
       qrDataUrl
     );
 
-    return new NextResponse(pdfBuffer, {
+    return new NextResponse(new Uint8Array(pdfBuffer), {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `inline; filename="certificate_part_a_${captureId}.pdf"`,
