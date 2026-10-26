@@ -19,20 +19,20 @@ export default function ChirpPostPage({ params }: PageProps) {
   if (post.isDeleted) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white border border-slate-200 rounded-xl p-8 text-center shadow-soft">
-          <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto mb-4">
+        <div className="max-w-md w-full bg-white border border-slate-200 rounded-xl p-8 text-center shadow-sm">
+          <div className="w-12 h-12 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto mb-4 border border-rose-200">
             <ShieldAlert className="w-6 h-6" />
           </div>
-          <h1 className="text-xl font-semibold text-slate-900 mb-2">This post has been removed</h1>
-          <p className="text-sm text-slate-600 mb-6">
+          <h1 className="text-xl font-bold text-slate-900 mb-2">This post has been removed</h1>
+          <p className="text-sm text-slate-600 mb-6 leading-relaxed">
             The author or platform administrator removed this publication. It is no longer accessible on the live network.
           </p>
-          <div className="p-3 bg-slate-100 rounded-lg text-xs font-mono text-slate-600 mb-4">
+          <div className="p-3 bg-slate-100 rounded-lg text-xs font-mono text-slate-700 mb-4 border border-slate-200">
             HTTP 404 &bull; slug: {post.slug}
           </div>
           <Link
             href="/sandbox/admin"
-            className="text-xs text-saakshi-indigo hover:underline font-medium"
+            className="text-xs text-blue-700 hover:underline font-semibold"
           >
             Go to Sandbox Admin Console
           </Link>
@@ -45,18 +45,18 @@ export default function ChirpPostPage({ params }: PageProps) {
     <div className="min-h-screen bg-[#F8FAFC] py-12 px-4 sm:px-6">
       <div className="max-w-2xl mx-auto">
         {/* Sandbox Notice Banner */}
-        <div className="mb-6 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between text-xs text-amber-900">
+        <div className="mb-6 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between text-xs text-amber-950">
           <div className="flex items-center space-x-2">
-            <span className="font-semibold px-2 py-0.5 bg-amber-200 text-amber-900 rounded">DEMO SANDBOX</span>
-            <span>Fictional platform &quot;Chirp&quot; for KRITICAL HACKS &apos;26 testing.</span>
+            <span className="font-bold px-2 py-0.5 bg-amber-200 text-amber-950 rounded-md">DEMO SANDBOX</span>
+            <span>Simulated target platform &quot;Chirp&quot; for KRITICAL HACKS &apos;26 testing.</span>
           </div>
-          <Link href="/sandbox/admin" className="font-medium underline hover:text-amber-950">
+          <Link href="/sandbox/admin" className="font-semibold underline hover:text-amber-900">
             Admin Controls
           </Link>
         </div>
 
         {/* Chirp Platform Card */}
-        <article className="bg-white rounded-2xl border border-slate-200/80 shadow-soft overflow-hidden">
+        <article className="bg-white rounded-xl border border-slate-200/90 shadow-sm overflow-hidden">
           {/* Post Header */}
           <div className="p-6 border-b border-slate-100">
             <div className="flex items-start justify-between">
@@ -64,29 +64,29 @@ export default function ChirpPostPage({ params }: PageProps) {
                 <img
                   src={post.authorAvatar}
                   alt={post.authorName}
-                  className="w-12 h-12 rounded-full bg-slate-100 border border-slate-200"
+                  className="w-12 h-12 rounded-lg bg-slate-100 border border-slate-200 object-cover"
                 />
                 <div>
-                  <h2 className="text-base font-semibold text-slate-900 leading-tight">
+                  <h2 className="text-base font-bold text-slate-900 leading-tight">
                     {post.authorName}
                   </h2>
-                  <p className="text-sm text-slate-500 font-mono">{post.authorHandle}</p>
+                  <p className="text-xs text-slate-500 font-mono">{post.authorHandle}</p>
                 </div>
               </div>
-              <span className="text-xs text-slate-500">{post.publishedAtText}</span>
+              <span className="text-xs text-slate-400 font-mono">{post.publishedAtText}</span>
             </div>
 
             {/* Post Title & Content */}
             <div className="mt-4">
-              <h1 className="text-lg font-semibold text-slate-900 mb-2">{post.title}</h1>
-              <p className="text-slate-800 text-base leading-relaxed whitespace-pre-line">
+              <h1 className="text-lg font-bold text-slate-900 mb-2">{post.title}</h1>
+              <p className="text-slate-800 text-sm leading-relaxed whitespace-pre-line">
                 {post.content}
               </p>
             </div>
 
             {/* Optional Image */}
             {post.imageUrl && (
-              <div className="mt-4 rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
+              <div className="mt-4 rounded-lg overflow-hidden border border-slate-200 bg-slate-100">
                 <img
                   src={post.imageUrl}
                   alt="Post visual attachment"
@@ -96,44 +96,44 @@ export default function ChirpPostPage({ params }: PageProps) {
             )}
 
             {/* Engagement Metrics */}
-            <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-slate-500 text-sm">
+            <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-slate-500 text-xs font-medium">
               <div className="flex items-center space-x-6">
                 <span className="flex items-center space-x-1.5 hover:text-rose-600 transition-colors cursor-pointer">
                   <Heart className="w-4 h-4" />
                   <span>{post.likes}</span>
                 </span>
-                <span className="flex items-center space-x-1.5 hover:text-saakshi-indigo transition-colors cursor-pointer">
+                <span className="flex items-center space-x-1.5 hover:text-blue-700 transition-colors cursor-pointer">
                   <MessageSquare className="w-4 h-4" />
                   <span>{post.commentsCount}</span>
                 </span>
-                <span className="flex items-center space-x-1.5 hover:text-saakshi-teal transition-colors cursor-pointer">
+                <span className="flex items-center space-x-1.5 hover:text-slate-900 transition-colors cursor-pointer">
                   <Share2 className="w-4 h-4" />
                   <span>{post.shares}</span>
                 </span>
               </div>
-              <span className="text-xs text-slate-500 font-mono">Chirp v2.4</span>
+              <span className="text-xs text-slate-400 font-mono">Chirp v2.4</span>
             </div>
           </div>
 
           {/* Comments Section */}
           <div className="p-6 bg-slate-50/60">
-            <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-4">
+            <h3 className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-4">
               Replies &amp; Discussion ({post.comments.length})
             </h3>
             <div className="space-y-4">
               {post.comments.map((comment) => (
                 <div
                   key={comment.id}
-                  className="p-4 bg-white rounded-xl border border-slate-200/70 shadow-sm"
+                  className="p-4 bg-white rounded-lg border border-slate-200/80 shadow-sm"
                 >
                   <div className="flex items-center justify-between mb-1.5">
                     <div className="flex items-center space-x-2">
-                      <span className="text-sm font-semibold text-slate-900">{comment.author}</span>
-                      <span className="text-xs text-slate-500 font-mono">{comment.handle}</span>
+                      <span className="text-xs font-bold text-slate-900">{comment.author}</span>
+                      <span className="text-xs text-slate-400 font-mono">{comment.handle}</span>
                     </div>
-                    <span className="text-xs text-slate-500">{comment.timeText}</span>
+                    <span className="text-xs text-slate-400">{comment.timeText}</span>
                   </div>
-                  <p className="text-sm text-slate-700 leading-normal">{comment.text}</p>
+                  <p className="text-xs text-slate-700 leading-normal">{comment.text}</p>
                 </div>
               ))}
             </div>

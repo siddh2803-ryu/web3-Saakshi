@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCaptureRecord, listArtifactRecords } from "@/lib/firebase/admin";
 import QRCode from "qrcode";
-import { ShieldCheck, ExternalLink, Download, Layers, CheckCircle2 } from "lucide-react";
+import { ShieldCheck, ExternalLink, Download, Layers, CheckCircle2, ArrowRight } from "lucide-react";
 import { formatIST, truncateHash } from "@/lib/utils";
 
 interface PageProps {
@@ -30,20 +30,20 @@ export default async function PublicProofPage({ params }: PageProps) {
     <div className="min-h-[calc(100vh-4rem)] py-12 px-4 sm:px-6 lg:px-8 max-w-4xl mx-auto">
       {/* Header Badge */}
       <div className="text-center mb-8">
-        <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold mb-3">
-          <ShieldCheck className="w-4 h-4 text-emerald-600" />
+        <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-md bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-bold mb-3">
+          <ShieldCheck className="w-4 h-4 text-emerald-700" />
           <span>Public Web Evidence Record</span>
         </div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-night">
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
           Immutable Evidence Certificate
         </h1>
         <p className="text-xs text-slate-500 font-mono mt-1">Capture ID: {capture.id}</p>
       </div>
 
       {/* Main Certificate Card */}
-      <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-8 shadow-soft space-y-6">
+      <div className="bg-white rounded-xl border border-slate-200/90 p-6 sm:p-8 shadow-sm space-y-6">
         {/* Verification Summary Banner */}
-        <div className="p-4 bg-emerald-50/60 border border-emerald-200 rounded-2xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="p-4 bg-emerald-50/70 border border-emerald-300 rounded-lg flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center space-x-3">
             <CheckCircle2 className="w-8 h-8 text-emerald-600 shrink-0" />
             <div>
@@ -57,7 +57,7 @@ export default async function PublicProofPage({ params }: PageProps) {
           </div>
           <Link
             href="/verify"
-            className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold rounded-xl text-center shadow-sm transition-colors whitespace-nowrap"
+            className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold rounded-lg text-center shadow-sm transition-colors whitespace-nowrap"
           >
             Verify a File Against This Record
           </Link>
@@ -68,7 +68,7 @@ export default async function PublicProofPage({ params }: PageProps) {
           <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
             Preserved Subject
           </h3>
-          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-xs space-y-2">
+          <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 text-xs space-y-2">
             <div>
               <span className="font-semibold text-slate-700">Page Title: </span>
               <span className="text-slate-900 font-bold">{capture.manifest?.observed?.title || "Observed Web Publication"}</span>
@@ -106,7 +106,7 @@ export default async function PublicProofPage({ params }: PageProps) {
                   href={`https://amoy.polygonscan.com/tx/${capture.anchoring.txHash}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="p-2 bg-slate-50 border border-slate-200 rounded-lg block font-mono break-all text-saakshi-indigo hover:underline flex items-center justify-between"
+                  className="p-2 bg-slate-50 border border-slate-200 rounded-lg block font-mono break-all text-blue-700 hover:underline flex items-center justify-between"
                 >
                   <span>{capture.anchoring.txHash}</span>
                   <ExternalLink className="w-3.5 h-3.5 ml-2 shrink-0" />
@@ -116,9 +116,15 @@ export default async function PublicProofPage({ params }: PageProps) {
           </div>
 
           {/* QR Code */}
-          <div className="flex flex-col items-center justify-center p-4 bg-slate-50 rounded-2xl border border-slate-100 text-center">
+          <div className="flex flex-col items-center justify-center p-4 bg-slate-50 rounded-xl border border-slate-200 text-center">
             {qrDataUrl && (
-              <img src={qrDataUrl} alt="QR Code for Public Proof" className="w-36 h-36 rounded-xl border border-slate-200 shadow-sm" />
+              <img
+                src={qrDataUrl}
+                alt="QR Code for Public Proof"
+                width={144}
+                height={144}
+                className="w-36 h-36 rounded-lg border border-slate-200 shadow-sm"
+              />
             )}
             <span className="text-[11px] font-semibold text-slate-600 mt-2">
               Scan to inspect or verify proof on-chain

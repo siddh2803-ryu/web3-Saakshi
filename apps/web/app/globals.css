@@ -8,7 +8,7 @@
 }
 
 body {
-  background-color: #F1F5F9;
+  background-color: #F8FAFC;
   color: #0F172A;
   font-family: var(--font-inter);
   -webkit-font-smoothing: antialiased;
@@ -24,8 +24,19 @@ body {
 }
 ::-webkit-scrollbar-thumb {
   background: #CBD5E1;
-  border-radius: 9999px;
+  border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #94A3B8;
 }
+
+/* Accessibility: Reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+

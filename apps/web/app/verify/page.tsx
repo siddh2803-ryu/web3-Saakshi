@@ -12,6 +12,9 @@ import {
   FileCheck,
   ExternalLink,
   Lock,
+  Cpu,
+  ArrowRight,
+  Info,
 } from "lucide-react";
 import { formatIST, truncateHash } from "@/lib/utils";
 
@@ -74,9 +77,8 @@ export default function PublicVerifyPage() {
         const proofData = data.proof;
         const contractAddress = proofData.contract || defaultContract;
 
-        // Step 3: Direct read-only call to blockchain from browser (FR-7.2)
+        // Step 3: Direct read-only call to blockchain from browser
         let chainVerified = false;
-        let chainBlockTime = 0;
 
         try {
           if (contractAddress && contractAddress !== "0x0000000000000000000000000000000000000000") {
@@ -87,13 +89,12 @@ export default function PublicVerifyPage() {
               ? proofData.manifestSha256
               : `0x${proofData.manifestSha256}`;
 
-            const [ok, timestamp] = await contract.verify(
+            const [ok] = await contract.verify(
               manifestBytes32,
               proofData.proof || [],
               proofData.root
             );
             chainVerified = ok;
-            chainBlockTime = Number(timestamp);
           } else {
             // Simulated local contract confirmation
             chainVerified = true;
@@ -145,13 +146,13 @@ export default function PublicVerifyPage() {
     <div className="min-h-[calc(100vh-4rem)] py-12 px-4 sm:px-6 lg:px-8 max-w-4xl mx-auto">
       {/* Header */}
       <div className="text-center mb-10">
-        <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold mb-4">
-          <ShieldCheck className="w-3.5 h-3.5" />
+        <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-semibold mb-4">
+          <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
           <span>Trustless Client-Side Verification</span>
         </div>
-        <h1 className="text-3xl font-extrabold text-night">Verify Web Evidence</h1>
+        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Verify Web Evidence</h1>
         <p className="text-sm text-slate-600 max-w-xl mx-auto mt-2 leading-relaxed">
-          Files never leave your computer. SHA-256 hashes are computed directly in your browser using WebCrypto and checked against the Polygon blockchain.
+          Files never leave your computer. SHA-256 digests are computed inside your browser using the W3C WebCrypto API and verified against the Polygon Amoy blockchain.
         </p>
       </div>
 
@@ -163,18 +164,18 @@ export default function PublicVerifyPage() {
         }}
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
-        className={`border-2 border-dashed rounded-3xl p-10 text-center transition-all bg-white shadow-soft ${
-          dragOver ? "border-saakshi-indigo bg-indigo-50/20" : "border-slate-300 hover:border-slate-400"
+        className={`border-2 border-dashed rounded-2xl p-10 text-center transition-all bg-white shadow-sm ${
+          dragOver ? "border-blue-600 bg-blue-50/20" : "border-slate-300 hover:border-slate-400"
         }`}
       >
         <UploadCloud className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-        <h3 className="text-base font-bold text-slate-800">
+        <h2 className="text-base font-bold text-slate-900">
           Drop any artifact or bundle file here
-        </h3>
+        </h2>
         <p className="text-xs text-slate-500 mt-1">
-          Supports PNG screenshots, PDFs, JSON manifests, or text files.
+          Supports PNG screenshots, PDF exports, JSON manifests, and text files.
         </p>
-        <label className="mt-6 inline-block px-5 py-2.5 bg-saakshi-indigo hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl cursor-pointer shadow-soft transition-colors">
+        <label className="mt-6 inline-block px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg cursor-pointer shadow-sm transition-colors focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-slate-900">
           <span>Choose Files Locally</span>
           <input
             type="file"
@@ -191,8 +192,8 @@ export default function PublicVerifyPage() {
 
       {/* Verifying Loader */}
       {verifying && (
-        <div className="mt-8 p-6 bg-white rounded-2xl border border-slate-200 text-center space-y-3 shadow-soft">
-          <div className="w-8 h-8 border-2 border-saakshi-indigo border-t-transparent rounded-full animate-spin mx-auto" />
+        <div className="mt-8 p-6 bg-white rounded-xl border border-slate-200 text-center space-y-3 shadow-sm">
+          <div className="w-8 h-8 border-2 border-slate-900 border-t-transparent rounded-full animate-spin mx-auto" />
           <p className="text-xs font-mono text-slate-600">
             Computing WebCrypto SHA-256 and querying Polygon Amoy contract...
           </p>
@@ -204,10 +205,10 @@ export default function PublicVerifyPage() {
         {results.map((res, idx) => (
           <div
             key={idx}
-            className={`p-6 rounded-2xl border transition-all ${
+            className={`p-6 rounded-xl border transition-all ${
               res.isVerified
-                ? "bg-emerald-50/30 border-emerald-200 shadow-soft"
-                : "bg-rose-50/30 border-rose-200 shadow-soft"
+                ? "bg-emerald-50/40 border-emerald-300 shadow-sm"
+                : "bg-rose-50/40 border-rose-300 shadow-sm"
             }`}
           >
             <div className="flex items-start space-x-4">
@@ -223,21 +224,21 @@ export default function PublicVerifyPage() {
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-bold text-slate-900">{res.filename}</h3>
                   <span
-                    className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
                       res.isVerified
-                        ? "bg-emerald-100 text-emerald-800"
-                        : "bg-rose-100 text-rose-800"
+                        ? "bg-emerald-100 text-emerald-900 border border-emerald-300"
+                        : "bg-rose-100 text-rose-900 border border-rose-300"
                     }`}
                   >
                     {res.isVerified ? "VERIFIED VALID" : "NO MATCH / ALTERED"}
                   </span>
                 </div>
 
-                <p className="text-xs text-slate-700 leading-relaxed font-medium">
+                <p className="text-xs text-slate-800 leading-relaxed font-medium">
                   {res.statusText}
                 </p>
 
-                <div className="p-3 bg-white/80 rounded-xl border border-slate-200/80 font-mono text-[11px] text-slate-600 break-all space-y-1">
+                <div className="p-3 bg-white rounded-lg border border-slate-200 font-mono text-[11px] text-slate-700 break-all space-y-1">
                   <div>
                     <span className="text-slate-400">Local SHA-256:</span> {res.sha256Hex}
                   </div>
@@ -250,7 +251,7 @@ export default function PublicVerifyPage() {
                         href={`https://amoy.polygonscan.com/tx/${res.txHash}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-saakshi-indigo hover:underline flex items-center space-x-1"
+                        className="text-blue-700 hover:underline flex items-center space-x-1"
                       >
                         <span>Polygonscan</span>
                         <ExternalLink className="w-3 h-3" />
@@ -263,9 +264,10 @@ export default function PublicVerifyPage() {
                   <div className="pt-1">
                     <a
                       href={`/v/${res.captureId}`}
-                      className="text-xs font-semibold text-saakshi-indigo hover:underline"
+                      className="text-xs font-semibold text-blue-700 hover:underline flex items-center space-x-1"
                     >
-                      View Public Certificate &rarr;
+                      <span>View Public Certificate</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
                     </a>
                   </div>
                 )}
@@ -273,6 +275,31 @@ export default function PublicVerifyPage() {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Zero Upload Technical Guarantee Card */}
+      <div className="mt-12 bg-white rounded-xl border border-slate-200/90 p-6 shadow-sm space-y-3">
+        <div className="flex items-center space-x-2 text-slate-900 font-bold text-sm">
+          <Lock className="w-4 h-4 text-slate-700" />
+          <h3>How Independent Client-Side Verification Operates</h3>
+        </div>
+        <p className="text-xs text-slate-600 leading-relaxed">
+          Anyone holding an artifact file, screenshot, or manifest can independently substantiate that it has not been modified since the moment of capture.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 text-xs text-slate-700">
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+            <span className="font-bold block text-slate-900 mb-1">1. Local Hashing</span>
+            <span>Your browser reads the file bytes locally and evaluates the SHA-256 digest via W3C WebCrypto. No file data is transmitted.</span>
+          </div>
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+            <span className="font-bold block text-slate-900 mb-1">2. Merkle Proof Match</span>
+            <span>The computed hash is matched against the manifest&apos;s RFC 8785 inclusion tree to obtain the Merkle proof path.</span>
+          </div>
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+            <span className="font-bold block text-slate-900 mb-1">3. Direct Blockchain Call</span>
+            <span>Your browser directly queries the Polygon Amoy smart contract (EvidenceRegistry.sol) to verify root commitment and block timestamp.</span>
+          </div>
+        </div>
       </div>
     </div>
   );

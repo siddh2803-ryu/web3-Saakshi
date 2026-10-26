@@ -1,4 +1,4 @@
-# Saakshi (साक्षी) 🛡️
+# Saakshi (साक्षी)
 
 **An AI witness for the internet.** Agentic, tamper-proof, court-ready web evidence. Captured by TinyFish web agents, fingerprinted with SHA-256, and anchored on Polygon.
 
@@ -9,7 +9,7 @@ Built by **Team Eclipse** for **KRITICAL HACKS '26** (AssetMerkle &times; IGDTUW
 ## 1. Problem & Innovation
 Harassing social posts, fraudulent job offers, consumer scams, and defamatory content are frequently edited or deleted within hours. Victims rely on device screenshots, which courts and platforms distrust because client-side screenshots are easily altered with DevTools or image editors.
 
-Under **Section 63(4) of the Bharatiya Sakshya Adhiniyam, 2023 (BSA)**—upheld by the Supreme Court of India in *Pune Bar Association v. Union of India* (May 2026)—electronic evidence must be accompanied by a certificate disclosing the record's cryptographic hash value and details of lawful custody.
+Under **Section 63(4) of the Bharatiya Sakshya Adhiniyam, 2023 (BSA)**, upheld by the Supreme Court of India in *Pune Bar Association v. Union of India* (May 2026), electronic evidence must be accompanied by a certificate disclosing the record's cryptographic hash value and details of lawful custody.
 
 **Saakshi automates this entire pipeline:**
 1. Autonomous **TinyFish web agents** browse the target page like a neutral human witness, documenting every action into a replayable step-by-step filmstrip.
@@ -72,7 +72,7 @@ flowchart LR
 Anyone possessing an artifact or manifest can verify its existence and authenticity without trusting Saakshi:
 1. Open `/verify` in any browser.
 2. Drag and drop the file.
-3. The browser calculates the SHA-256 hash locally using `crypto.subtle.digest("SHA-256", bytes)`—the file is never uploaded.
+3. The browser calculates the SHA-256 hash locally using `crypto.subtle.digest("SHA-256", bytes)`; the file is never uploaded.
 4. The browser queries the public Polygon Amoy RPC directly via `eth_call verify(manifestHash, proof, root)`.
 
 ---
@@ -139,7 +139,7 @@ The script independently canonicalizes `manifest.json`, checks all artifact hash
 
 ## 8. Team Eclipse
 Built with dedication for **KRITICAL HACKS '26**:
-- **Siddharth Dhawan** — Lead Full-Stack & Systems Architecture
-- **Pratham Jaiswal** — Web3, Smart Contracts & Merkle Batching
-- **Parnika Agarwal** — TinyFish Agent Orchestration & Pipeline
-- **Navya Khurana** — AI Prompt Engineering, UI/UX & BSA 2023 Research
+- **Siddharth Dhawan**: Lead Full-Stack & Systems Architecture
+- **Pratham Jaiswal**: Web3, Smart Contracts & Merkle Batching
+- **Parnika Agarwal**: TinyFish Agent Orchestration & Pipeline
+- **Navya Khurana**: AI Prompt Engineering, UI/UX & BSA 2023 Research

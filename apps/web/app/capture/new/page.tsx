@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ShieldAlert, ArrowRight, Sparkles, CheckCircle2, AlertCircle } from "lucide-react";
+import { ShieldAlert, ArrowRight, Terminal, CheckCircle2, AlertCircle, Cpu, FileCheck } from "lucide-react";
 
 export default function NewCapturePage() {
   const router = useRouter();
@@ -65,32 +65,38 @@ export default function NewCapturePage() {
       <div className="max-w-2xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-night">New Evidence Capture</h1>
-          <p className="text-sm text-slate-600 mt-1">
+          <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-md bg-slate-100 border border-slate-200 text-slate-800 text-xs font-semibold mb-3">
+            <Cpu className="w-3.5 h-3.5 text-slate-700" />
+            <span>Autonomous Web Agent Dispatch</span>
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+            New Evidence Capture
+          </h1>
+          <p className="text-sm text-slate-600 mt-1 leading-relaxed">
             Deploy an automated TinyFish agent to view, record, and fingerprint web content before it is modified or deleted.
           </p>
         </div>
 
         {/* Demo Fast-Fill Banner */}
-        <div className="mb-6 p-4 bg-indigo-50 border border-indigo-100 rounded-2xl flex items-center justify-between gap-4">
+        <div className="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-4 shadow-sm">
           <div className="flex items-center space-x-3">
-            <Sparkles className="w-5 h-5 text-saakshi-indigo shrink-0" />
-            <div className="text-xs text-indigo-950">
-              <span className="font-bold">KRITICAL HACKS &apos;26 Demo Post:</span> Click to load the pre-configured Chirp scam post for quick evaluation.
+            <Terminal className="w-4 h-4 text-slate-700 shrink-0" />
+            <div className="text-xs text-slate-800">
+              <span className="font-bold">KRITICAL HACKS &apos;26 Benchmark Target:</span> Load pre-configured Chirp fraud post for testing.
             </div>
           </div>
           <button
             type="button"
             onClick={handleFillSandbox}
-            className="px-3 py-1.5 bg-saakshi-indigo text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 whitespace-nowrap transition-colors"
+            className="px-3 py-1.5 bg-slate-900 text-white text-xs font-semibold rounded-lg hover:bg-slate-800 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
           >
-            Auto-Fill
+            Auto-Fill Target
           </button>
         </div>
 
         {/* Error Alert */}
         {errorMsg && (
-          <div className="mb-6 p-4 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl flex items-center space-x-2">
+          <div className="mb-6 p-4 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-lg flex items-center space-x-2">
             <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
             <span>{errorMsg}</span>
           </div>
@@ -99,12 +105,12 @@ export default function NewCapturePage() {
         {/* Form Card */}
         <form
           onSubmit={handleSubmit}
-          className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200/80 shadow-soft space-y-6"
+          className="bg-white p-6 sm:p-8 rounded-xl border border-slate-200/90 shadow-sm space-y-6"
         >
           {/* Target URL */}
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
-              Target Web URL <span className="text-rose-500">*</span>
+              Target Web URL <span className="text-rose-600">*</span>
             </label>
             <input
               type="text"
@@ -112,10 +118,10 @@ export default function NewCapturePage() {
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="https://example.com/post/12345 or /sandbox/post/internship-scam-alert"
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-saakshi-indigo"
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-lg text-sm font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:bg-white transition-colors"
             />
             <p className="text-[11px] text-slate-500 mt-1.5">
-              Public web pages, social posts, forum threads, or job listings.
+              Public web pages, social posts, forum discussions, or listings. No authentication credentials permitted.
             </p>
           </div>
 
@@ -123,17 +129,17 @@ export default function NewCapturePage() {
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                Investigation Focus / Goal (Optional)
+                Forensic Focus / Objective (Optional)
               </label>
-              <span className="text-[10px] text-slate-400">{goal.length}/300 chars</span>
+              <span className="text-[10px] text-slate-400 font-mono">{goal.length}/300 chars</span>
             </div>
             <textarea
               maxLength={300}
               rows={3}
               value={goal}
               onChange={(e) => setGoal(e.target.value)}
-              placeholder="e.g. Capture the post, caption, author profile, and top comments acknowledging payment."
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-saakshi-indigo"
+              placeholder="e.g. Capture the primary post body, author handle, UPI payment ID, and replies warning of unauthorized charges."
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:bg-white transition-colors"
             />
           </div>
 
@@ -146,15 +152,15 @@ export default function NewCapturePage() {
               <button
                 type="button"
                 onClick={() => setMode("standard")}
-                className={`p-3.5 rounded-xl border text-left transition-all ${
+                className={`p-3.5 rounded-lg border text-left transition-all ${
                   mode === "standard"
-                    ? "border-saakshi-indigo bg-indigo-50/40 text-slate-900 shadow-sm"
-                    : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
+                    ? "border-slate-900 bg-slate-50 text-slate-900 shadow-sm"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold">Standard Capture</span>
-                  {mode === "standard" && <CheckCircle2 className="w-4 h-4 text-saakshi-indigo" />}
+                  <span className="text-xs font-bold text-slate-900">Standard Capture</span>
+                  {mode === "standard" && <CheckCircle2 className="w-4 h-4 text-slate-900" />}
                 </div>
                 <p className="text-[11px] text-slate-500 mt-1">
                   Budget: 15 agent steps &bull; up to 20 comments &bull; ~60 seconds.
@@ -164,15 +170,15 @@ export default function NewCapturePage() {
               <button
                 type="button"
                 onClick={() => setMode("deep")}
-                className={`p-3.5 rounded-xl border text-left transition-all ${
+                className={`p-3.5 rounded-lg border text-left transition-all ${
                   mode === "deep"
-                    ? "border-saakshi-indigo bg-indigo-50/40 text-slate-900 shadow-sm"
-                    : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
+                    ? "border-slate-900 bg-slate-50 text-slate-900 shadow-sm"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold">Deep Forensics</span>
-                  {mode === "deep" && <CheckCircle2 className="w-4 h-4 text-saakshi-indigo" />}
+                  <span className="text-xs font-bold text-slate-900">Deep Forensics</span>
+                  {mode === "deep" && <CheckCircle2 className="w-4 h-4 text-slate-900" />}
                 </div>
                 <p className="text-[11px] text-slate-500 mt-1">
                   Budget: 30 agent steps &bull; up to 60 comments &bull; ~120 seconds.
@@ -189,10 +195,10 @@ export default function NewCapturePage() {
                 required
                 checked={consent}
                 onChange={(e) => setConsent(e.target.checked)}
-                className="mt-1 w-4 h-4 text-saakshi-indigo rounded border-slate-300 focus:ring-saakshi-indigo"
+                className="mt-1 w-4 h-4 text-slate-900 rounded border-slate-300 focus:ring-slate-900"
               />
               <span className="text-xs text-slate-600 leading-relaxed">
-                I am preserving content that concerns me or that I have a legitimate reason to preserve. I will not use Saakshi to stalk, harass, or infringe upon the privacy of any individual.
+                I confirm that I am preserving public web content for a legitimate legal, regulatory, or personal dispute purpose. I will not use Saakshi for stalking, harassment, or unlawful surveillance.
               </span>
             </label>
           </div>
@@ -201,9 +207,9 @@ export default function NewCapturePage() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full py-3.5 bg-saakshi-indigo hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold text-sm rounded-xl shadow-soft flex items-center justify-center space-x-2 transition-all"
+            className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-semibold text-sm rounded-lg shadow-sm flex items-center justify-center space-x-2 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-slate-900"
           >
-            <span>{submitting ? "Initiating TinyFish Agent..." : "Launch Evidence Capture"}</span>
+            <span>{submitting ? "Initiating Autonomous Agent..." : "Launch Evidence Capture"}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>

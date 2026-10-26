@@ -10,20 +10,23 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "#F1F5F9",
+        background: "#F8FAFC",
         night: {
-          DEFAULT: "#1E1B4B",
-          50: "#EEF2FF",
-          100: "#E0E7FF",
-          900: "#1E1B4B",
+          DEFAULT: "#0F172A",
+          50: "#F8FAFC",
+          100: "#F1F5F9",
+          800: "#1E293B",
+          900: "#0F172A",
         },
         saakshi: {
-          indigo: "#4F46E5",
-          amber: "#F59E0B",
-          teal: "#0D9488",
-          rose: "#E11D48",
-          slate: "#64748B",
-          bg: "#F1F5F9",
+          indigo: "#1E40AF",
+          blue: "#2563EB",
+          amber: "#D97706",
+          emerald: "#059669",
+          teal: "#0F766E",
+          rose: "#DC2626",
+          slate: "#475569",
+          bg: "#F8FAFC",
         },
       },
       fontFamily: {

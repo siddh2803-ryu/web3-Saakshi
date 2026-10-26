@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -22,6 +22,8 @@ import {
   Film,
   Lock,
   Search,
+  Activity,
+  ArrowRight,
 } from "lucide-react";
 import { formatIST, truncateHash } from "@/lib/utils";
 
@@ -44,7 +46,7 @@ export default function CaptureDetailPage() {
   const [watchDetails, setWatchDetails] = useState<any>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
 
-  const fetchCapture = async () => {
+  const fetchCapture = useCallback(async () => {
     try {
       const res = await fetch(`/api/captures/${captureId}`);
       if (!res.ok) throw new Error("Capture not found");
@@ -65,7 +67,7 @@ export default function CaptureDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [captureId]);
 
   useEffect(() => {
     fetchCapture();
@@ -85,7 +87,7 @@ export default function CaptureDetailPage() {
       }
     }, 3000);
     return () => clearInterval(interval);
-  }, [captureId, capture?.status]);
+  }, [fetchCapture, capture?.status]);
 
   const copyToClipboard = (text: string, type: "hash" | "text") => {
     navigator.clipboard.writeText(text);
@@ -174,7 +176,7 @@ export default function CaptureDetailPage() {
   if (loading) {
     return (
       <div className="min-h-[70vh] flex flex-col items-center justify-center space-y-4">
-        <div className="w-8 h-8 border-2 border-saakshi-indigo border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-slate-900 border-t-transparent rounded-full animate-spin" />
         <p className="text-xs text-slate-500 font-mono">Loading capture session...</p>
       </div>
     );
@@ -183,13 +185,13 @@ export default function CaptureDetailPage() {
   if (errorMsg || !capture) {
     return (
       <div className="min-h-[70vh] flex items-center justify-center p-4">
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 text-center max-w-md">
-          <ShieldAlert className="w-8 h-8 text-rose-500 mx-auto mb-2" />
+        <div className="bg-white p-6 rounded-xl border border-slate-200 text-center max-w-md shadow-sm">
+          <ShieldAlert className="w-8 h-8 text-rose-600 mx-auto mb-2" />
           <h2 className="text-base font-bold text-slate-900">Capture Not Found</h2>
           <p className="text-xs text-slate-500 mt-1">{errorMsg || "Invalid capture ID"}</p>
           <Link
             href="/dashboard"
-            className="mt-4 inline-block px-4 py-2 bg-saakshi-indigo text-white text-xs font-semibold rounded-lg"
+            className="mt-4 inline-block px-4 py-2 bg-slate-900 text-white text-xs font-semibold rounded-lg hover:bg-slate-800"
           >
             Go to Dashboard
           </Link>
@@ -211,30 +213,30 @@ export default function CaptureDetailPage() {
   return (
     <div className="min-h-[calc(100vh-4rem)] py-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
       {/* Top Banner Header */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-soft mb-6">
+      <div className="bg-white rounded-xl border border-slate-200/90 p-6 shadow-sm mb-6">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
             <div className="flex items-center space-x-2.5">
-              <span className="text-xs font-mono font-bold text-slate-500">{capture.id}</span>
+              <span className="text-xs font-mono font-bold text-slate-600">{capture.id}</span>
               {/* Status Badge */}
               <span
-                className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                className={`px-2.5 py-0.5 rounded-md text-xs font-bold ${
                   capture.status === "ANCHORED"
-                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                    ? "bg-emerald-50 text-emerald-800 border border-emerald-300"
                     : capture.status === "READY"
-                    ? "bg-indigo-50 text-saakshi-indigo border border-indigo-200"
+                    ? "bg-blue-50 text-blue-800 border border-blue-200"
                     : capture.status === "PARTIAL"
                     ? "bg-amber-50 text-amber-800 border border-amber-200"
                     : capture.status === "FAILED"
-                    ? "bg-rose-50 text-rose-700 border border-rose-200"
-                    : "bg-amber-50 text-amber-800 animate-pulse"
+                    ? "bg-rose-50 text-rose-800 border border-rose-200"
+                    : "bg-amber-50 text-amber-800 border border-amber-200"
                 }`}
               >
                 {capture.status}
               </span>
               {capture.isWatching && (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200 flex items-center space-x-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
+                <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-300 flex items-center space-x-1">
+                  <span className="w-1.5 h-1.5 rounded-sm bg-rose-600" />
                   <span>WATCHING</span>
                 </span>
               )}
@@ -254,7 +256,7 @@ export default function CaptureDetailPage() {
                     href={`https://amoy.polygonscan.com/tx/${capture.anchoring.txHash}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-saakshi-indigo hover:underline flex items-center space-x-1"
+                    className="text-blue-700 hover:underline flex items-center space-x-1"
                   >
                     <span>Polygonscan</span>
                     <ExternalLink className="w-3 h-3" />
@@ -270,7 +272,7 @@ export default function CaptureDetailPage() {
               <button
                 onClick={handleAnchorNow}
                 disabled={anchoringLoading}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl shadow-sm flex items-center space-x-1.5 transition-colors disabled:opacity-50"
+                className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold rounded-lg shadow-sm flex items-center space-x-1.5 transition-colors disabled:opacity-50"
               >
                 <Layers className="w-3.5 h-3.5" />
                 <span>{anchoringLoading ? "Anchoring..." : "Anchor On-Chain"}</span>
@@ -281,7 +283,7 @@ export default function CaptureDetailPage() {
               <>
                 <a
                   href={`/api/captures/${capture.id}/bundle`}
-                  className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl shadow-sm flex items-center space-x-1.5 transition-colors"
+                  className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg shadow-sm flex items-center space-x-1.5 transition-colors"
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span>Bundle (ZIP)</span>
@@ -290,15 +292,15 @@ export default function CaptureDetailPage() {
                 <a
                   href={`/api/captures/${capture.id}/certificate`}
                   target="_blank"
-                  className="px-3.5 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl shadow-sm flex items-center space-x-1.5 transition-colors"
+                  className="px-3.5 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 text-xs font-semibold rounded-lg shadow-sm flex items-center space-x-1.5 transition-colors"
                 >
-                  <FileText className="w-3.5 h-3.5 text-saakshi-indigo" />
+                  <FileText className="w-3.5 h-3.5 text-blue-700" />
                   <span>s.63(4) Draft PDF</span>
                 </a>
 
                 <button
                   onClick={handleCreateShare}
-                  className="px-3 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl shadow-sm flex items-center space-x-1 transition-colors"
+                  className="px-3 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 text-xs font-semibold rounded-lg shadow-sm flex items-center space-x-1 transition-colors"
                   title="Generate Expiring Share Link"
                 >
                   <Share2 className="w-3.5 h-3.5" />
@@ -310,9 +312,9 @@ export default function CaptureDetailPage() {
         </div>
 
         {shareUrl && (
-          <div className="mt-4 p-3 bg-indigo-50 border border-indigo-100 rounded-xl flex items-center justify-between text-xs text-indigo-900">
+          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between text-xs text-blue-950">
             <span className="truncate mr-2 font-mono">Share Link: {shareUrl}</span>
-            <span className="font-semibold text-emerald-600 whitespace-nowrap">Copied to clipboard!</span>
+            <span className="font-semibold text-emerald-700 whitespace-nowrap">Copied to clipboard!</span>
           </div>
         )}
       </div>
@@ -321,10 +323,10 @@ export default function CaptureDetailPage() {
       {isRunning ? (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left: TinyFish Live Streaming Preview */}
-          <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200/80 p-6 shadow-soft flex flex-col">
+          <div className="lg:col-span-7 bg-white rounded-xl border border-slate-200/90 p-6 shadow-sm flex flex-col">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
+                <span className="w-2.5 h-2.5 rounded-sm bg-rose-600" />
                 <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
                   TinyFish Live Agent View
                 </h2>
@@ -334,7 +336,7 @@ export default function CaptureDetailPage() {
               </span>
             </div>
 
-            <div className="relative w-full aspect-video bg-slate-950 rounded-xl overflow-hidden flex items-center justify-center border border-slate-800">
+            <div className="relative w-full aspect-video bg-slate-950 rounded-lg overflow-hidden flex items-center justify-center border border-slate-800">
               {capture.tinyfish?.streamingUrl ? (
                 <iframe
                   src={capture.tinyfish.streamingUrl}
@@ -343,7 +345,7 @@ export default function CaptureDetailPage() {
                 />
               ) : (
                 <div className="text-center p-6 space-y-3">
-                  <div className="w-10 h-10 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin mx-auto" />
+                  <div className="w-10 h-10 border-2 border-slate-400 border-t-transparent rounded-full animate-spin mx-auto" />
                   <p className="text-xs text-slate-300 font-mono">
                     Initializing cloud browser session...
                   </p>
@@ -353,20 +355,20 @@ export default function CaptureDetailPage() {
                 </div>
               )}
             </div>
-            <p className="text-[11px] text-slate-400 mt-3 text-center">
+            <p className="text-[11px] text-slate-500 mt-3 text-center">
               Agent runs with neutral stealth profile. Form inputs, sign-ins, and external links are prohibited.
             </p>
           </div>
 
           {/* Right: Stage Timeline & Event Logs */}
-          <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200/80 p-6 shadow-soft flex flex-col">
+          <div className="lg:col-span-5 bg-white rounded-xl border border-slate-200/90 p-6 shadow-sm flex flex-col">
             <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4">
               Forensic Pipeline Progress
             </h2>
             <div className="space-y-4 flex-1 overflow-y-auto max-h-[420px] pr-2">
               {(capture.events || []).map((ev: any, idx: number) => (
                 <div key={idx} className="flex items-start space-x-3 text-xs">
-                  <div className="mt-0.5 p-1 bg-indigo-50 text-saakshi-indigo rounded-full">
+                  <div className="mt-0.5 p-1 bg-slate-100 text-slate-700 rounded-md">
                     <CheckCircle2 className="w-3.5 h-3.5" />
                   </div>
                   <div>
@@ -383,7 +385,7 @@ export default function CaptureDetailPage() {
         /* READY / COMPLETED STATE: Tabs View */
         <div className="space-y-6">
           {/* Tabs Navigation */}
-          <div className="flex items-center space-x-2 border-b border-slate-200/80 pb-2 overflow-x-auto">
+          <div className="flex items-center space-x-2 border-b border-slate-200 pb-2 overflow-x-auto">
             {[
               { id: "overview", label: "Overview & Facts" },
               { id: "artifacts", label: `Artifacts (${capture.artifacts?.length || 0})` },
@@ -395,9 +397,9 @@ export default function CaptureDetailPage() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`px-4 py-2 text-xs font-semibold rounded-xl whitespace-nowrap transition-colors ${
+                className={`px-4 py-2 text-xs font-semibold rounded-lg whitespace-nowrap transition-colors ${
                   activeTab === tab.id
-                    ? "bg-saakshi-indigo text-white shadow-sm"
+                    ? "bg-slate-900 text-white shadow-sm"
                     : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
                 }`}
               >
@@ -411,8 +413,8 @@ export default function CaptureDetailPage() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2 space-y-6">
                 {/* AI Factual Summary Card */}
-                <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-soft">
-                  <h3 className="text-sm font-bold text-night uppercase tracking-wider mb-2">
+                <div className="bg-white p-6 rounded-xl border border-slate-200/90 shadow-sm">
+                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-2">
                     Executive Summary (English)
                   </h3>
                   <p className="text-sm text-slate-700 leading-relaxed">
@@ -420,7 +422,7 @@ export default function CaptureDetailPage() {
                       "Factual summary generated from verified observations."}
                   </p>
 
-                  <h3 className="text-sm font-bold text-night uppercase tracking-wider mt-6 mb-2">
+                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mt-6 mb-2">
                     तथ्यात्मक सारांश (Hindi)
                   </h3>
                   <p className="text-sm text-slate-700 leading-relaxed font-hindi">
@@ -430,14 +432,14 @@ export default function CaptureDetailPage() {
 
                 {/* Key Claims */}
                 {capture.aiAnalysis?.key_claims && (
-                  <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-soft">
-                    <h3 className="text-sm font-bold text-night uppercase tracking-wider mb-3">
+                  <div className="bg-white p-6 rounded-xl border border-slate-200/90 shadow-sm">
+                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">
                       Observed Claims &amp; Assertions
                     </h3>
                     <ul className="space-y-2">
                       {capture.aiAnalysis.key_claims.map((claim: string, idx: number) => (
                         <li key={idx} className="text-xs text-slate-700 flex items-start space-x-2">
-                          <span className="w-1.5 h-1.5 rounded-full bg-saakshi-indigo mt-1.5 shrink-0" />
+                          <span className="w-1.5 h-1.5 rounded-sm bg-slate-700 mt-1.5 shrink-0" />
                           <span>{claim}</span>
                         </li>
                       ))}
@@ -449,22 +451,22 @@ export default function CaptureDetailPage() {
               {/* Sidebar Info: Identified Parties & Categories */}
               <div className="space-y-6">
                 {/* Possible Issue Categories */}
-                <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-soft">
+                <div className="bg-white p-6 rounded-xl border border-slate-200/90 shadow-sm">
                   <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
                     Potential Issue Classification
                   </h3>
                   <div className="space-y-3">
                     {(capture.aiAnalysis?.possible_issue_categories || []).map(
                       (cat: any, idx: number) => (
-                        <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                        <div key={idx} className="p-3 bg-slate-50 rounded-lg border border-slate-200">
                           <div className="flex items-center justify-between mb-1">
                             <span className="text-xs font-bold text-slate-900 capitalize">
                               {cat.category.replace("_", " ")}
                             </span>
                             <span
-                              className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                              className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${
                                 cat.confidence === "high"
-                                  ? "bg-rose-100 text-rose-700"
+                                  ? "bg-rose-100 text-rose-800"
                                   : "bg-amber-100 text-amber-800"
                               }`}
                             >
@@ -479,8 +481,8 @@ export default function CaptureDetailPage() {
                 </div>
 
                 {/* Caveat */}
-                <div className="p-4 bg-slate-100/70 border border-slate-200 rounded-xl text-[11px] text-slate-500 leading-relaxed">
-                  <span className="font-bold text-slate-700">Legal Disclaimer:</span> AI analysis is provided as an objective drafting aid and does not constitute judicial determination or certified legal advice.
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-600 leading-relaxed">
+                  <span className="font-bold text-slate-800">Legal Disclaimer:</span> AI analysis is provided as an objective drafting aid and does not constitute judicial determination or certified legal advice.
                 </div>
               </div>
             </div>
@@ -491,10 +493,10 @@ export default function CaptureDetailPage() {
             <div className="space-y-6">
               {/* Agent Step Filmstrip */}
               {capture.artifacts?.some((a: any) => a.kind === "agent_step_screenshot") && (
-                <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-soft">
+                <div className="bg-white p-6 rounded-xl border border-slate-200/90 shadow-sm">
                   <div className="flex items-center space-x-2 mb-4">
-                    <Film className="w-4 h-4 text-saakshi-indigo" />
-                    <h3 className="text-sm font-bold text-night uppercase tracking-wider">
+                    <Film className="w-4 h-4 text-slate-700" />
+                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
                       Agent Forensic Action Filmstrip
                     </h3>
                   </div>
@@ -504,7 +506,7 @@ export default function CaptureDetailPage() {
                       .map((stepArt: any) => (
                         <div
                           key={stepArt.id}
-                          className="min-w-[220px] max-w-[220px] bg-slate-50 border border-slate-200 rounded-xl overflow-hidden flex flex-col shrink-0"
+                          className="min-w-[220px] max-w-[220px] bg-slate-50 border border-slate-200 rounded-lg overflow-hidden flex flex-col shrink-0"
                         >
                           <img
                             src={`/api/captures/${capture.id}/artifacts/${stepArt.id}`}
@@ -515,7 +517,7 @@ export default function CaptureDetailPage() {
                             <span className="font-semibold text-slate-900 line-clamp-2">
                               {stepArt.action || `Step ${stepArt.stepIndex}`}
                             </span>
-                            <span className="text-[10px] text-slate-400 font-mono mt-2">
+                            <span className="text-[10px] text-slate-500 font-mono mt-2">
                               {truncateHash(stepArt.sha256, 8, 6)}
                             </span>
                           </div>
@@ -526,8 +528,8 @@ export default function CaptureDetailPage() {
               )}
 
               {/* Complete Artifacts Hash Table */}
-              <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-soft">
-                <h3 className="text-sm font-bold text-night uppercase tracking-wider mb-4">
+              <div className="bg-white p-6 rounded-xl border border-slate-200/90 shadow-sm">
+                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4">
                   Plaintext Fingerprints (SHA-256)
                 </h3>
                 <div className="divide-y divide-slate-100">
@@ -572,16 +574,16 @@ export default function CaptureDetailPage() {
 
           {/* TAB 3: BLOCKCHAIN PROOF */}
           {activeTab === "proof" && (
-            <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200/80 shadow-soft space-y-6">
+            <div className="bg-white p-6 sm:p-8 rounded-xl border border-slate-200/90 shadow-sm space-y-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-lg font-bold text-night">Merkle &amp; On-Chain Verification</h3>
+                  <h3 className="text-lg font-bold text-slate-900">Merkle &amp; On-Chain Verification</h3>
                   <p className="text-xs text-slate-500 mt-0.5">
                     Immutable timestamp anchored into the Polygon Amoy EvidenceRegistry contract.
                   </p>
                 </div>
                 {capture.anchoring?.txHash && (
-                  <span className="px-3 py-1 bg-emerald-50 text-emerald-700 text-xs font-semibold rounded-full border border-emerald-200">
+                  <span className="px-3 py-1 bg-emerald-50 text-emerald-800 text-xs font-semibold rounded-md border border-emerald-300">
                     Anchored on Polygon
                   </span>
                 )}
@@ -591,7 +593,7 @@ export default function CaptureDetailPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-100">
                   <div className="space-y-4 text-xs font-mono">
                     <div>
-                      <span className="font-sans font-semibold text-slate-500 block mb-1">
+                      <span className="font-sans font-semibold text-slate-600 block mb-1">
                         Canonical Manifest SHA-256:
                       </span>
                       <span className="p-2 bg-slate-50 border border-slate-200 rounded-lg block break-all text-slate-800">
@@ -600,7 +602,7 @@ export default function CaptureDetailPage() {
                     </div>
 
                     <div>
-                      <span className="font-sans font-semibold text-slate-500 block mb-1">
+                      <span className="font-sans font-semibold text-slate-600 block mb-1">
                         Merkle Root:
                       </span>
                       <span className="p-2 bg-slate-50 border border-slate-200 rounded-lg block break-all text-slate-800">
@@ -609,14 +611,14 @@ export default function CaptureDetailPage() {
                     </div>
 
                     <div>
-                      <span className="font-sans font-semibold text-slate-500 block mb-1">
+                      <span className="font-sans font-semibold text-slate-600 block mb-1">
                         Transaction Hash:
                       </span>
                       <a
                         href={`https://amoy.polygonscan.com/tx/${capture.anchoring.txHash}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="p-2 bg-slate-50 border border-slate-200 rounded-lg block break-all text-saakshi-indigo hover:underline flex items-center justify-between"
+                        className="p-2 bg-slate-50 border border-slate-200 rounded-lg block break-all text-blue-700 hover:underline flex items-center justify-between"
                       >
                         <span>{capture.anchoring.txHash}</span>
                         <ExternalLink className="w-3.5 h-3.5 shrink-0 ml-2" />
@@ -642,7 +644,7 @@ export default function CaptureDetailPage() {
                     <div className="pt-2">
                       <Link
                         href={`/v/${capture.id}`}
-                        className="inline-flex items-center space-x-1.5 text-saakshi-indigo font-semibold hover:underline"
+                        className="inline-flex items-center space-x-1.5 text-blue-700 font-semibold hover:underline"
                       >
                         <span>View Public Trustless Certificate</span>
                         <ExternalLink className="w-3.5 h-3.5" />
@@ -659,7 +661,7 @@ export default function CaptureDetailPage() {
                   <button
                     onClick={handleAnchorNow}
                     disabled={anchoringLoading}
-                    className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl transition-all"
+                    className="px-6 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold rounded-lg transition-all"
                   >
                     {anchoringLoading ? "Anchoring..." : "Anchor Root Now"}
                   </button>
@@ -670,10 +672,10 @@ export default function CaptureDetailPage() {
 
           {/* TAB 4: DELETION WATCH */}
           {activeTab === "watch" && (
-            <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200/80 shadow-soft space-y-6">
+            <div className="bg-white p-6 sm:p-8 rounded-xl border border-slate-200/90 shadow-sm space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                  <h3 className="text-lg font-bold text-night">TinyFish Monitor: Edit &amp; Deletion Watch</h3>
+                  <h3 className="text-lg font-bold text-slate-900">TinyFish Monitor: Edit &amp; Deletion Watch</h3>
                   <p className="text-xs text-slate-500 mt-0.5">
                     Regularly re-fetches URL, normalizes content, and checks against baseline hash.
                   </p>
@@ -682,7 +684,7 @@ export default function CaptureDetailPage() {
                   <button
                     onClick={handleCheckWatchNow}
                     disabled={watchChecking}
-                    className="px-4 py-2 bg-saakshi-indigo hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl flex items-center space-x-1.5 transition-colors disabled:opacity-50"
+                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg flex items-center space-x-1.5 transition-colors disabled:opacity-50"
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${watchChecking ? "animate-spin" : ""}`} />
                     <span>{watchChecking ? "Evaluating Live..." : "Check Now (Demo)"}</span>
@@ -690,7 +692,7 @@ export default function CaptureDetailPage() {
                 ) : (
                   <button
                     onClick={handleCreateWatch}
-                    className="px-4 py-2 bg-saakshi-rose hover:bg-rose-700 text-white text-xs font-semibold rounded-xl flex items-center space-x-1.5 transition-colors"
+                    className="px-4 py-2 bg-rose-700 hover:bg-rose-800 text-white text-xs font-semibold rounded-lg flex items-center space-x-1.5 transition-colors"
                   >
                     <Eye className="w-3.5 h-3.5" />
                     <span>Activate Deletion Watch</span>
@@ -712,7 +714,7 @@ export default function CaptureDetailPage() {
                     {watchEvents.map((wEvent: any) => (
                       <div
                         key={wEvent.id}
-                        className={`p-4 rounded-xl border ${
+                        className={`p-4 rounded-lg border ${
                           wEvent.type === "DELETED"
                             ? "border-rose-200 bg-rose-50/40 text-rose-900"
                             : wEvent.type === "EDITED"
@@ -744,7 +746,7 @@ export default function CaptureDetailPage() {
                           <div className="mt-3">
                             <Link
                               href={`/capture/${wEvent.recaptureId}`}
-                              className="text-xs font-semibold text-saakshi-indigo underline hover:text-indigo-800"
+                              className="text-xs font-semibold text-blue-700 underline hover:text-blue-900"
                             >
                               View Linked Re-Capture &rarr;
                             </Link>
@@ -762,17 +764,17 @@ export default function CaptureDetailPage() {
           {activeTab === "report" && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* English Complaint Draft */}
-              <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-soft flex flex-col justify-between">
+              <div className="bg-white p-6 rounded-xl border border-slate-200/90 shadow-sm flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-bold text-night uppercase tracking-wider">
+                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
                       Complaint Draft (English)
                     </h3>
                     <button
                       onClick={() =>
                         copyToClipboard(capture.aiAnalysis?.complaint_draft_en || "", "text")
                       }
-                      className="px-2.5 py-1 text-xs bg-slate-100 hover:bg-slate-200 rounded-lg flex items-center space-x-1"
+                      className="px-2.5 py-1 text-xs bg-slate-100 hover:bg-slate-200 rounded-md flex items-center space-x-1"
                     >
                       <Copy className="w-3.5 h-3.5" />
                       <span>Copy Draft</span>
@@ -782,23 +784,23 @@ export default function CaptureDetailPage() {
                     readOnly
                     rows={12}
                     value={capture.aiAnalysis?.complaint_draft_en || ""}
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-800 focus:outline-none"
+                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono text-slate-800 focus:outline-none"
                   />
                 </div>
               </div>
 
               {/* Hindi Complaint Draft */}
-              <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-soft flex flex-col justify-between">
+              <div className="bg-white p-6 rounded-xl border border-slate-200/90 shadow-sm flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-bold text-night uppercase tracking-wider">
+                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
                       शिकायत प्रारूप (Hindi)
                     </h3>
                     <button
                       onClick={() =>
                         copyToClipboard(capture.aiAnalysis?.complaint_draft_hi || "", "text")
                       }
-                      className="px-2.5 py-1 text-xs bg-slate-100 hover:bg-slate-200 rounded-lg flex items-center space-x-1"
+                      className="px-2.5 py-1 text-xs bg-slate-100 hover:bg-slate-200 rounded-md flex items-center space-x-1"
                     >
                       <Copy className="w-3.5 h-3.5" />
                       <span>Copy Draft</span>
@@ -808,14 +810,14 @@ export default function CaptureDetailPage() {
                     readOnly
                     rows={12}
                     value={capture.aiAnalysis?.complaint_draft_hi || ""}
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-hindi text-slate-800 focus:outline-none"
+                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-hindi text-slate-800 focus:outline-none"
                   />
                 </div>
               </div>
 
               {/* Official Reporting Portals */}
-              <div className="md:col-span-2 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-soft">
-                <h3 className="text-sm font-bold text-night uppercase tracking-wider mb-4">
+              <div className="md:col-span-2 bg-white p-6 rounded-xl border border-slate-200/90 shadow-sm">
+                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4">
                   Official Reporting Channels in India
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -823,7 +825,7 @@ export default function CaptureDetailPage() {
                     href="https://cybercrime.gov.in"
                     target="_blank"
                     rel="noreferrer"
-                    className="p-4 rounded-xl border border-slate-200 hover:border-saakshi-indigo hover:shadow-card transition-all"
+                    className="p-4 rounded-lg border border-slate-200 hover:border-slate-900 hover:shadow-sm transition-all"
                   >
                     <span className="text-xs font-bold text-slate-900 block">NCRP Cyber Portal</span>
                     <span className="text-[11px] text-slate-500 mt-1 block">
@@ -835,7 +837,7 @@ export default function CaptureDetailPage() {
                     href="https://consumerhelpline.gov.in"
                     target="_blank"
                     rel="noreferrer"
-                    className="p-4 rounded-xl border border-slate-200 hover:border-saakshi-indigo hover:shadow-card transition-all"
+                    className="p-4 rounded-lg border border-slate-200 hover:border-slate-900 hover:shadow-sm transition-all"
                   >
                     <span className="text-xs font-bold text-slate-900 block">Consumer Helpline</span>
                     <span className="text-[11px] text-slate-500 mt-1 block">
@@ -847,7 +849,7 @@ export default function CaptureDetailPage() {
                     href="https://e-jagriti.gov.in"
                     target="_blank"
                     rel="noreferrer"
-                    className="p-4 rounded-xl border border-slate-200 hover:border-saakshi-indigo hover:shadow-card transition-all"
+                    className="p-4 rounded-lg border border-slate-200 hover:border-slate-900 hover:shadow-sm transition-all"
                   >
                     <span className="text-xs font-bold text-slate-900 block">e-Jagriti Commission</span>
                     <span className="text-[11px] text-slate-500 mt-1 block">
@@ -861,13 +863,13 @@ export default function CaptureDetailPage() {
 
           {/* TAB 6: CHAIN OF CUSTODY */}
           {activeTab === "custody" && (
-            <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200/80 shadow-soft space-y-4">
-              <h3 className="text-lg font-bold text-night">Forensic Chain of Custody</h3>
+            <div className="bg-white p-6 sm:p-8 rounded-xl border border-slate-200/90 shadow-sm space-y-4">
+              <h3 className="text-lg font-bold text-slate-900">Forensic Chain of Custody</h3>
               <p className="text-xs text-slate-500">
                 All lifecycle actions (creation, viewing, bundle export, external share, public verification) are logged with cryptographically salted actor identifiers. Key events are signed to the smart contract.
               </p>
               <div className="space-y-3 pt-4 border-t border-slate-100">
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs flex items-center justify-between">
+                <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs flex items-center justify-between">
                   <div>
                     <span className="font-bold text-slate-900">CREATE</span>
                     <p className="text-slate-500 mt-0.5">Capture created by owner: {truncateHash(capture.ownerUid || "anon")}</p>
@@ -875,7 +877,7 @@ export default function CaptureDetailPage() {
                   <span className="text-slate-400 font-mono">{formatIST(capture.createdAt)}</span>
                 </div>
                 {capture.anchoring && (
-                  <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-xs flex items-center justify-between">
+                  <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200 text-xs flex items-center justify-between">
                     <div>
                       <span className="font-bold text-emerald-900">ANCHOR</span>
                       <p className="text-emerald-700 mt-0.5">Committed to Polygon Amoy in block #{capture.anchoring.blockNumber}</p>

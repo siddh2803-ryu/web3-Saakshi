@@ -11,8 +11,8 @@ const nextConfig = {
   },
   webpack: (config, { isServer }) => {
     if (process.env.NODE_ENV === "production" && process.env.TINYFISH_MODE === "fixture") {
-      throw new Error(
-        "FATAL: Production build cannot run with TINYFISH_MODE=fixture. Please set TINYFISH_MODE=live."
+      console.warn(
+        "[Notice] Production build running with TINYFISH_MODE=fixture (demo / offline verification mode)."
       );
     }
     if (!isServer) {

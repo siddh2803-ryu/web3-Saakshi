@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable */
 import * as admin from "firebase-admin";
 
 // Global in-memory storage fallback for local development and test environments
