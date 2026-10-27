@@ -3,10 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "compile": "hardhat compile",
-    "test": "hardhat test",
-    "deploy:amoy": "hardhat run scripts/deploy.ts --network amoy",
-    "deploy:local": "hardhat run scripts/deploy.ts --network localhost"
+    "compile": "node run-hardhat.js compile",
+    "test": "node run-hardhat.js test",
+    "typecheck": "tsc --noEmit",
+    "deploy:amoy": "node run-hardhat.js run scripts/deploy.ts --network amoy",
+    "deploy:local": "node run-hardhat.js run scripts/deploy.ts --network localhost"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
