@@ -1,5 +1,7 @@
 # Saakshi (साक्षी)
 
+[![CI](https://github.com/siddh2803-ryu/web3-Saakshi/actions/workflows/ci.yml/badge.svg)](https://github.com/siddh2803-ryu/web3-Saakshi/actions/workflows/ci.yml)
+
 **An AI witness for the internet.** Agentic, tamper-proof, court-ready web evidence. Captured by TinyFish web agents, fingerprinted with SHA-256, and anchored on Polygon.
 
 Built by **Team Eclipse** for **KRITICAL HACKS '26** (AssetMerkle &times; IGDTUW), Web3 Track.
