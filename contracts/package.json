@@ -5,6 +5,7 @@
   "scripts": {
     "compile": "node run-hardhat.js compile",
     "test": "node run-hardhat.js test",
+    "pretypecheck": "npm run compile",
     "typecheck": "tsc --noEmit",
     "deploy:amoy": "node run-hardhat.js run scripts/deploy.ts --network amoy",
     "deploy:local": "node run-hardhat.js run scripts/deploy.ts --network localhost"
