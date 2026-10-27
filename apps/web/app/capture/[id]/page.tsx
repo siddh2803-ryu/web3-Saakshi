@@ -508,6 +508,7 @@ export default function CaptureDetailPage() {
                           key={stepArt.id}
                           className="min-w-[220px] max-w-[220px] bg-slate-50 border border-slate-200 rounded-lg overflow-hidden flex flex-col shrink-0"
                         >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={`/api/captures/${capture.id}/artifacts/${stepArt.id}`}
                             alt={stepArt.action || "Step"}

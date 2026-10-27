@@ -118,6 +118,7 @@ export default async function PublicProofPage({ params }: PageProps) {
           {/* QR Code */}
           <div className="flex flex-col items-center justify-center p-4 bg-slate-50 rounded-xl border border-slate-200 text-center">
             {qrDataUrl && (
+              /* eslint-disable-next-line @next/next/no-img-element */
               <img
                 src={qrDataUrl}
                 alt="QR Code for Public Proof"

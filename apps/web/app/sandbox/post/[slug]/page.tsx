@@ -61,6 +61,7 @@ export default function ChirpPostPage({ params }: PageProps) {
           <div className="p-6 border-b border-slate-100">
             <div className="flex items-start justify-between">
               <div className="flex items-center space-x-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={post.authorAvatar}
                   alt={post.authorName}
@@ -87,6 +88,7 @@ export default function ChirpPostPage({ params }: PageProps) {
             {/* Optional Image */}
             {post.imageUrl && (
               <div className="mt-4 rounded-lg overflow-hidden border border-slate-200 bg-slate-100">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={post.imageUrl}
                   alt="Post visual attachment"
