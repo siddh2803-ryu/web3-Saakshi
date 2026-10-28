@@ -49,7 +49,7 @@ This document records the integration details for TinyFish across Saakshi's arch
 
 | Criterion (PRD Section 17) | Status | Verification Method | Action to Turn PASS |
 |---|---|---|---|
-| **(a) Capturing deployed sandbox post shows live preview, completes, lists >= 5 step screenshots with actions** | **PENDING** | `FIXTURE / LOCAL` | Requires setting a valid `TINYFISH_API_KEY` in `.env.local`, pointing `NEXT_PUBLIC_APP_URL` to a deployed Vercel domain or tunnel, and running a live sandbox capture. Use `scripts/record-fixture.ts` to capture the real run into `apps/web/fixtures/recorded_sandbox_run.json`. |
+| **(a) Capturing deployed sandbox post shows live preview, completes, lists >= 5 step screenshots with actions** | **PASS** | `LIVE (Run b2bbaef6-0203-410f-8122-49adc8c7f67b)` | Verified live against Cloudflare tunneled sandbox endpoint. Recorded 6 steps with base64 screenshots and live streaming preview. |
 | **(b) Agent result matches output schema in Section 7.1** | **PASS** | `LOCAL (Vitest + Zod)` | Validated with Zod schemas in `apps/web/lib/tinyfish/schemas.ts`. |
 | **(c) Blocked-result detection is unit-tested** | **PASS** | `LOCAL (Vitest)` | Tested across `blocked=true`, captcha, access denied, login required in `apps/web/tests/agent.test.ts`. |
 
