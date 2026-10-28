@@ -73,7 +73,7 @@ export const FIXTURE_METADATA: FixtureMetadata = {
   notes: "Synthetic baseline fixture simulating Chirp sandbox fraud post with 6 steps and screenshots.",
 };
 
-export const FIXTURE_AGENT_RUN: AgentRunResponse & { _metadata: FixtureMetadata } = {
+const SYNTHETIC_AGENT_RUN: AgentRunResponse & { _metadata: FixtureMetadata } = {
   _metadata: FIXTURE_METADATA,
   run_id: "run_fixture_tinyfish_001",
   status: "COMPLETED",
@@ -117,6 +117,17 @@ export const FIXTURE_AGENT_RUN: AgentRunResponse & { _metadata: FixtureMetadata 
     block_reason: null,
   },
 };
+
+import recordedRunJson from "../../fixtures/recorded_sandbox_run.json";
+
+function getActiveFixtureAgentRun(): AgentRunResponse & { _metadata: FixtureMetadata } {
+  if (recordedRunJson && (recordedRunJson as any)._metadata?.source === "recorded") {
+    return recordedRunJson as unknown as AgentRunResponse & { _metadata: FixtureMetadata };
+  }
+  return SYNTHETIC_AGENT_RUN;
+}
+
+export const FIXTURE_AGENT_RUN: AgentRunResponse & { _metadata: FixtureMetadata } = getActiveFixtureAgentRun();
 
 export const FIXTURE_FETCH_RESULT: FetchResult = {
   text: `# Fast-Track Winter Internship Program (Registration Fee Required)

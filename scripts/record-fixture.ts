@@ -13,6 +13,8 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as dotenv from "dotenv";
+import { buildAgentGoal, AGENT_OUTPUT_SCHEMA } from "../apps/web/lib/tinyfish/prompts";
+import { AgentRunResultSchema, AgentRunResponseSchema } from "../apps/web/lib/tinyfish/schemas";
 
 // Load environment variables
 const envPath = path.resolve(process.cwd(), ".env.local");
@@ -84,6 +86,8 @@ async function main() {
   const targetUrl = arg || process.env.SANDBOX_RECORD_URL || "https://saakshi.vercel.app/sandbox/post/internship-scam-alert";
   console.log(`🚀 Initiating live agent run against target: ${targetUrl}...`);
 
+  const goal = buildAgentGoal("Capture the internship listing, registration fee demand, UPI payment id, and comments warning of fraud.", "standard");
+
   const startRes = await fetch("https://agent.tinyfish.ai/v1/automation/run-async", {
     method: "POST",
     headers: {
@@ -92,9 +96,10 @@ async function main() {
     },
     body: JSON.stringify({
       url: targetUrl,
-      goal: "You are a neutral evidence-capture agent. View and record this post, author, image, and comments.",
+      goal,
       browser_profile: "stealth",
       proxy_config: { enabled: true, type: "tinyfish", country_code: "US" },
+      output_schema: AGENT_OUTPUT_SCHEMA,
       agent_config: { max_duration_seconds: 180 },
     }),
   });

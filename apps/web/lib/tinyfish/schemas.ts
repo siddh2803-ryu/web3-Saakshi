@@ -55,12 +55,12 @@ export type AgentRunResult = z.infer<typeof AgentRunResultSchema>;
  */
 export const TinyFishAgentStepSchema = z.object({
   id: z.string(),
-  timestamp: z.string().optional(),
+  timestamp: z.string().nullable().optional(),
   status: z.string(),
   action: z.string(),
-  screenshot: z.string().optional(), // base64 data URI
-  html: z.string().optional(),
-  duration: z.number().optional(),
+  screenshot: z.string().nullable().optional(), // base64 data URI
+  html: z.string().nullable().optional(),
+  duration: z.union([z.number(), z.string()]).nullable().optional(),
 });
 
 export type TinyFishAgentStep = z.infer<typeof TinyFishAgentStepSchema>;
