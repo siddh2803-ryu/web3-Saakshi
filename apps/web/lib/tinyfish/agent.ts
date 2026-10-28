@@ -1,53 +1,16 @@
 import { isFixtureMode, tinyFishFetch } from "./client";
 import { AGENT_OUTPUT_SCHEMA, buildAgentGoal } from "./prompts";
 import { FIXTURE_AGENT_RUN } from "./fixtures";
+import {
+  AgentRunResponse,
+  AgentRunResponseSchema,
+  AgentRunResult,
+  AgentRunResultSchema,
+  TinyFishAgentStep,
+} from "./schemas";
 
+export type { AgentRunResponse, AgentRunResult, TinyFishAgentStep };
 export type AgentRunStatus = "PENDING" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
-
-export interface TinyFishAgentStep {
-  id: string;
-  timestamp: string;
-  status: string;
-  action: string;
-  screenshot?: string; // Base64 data URI
-  html?: string;
-  duration?: number;
-}
-
-export interface AgentRunResult {
-  page_title?: string | null;
-  platform?: string | null;
-  author_name?: string | null;
-  author_handle?: string | null;
-  author_profile_url?: string | null;
-  published_at_text?: string | null;
-  content_text?: string | null;
-  media: Array<{ type: string; url: string }>;
-  engagement?: {
-    likes?: string | null;
-    comments?: string | null;
-    shares?: string | null;
-    views?: string | null;
-  };
-  comments: Array<{
-    author: string;
-    text: string;
-    time_text?: string | null;
-  }>;
-  blocked: boolean;
-  block_reason?: string | null;
-}
-
-export interface AgentRunResponse {
-  run_id: string;
-  status: AgentRunStatus;
-  streaming_url?: string | null;
-  num_of_steps?: number;
-  result?: AgentRunResult | null;
-  error?: string | null;
-  video_url?: string | null;
-  steps?: TinyFishAgentStep[];
-}
 
 export interface StartAgentOptions {
   url: string;
@@ -58,6 +21,7 @@ export interface StartAgentOptions {
 
 /**
  * Initiates an asynchronous goal-driven web agent run via TinyFish.
+ * Gated fields (agent_config, capture_config) are sent strictly when flags are enabled (PRD Section 7.1).
  */
 export async function startAgentRun(options: StartAgentOptions): Promise<{ run_id: string }> {
   if (isFixtureMode()) {
@@ -72,23 +36,22 @@ export async function startAgentRun(options: StartAgentOptions): Promise<{ run_i
     browser_profile: "stealth",
     proxy_config: { enabled: true, type: "tinyfish", country_code: "US" },
     output_schema: AGENT_OUTPUT_SCHEMA,
-    agent_config: {
-      max_duration_seconds: 180,
-    },
   };
 
   if (options.webhookUrl) {
     body.webhook_url = options.webhookUrl;
   }
 
-  // Beta features (max_steps, mode: strict)
+  // Beta features (max_steps, mode: strict) gated under TINYFISH_AGENT_BETA
   if (process.env.TINYFISH_AGENT_BETA === "true") {
-    (body.agent_config as Record<string, unknown>).mode = "strict";
-    (body.agent_config as Record<string, unknown>).max_steps =
-      options.mode === "deep" ? 30 : 15;
+    body.agent_config = {
+      max_duration_seconds: 180,
+      mode: "strict",
+      max_steps: options.mode === "deep" ? 30 : 15,
+    };
   }
 
-  // Account-gated capture config
+  // Account-gated capture configuration (recording, extra snapshots)
   if (process.env.TINYFISH_CAPTURE_CONFIG === "true") {
     body.capture_config = {
       elements: true,
@@ -112,25 +75,34 @@ export async function startAgentRun(options: StartAgentOptions): Promise<{ run_i
 
 /**
  * Retrieves the status and step details of an agent run.
+ * Fetches steps with screenshots=base64 when includeScreenshots is true.
+ * Validates responses against Zod schema (PRD Section 7.1).
  */
 export async function getAgentRun(
   runId: string,
   includeScreenshots = false
 ): Promise<AgentRunResponse> {
   if (isFixtureMode() || runId.startsWith("run_fixture_")) {
-    return { ...FIXTURE_AGENT_RUN, run_id: runId };
+    const fixtureData = { ...FIXTURE_AGENT_RUN, run_id: runId };
+    return AgentRunResponseSchema.parse(fixtureData);
   }
 
   const url = includeScreenshots
     ? `https://agent.tinyfish.ai/v1/runs/${runId}?screenshots=base64`
     : `https://agent.tinyfish.ai/v1/runs/${runId}`;
 
-  const run = await tinyFishFetch<AgentRunResponse>(url, {
+  const rawData = await tinyFishFetch<unknown>(url, {
     method: "GET",
     timeoutMs: 30000,
   });
 
-  return run;
+  const parsed = AgentRunResponseSchema.safeParse(rawData);
+  if (!parsed.success) {
+    console.warn(`[TinyFish] Response schema validation warning for run ${runId}:`, parsed.error.issues);
+    return rawData as AgentRunResponse;
+  }
+
+  return parsed.data;
 }
 
 /**
@@ -152,7 +124,8 @@ export async function cancelAgentRun(runId: string): Promise<boolean> {
 }
 
 /**
- * Inspects agent run result for soft failures (blocked, captcha, login required).
+ * Inspects agent run result for soft failures (blocked flag, captcha, login required, access denied).
+ * Fulfills FR-3.5 and Section 7.1.
  */
 export function isRunBlockedOrPartial(result?: AgentRunResult | null): {
   isBlocked: boolean;
@@ -160,8 +133,12 @@ export function isRunBlockedOrPartial(result?: AgentRunResult | null): {
 } {
   if (!result) return { isBlocked: false, reason: null };
 
+  // Explicit blocked boolean flag
   if (result.blocked) {
-    return { isBlocked: true, reason: result.block_reason || "Access blocked by page" };
+    return {
+      isBlocked: true,
+      reason: result.block_reason || "Access blocked by target page (blocked=true)",
+    };
   }
 
   const contentLower = (result.content_text || "").toLowerCase();
@@ -170,14 +147,18 @@ export function isRunBlockedOrPartial(result?: AgentRunResult | null): {
   const fullText = `${contentLower} ${titleLower} ${reasonLower}`;
 
   const blockedKeywords = [
+    "blocked",
     "captcha",
     "access denied",
     "login required",
     "please log in",
     "sign in to continue",
     "content not available",
+    "content is unavailable",
     "bot detection",
     "challenge required",
+    "cloudflare ray id",
+    "temporarily restricted",
   ];
 
   for (const kw of blockedKeywords) {

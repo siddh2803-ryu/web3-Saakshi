@@ -59,7 +59,22 @@ export const FIXTURE_AGENT_STEPS: TinyFishAgentStep[] = [
   },
 ];
 
-export const FIXTURE_AGENT_RUN: AgentRunResponse = {
+export interface FixtureMetadata {
+  source: "synthetic" | "recorded";
+  createdAt: string;
+  notes?: string;
+  runId?: string;
+  targetUrl?: string;
+}
+
+export const FIXTURE_METADATA: FixtureMetadata = {
+  source: "synthetic",
+  createdAt: "2026-10-26T00:00:00.000Z",
+  notes: "Synthetic baseline fixture simulating Chirp sandbox fraud post with 6 steps and screenshots.",
+};
+
+export const FIXTURE_AGENT_RUN: AgentRunResponse & { _metadata: FixtureMetadata } = {
+  _metadata: FIXTURE_METADATA,
   run_id: "run_fixture_tinyfish_001",
   status: "COMPLETED",
   streaming_url: "https://agent.tinyfish.ai/stream/mock-session-001",

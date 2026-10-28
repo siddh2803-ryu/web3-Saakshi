@@ -109,6 +109,29 @@ export async function runFinalizePipeline(captureId: string): Promise<boolean> {
       });
     }
 
+    // PRD Section 7.1: If video_url is present, download it immediately (expires in 15 min)
+    if (agentRun?.video_url) {
+      try {
+        const vidController = new AbortController();
+        const vidTimer = setTimeout(() => vidController.abort(), 20000);
+        const vidRes = await fetch(agentRun.video_url, { signal: vidController.signal });
+        clearTimeout(vidTimer);
+
+        if (vidRes.ok) {
+          const vidArr = await vidRes.arrayBuffer();
+          rawArtifacts.push({
+            id: "art_agent_video",
+            kind: "agent_video",
+            mime: "video/mp4",
+            plaintextBuffer: Buffer.from(vidArr),
+            capturedAt: new Date().toISOString(),
+          });
+        }
+      } catch (vidErr) {
+        console.warn("Failed to download immediate agent video_url:", vidErr);
+      }
+    }
+
     // 2. Full-Fidelity Browser API capture
     await logStage("BROWSER_CAPTURE", "Running TinyFish Browser API for full-page snapshot, PDF and network logs...");
     const browserCapture = await captureWithBrowserApi(targetUrl);
