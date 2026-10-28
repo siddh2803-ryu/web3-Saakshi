@@ -343,11 +343,50 @@ export default function CaptureDetailPage() {
                   className="w-full h-full border-0 pointer-events-none"
                   title="TinyFish Cloud Browser Stream"
                 />
+              ) : capture.artifacts?.some((a: any) => a.kind === "agent_step_screenshot") ? (
+                /* Filmstrip Fallback when preview is gone / completed (PRD FR-3.2, Section 7.1) */
+                <div className="w-full h-full bg-slate-900 p-4 flex flex-col justify-between overflow-hidden">
+                  <div className="flex items-center justify-between text-xs text-slate-300 mb-2 border-b border-slate-800 pb-2">
+                    <span className="font-semibold text-slate-200">
+                      Live Stream Session Ended &bull; Step Action Filmstrip
+                    </span>
+                    <span className="text-[10px] font-mono text-emerald-400">
+                      {capture.artifacts.filter((a: any) => a.kind === "agent_step_screenshot").length} Steps Recorded
+                    </span>
+                  </div>
+                  <div className="flex gap-3 overflow-x-auto pb-2 flex-1 items-center">
+                    {capture.artifacts
+                      .filter((a: any) => a.kind === "agent_step_screenshot")
+                      .map((stepArt: any) => (
+                        <div
+                          key={stepArt.id}
+                          className="min-w-[160px] max-w-[160px] bg-slate-800/90 border border-slate-700 rounded-lg overflow-hidden flex flex-col shrink-0 text-left"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={`/api/captures/${capture.id}/artifacts/${stepArt.id}`}
+                            alt={stepArt.action || "Step"}
+                            className="w-full h-24 object-cover bg-slate-950"
+                          />
+                          <div className="p-2 text-[11px] flex-1 flex flex-col justify-between">
+                            <span className="font-semibold text-slate-200 line-clamp-2">
+                              {stepArt.action || `Step ${stepArt.stepIndex || ""}`}
+                            </span>
+                            <span className="text-[9px] text-slate-400 font-mono mt-1">
+                              {stepArt.id}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
               ) : (
                 <div className="text-center p-6 space-y-3">
                   <div className="w-10 h-10 border-2 border-slate-400 border-t-transparent rounded-full animate-spin mx-auto" />
                   <p className="text-xs text-slate-300 font-mono">
-                    Initializing cloud browser session...
+                    {capture.status === "AGENT_RUNNING"
+                      ? "Initializing cloud browser session..."
+                      : "Live preview session completed. Processing forensic artifacts..."}
                   </p>
                   <p className="text-[11px] text-slate-500">
                     Target: {capture.url}
