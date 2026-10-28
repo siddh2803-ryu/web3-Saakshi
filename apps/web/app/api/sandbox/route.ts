@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   getAllChirpPosts,
-  getChirpPost,
   updateChirpPost,
   deleteChirpPost,
   restoreChirpPost,
   resetChirpPosts,
 } from "@/lib/sandbox/store";
+import { SandboxAdminRequestSchema } from "@/lib/tinyfish/schemas";
 
 export async function GET() {
   const posts = getAllChirpPosts();
@@ -15,8 +15,20 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { action, slug, text, secret } = body;
+    const rawBody = await req.json().catch(() => null);
+    if (!rawBody) {
+      return NextResponse.json({ error: "Invalid JSON request body" }, { status: 400 });
+    }
+
+    const parsed = SandboxAdminRequestSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues[0]?.message || "Validation failed", details: parsed.error.issues },
+        { status: 400 }
+      );
+    }
+
+    const { action, slug, text, secret } = parsed.data;
 
     const expectedSecret = process.env.SANDBOX_ADMIN_SECRET || "chirp_admin_secret_key_demo";
     if (secret !== expectedSecret) {

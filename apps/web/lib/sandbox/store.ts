@@ -112,7 +112,8 @@ function getPostsStore(): Record<string, ChirpPost> {
 
 export function getChirpPost(slug: string): ChirpPost | null {
   const posts = getPostsStore();
-  return posts[slug] || null;
+  const normalizedSlug = slug === "defamation-case-study" ? "defamation-case-sample" : slug;
+  return posts[normalizedSlug] || posts[slug] || null;
 }
 
 export function getAllChirpPosts(): ChirpPost[] {
