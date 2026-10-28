@@ -16,7 +16,7 @@
 | Phase | Name | Status | Criteria Passed | % Done | Commits | Remaining Work |
 |---|---|---|---|---|---|---|
 | **Phase 0** | Scaffolding & Base Monorepo | **PENDING LIVE** | 3/3 Core Criteria Pending Live / 10/10 Scaffolding Items Verified | 85% | `ef3e90f`, `d4d1a7a`, `e33bd5b`, `77b3887`, `a145215` | (a) Deployed URL shows landing page [PENDING - NOT RUN (needs Vercel deploy)]; (b) Google sign-in works [PENDING - NOT RUN (needs Firebase credentials)]; (c) CI is green [PENDING - LOCAL verified, awaiting GitHub Actions run on push]. |
-| **Phase 1** | Sandbox "Chirp" Platform & Agent Capture | **COMPLETE** | 8/8 | 100% | `02abfe0` | None (Platform simulator, admin deletion/edit controls, and live agent capture fully functional). |
+| **Phase 1** | Sandbox "Chirp" Platform & Agent Capture | **PENDING LIVE** | 2/3 Core Criteria Passed (1 Pending Live) / 8/8 FRs Verified | 90% | `02abfe0` | (a) Capturing deployed sandbox post shows live preview, completes, and lists at least 5 step screenshots with actions [PENDING - FIXTURE/LOCAL verified, awaiting live TinyFish API key for live execution]. |
 | **Phase 2** | Full-Page Browser Capture & Clean Text | **PARTIAL** | 4/5 | 80% | `c9cf24d`, `ef3e90f` | Add dedicated commit marker; verify live Playwright over CDP against real TinyFish Browser API once key is provided. |
 | **Phase 3** | Evidence Engine & Cryptography | **COMPLETE** | 8/8 | 100% | `a92d60d` | None (SHA-256 pre-encryption, RFC 8785 canonical manifest, AES-256-GCM envelope encryption, IPFS upload, ZIP bundle). |
 | **Phase 4** | Smart Contract & Merkle Anchoring | **PARTIAL** | 4/5 | 80% | `ef3e90f`, `a92d60d` | Deploy `EvidenceRegistry.sol` to Polygon Amoy testnet, fund deployer wallet, record address in `NEXT_PUBLIC_REGISTRY_ADDRESS`. |
@@ -60,10 +60,39 @@
 - Root scripts verified working locally:
   - `npm run lint`: 0 warnings, 0 errors
   - `npm run typecheck`: 0 errors across web & contracts
-  - `npm run test`: 22 web tests + 9 contract tests pass (31 total)
+  - `npm run test`: 52 web tests + 9 contract tests pass (61 total)
   - `npm run build`: Production Next.js build succeeds with zero secrets required
   - `npm run contracts:compile`: Hardhat compilation succeeds
   - `npm run contracts:test`: 9 unit tests pass
+
+---
+
+### 1.2 Phase 1 Honest Verification Scorecard
+
+#### Acceptance Criteria (PRD Section 17)
+| Criterion | Status | Verified With | Notes / Action to Turn PASS |
+|---|---|---|---|
+| **(a) Capturing the deployed sandbox post shows the live preview, completes, and lists at least 5 step screenshots with their actions** | **PENDING** | `FIXTURE / LOCAL` | Live preview iframe, polling timeline, and step filmstrip fallback verified locally and in fixture runner (`apps/web/tests/agent.test.ts`, `apps/web/app/capture/[id]/page.tsx`). Turning to `PASS` requires running a live capture against the deployed URL with `TINYFISH_API_KEY` set in `.env.local` and recording with `scripts/record-fixture.ts`. |
+| **(b) The agent result matches the output schema in PRD Section 7.1** | **PASS** | `LOCAL` | Validated via Zod `AgentRunResultSchema` and `AgentRunResponseSchema` in `apps/web/lib/tinyfish/schemas.ts`. Unit-tested in `apps/web/tests/agent.test.ts` for valid payloads, `blocked: true`, and rejection of missing required fields (`blocked`, `media`, `comments`). |
+| **(c) Blocked-result detection is unit-tested** | **PASS** | `LOCAL` | Tested in `apps/web/tests/agent.test.ts` across `blocked=true`, captcha, access denied, login required, and content blocking obstacle keywords. |
+
+*Rule: Anything not verified live is not PASS.*
+
+#### Functional Requirements Traceability (Phase 1 Scope)
+| Requirement | Status | Verified With | Implementation Evidence |
+|---|---|---|---|
+| **FR-15.1: Fictional "Chirp" social post** | **PASS** | `LOCAL` | `apps/web/app/sandbox/post/[slug]/page.tsx`, `apps/web/lib/sandbox/store.ts` (renders author, handle, text, image, likes, comments; fictional branding). |
+| **FR-15.2: Protected /sandbox/admin & 404 deletion** | **PASS** | `LOCAL` | `apps/web/app/api/sandbox/route.ts` (validates `SANDBOX_ADMIN_SECRET`, Zod-checked), `apps/web/app/sandbox/post/[slug]/not-found.tsx` returns genuine HTTP 404 with "This post has been removed". |
+| **FR-15.3: 2 Seeded Demo Posts** | **PASS** | `LOCAL` | `internship-scam-alert` and `defamation-case-study` (with `defamation-case-sample` alias) seeded in `apps/web/lib/sandbox/store.ts`. |
+| **FR-2.1: New Capture Form & Max 300 Chars** | **PASS** | `LOCAL` | `apps/web/app/capture/new/page.tsx` (URL, goal max 300 chars, standard/deep modes). |
+| **FR-2.2: Exact Statutory Consent Text** | **PASS** | `LOCAL` | Verified in `apps/web/app/capture/new/page.tsx` and `apps/web/app/api/captures/route.ts` with statutory phrasing: *"I am preserving content that concerns me or that I have a legitimate reason to preserve. I will not use Saakshi to stalk or harass anyone."* |
+| **FR-2.3: Server-side URL Validation** | **PASS** | `LOCAL` | `apps/web/lib/validation/url.ts` accepts http/https, strictly rejects localhost, 127.0.0.1, 10.x, 172.16-31.x, 192.168.x, 169.254.x, file:, javascript:. |
+| **FR-2.4: Daily Quota Enforced and Shown** | **PASS** | `LOCAL` | `checkUserDailyQuota` in `apps/web/lib/firebase/admin.ts`, returns 429 when quota exceeded; shown dynamically on new capture page and dashboard. |
+| **FR-3.1: Async TinyFish Run with Webhook** | **PASS** | `LOCAL` | `startAgentRun` in `apps/web/lib/tinyfish/agent.ts` dispatches `POST /v1/automation/run-async` with webhook URL. Beta fields sent only when `TINYFISH_AGENT_BETA=true`. |
+| **FR-3.2: 3-Second Polling & Filmstrip Fallback** | **PASS** | `LOCAL` | Poller streams status every 3s in `apps/web/app/capture/[id]/page.tsx`; falls back to step filmstrip when live preview is gone. |
+| **FR-3.5: Soft-failure / Blocked Detection** | **PASS** | `LOCAL` | `isRunBlockedOrPartial` in `apps/web/lib/tinyfish/agent.ts`, marks capture `PARTIAL` without discarding artifacts. |
+| **Section 7.7: Error Handling & Retries** | **PASS** | `LOCAL` | `tinyFishFetch` in `apps/web/lib/tinyfish/client.ts` retries 5xx server errors once, does not retry 4xx, logs `X-Request-ID`, respects `CAPTURE_ENABLED` kill switch. |
+| **Section 7.8: Fixture Tooling & Metadata** | **PASS** | `LOCAL` | `scripts/record-fixture.ts` created; fixtures stamped with `_metadata: { source: "synthetic" | "recorded" }`. Yellow banner shown in layout. |
 
 ---
 
@@ -230,7 +259,7 @@
 | Test Category | Command Executed | Outcome | Details |
 |---|---|---|---|
 | **Contract Unit Tests** | `npm run test:contracts` | **9 / 9 PASS** | `EvidenceRegistry` anchoring, duplicate rejection, Merkle inclusion, custody logging (501ms). |
-| **Web Unit Tests** | `npm run test:web` | **22 / 22 PASS** | Evidence hashing, canonical manifest, envelope encryption, IPFS, watch classification, Gemini schema, pipeline integration (658ms). |
+| **Web Unit Tests** | `npm run test:web` | **52 / 52 PASS** | Agent client, URL validation, blocked detection, Zod schema validation, quota & consent, evidence hashing, canonical manifest, envelope encryption, IPFS, watch classification, Gemini schema, pipeline integration (1.6s). |
 | **Static Typecheck** | `tsc --noEmit` (both workspaces) | **PASS (0 errors)** | Full TypeScript strict typechecking succeeded across web and contracts. |
 | **Linting** | `npm run lint` | **PASS (0 errors)** | 3 minor Next.js `<img>` optimization warnings; zero ESLint errors. |
 | **Production Build** | `npm run build` | **PASS (16/16 pages)** | Next.js 14 App Router compiled successfully with all static and dynamic routes. |

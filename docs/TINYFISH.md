@@ -44,3 +44,23 @@ This document records the integration details for TinyFish across Saakshi's arch
 - **Webhook Validation**: TinyFish webhooks do not currently send cryptographic HMAC signatures; as specified in the PRD, we validate incoming webhooks via high-entropy query token (`?token=<WEBHOOK_SECRET>`) and verify the run status directly with `GET /v1/runs/{id}` before taking action.
 - **Run Completion vs Success**: Live docs confirm `COMPLETED` signifies that the agent lifecycle ended, not that the target content was legally accessible. Saakshi explicitly inspects `result.blocked`, captchas, and login barriers, transitioning to `PARTIAL` rather than blind success.
 - **Live Preview Stream**: `streaming_url` can take 3-5 seconds to initialize and closes upon agent completion. Saakshi UX accounts for this with a loading state and fallback to the step filmstrip once complete.
+
+## Phase 1 Acceptance & Verification Status
+
+| Criterion (PRD Section 17) | Status | Verification Method | Action to Turn PASS |
+|---|---|---|---|
+| **(a) Capturing deployed sandbox post shows live preview, completes, lists >= 5 step screenshots with actions** | **PENDING** | `FIXTURE / LOCAL` | Requires setting a valid `TINYFISH_API_KEY` in `.env.local`, pointing `NEXT_PUBLIC_APP_URL` to a deployed Vercel domain or tunnel, and running a live sandbox capture. Use `scripts/record-fixture.ts` to capture the real run into `apps/web/fixtures/recorded_sandbox_run.json`. |
+| **(b) Agent result matches output schema in Section 7.1** | **PASS** | `LOCAL (Vitest + Zod)` | Validated with Zod schemas in `apps/web/lib/tinyfish/schemas.ts`. |
+| **(c) Blocked-result detection is unit-tested** | **PASS** | `LOCAL (Vitest)` | Tested across `blocked=true`, captcha, access denied, login required in `apps/web/tests/agent.test.ts`. |
+
+### How to Record Live Fixtures (`scripts/record-fixture.ts`)
+```bash
+# 1. Add your real TinyFish key to .env.local:
+# TINYFISH_API_KEY=tf_live_...
+
+# 2. Record an existing run by run_id:
+npx ts-node -r tsconfig-paths/register scripts/record-fixture.ts run_abc12345
+
+# 3. Or initiate a live run directly:
+npx ts-node -r tsconfig-paths/register scripts/record-fixture.ts https://your-domain.vercel.app/sandbox/post/internship-scam-alert
+```
