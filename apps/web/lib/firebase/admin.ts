@@ -78,11 +78,38 @@ export async function listUserCaptures(uid: string): Promise<any[]> {
   }
   const list: any[] = [];
   for (const [id, cap] of inMemoryStore.captures.entries()) {
-    if (cap.ownerUid === uid || !cap.ownerUid) {
+    if (cap.ownerUid === uid) {
       list.push({ id, ...cap });
     }
   }
   return list.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+}
+
+export async function checkUserDailyQuota(uid: string): Promise<{
+  allowed: boolean;
+  total: number;
+  used: number;
+  remaining: number;
+}> {
+  const total = parseInt(process.env.DAILY_FREE_CAPTURES || "5", 10) || 5;
+  const userCaptures = await listUserCaptures(uid);
+
+  const now = new Date();
+  const startOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString();
+
+  const todayCaptures = userCaptures.filter((c) => {
+    const createdAt = c.createdAt || c.updatedAt;
+    return createdAt && createdAt >= startOfDay;
+  });
+
+  const used = todayCaptures.length;
+  const remaining = Math.max(0, total - used);
+  return {
+    allowed: remaining > 0,
+    total,
+    used,
+    remaining,
+  };
 }
 
 export async function saveArtifactRecord(captureId: string, artifact: any): Promise<void> {

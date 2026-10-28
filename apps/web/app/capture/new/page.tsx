@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ShieldAlert, ArrowRight, Terminal, CheckCircle2, AlertCircle, Cpu, FileCheck } from "lucide-react";
+import { ArrowRight, Terminal, CheckCircle2, AlertCircle, Cpu, ShieldCheck } from "lucide-react";
 
 export default function NewCapturePage() {
   const router = useRouter();
@@ -13,6 +13,18 @@ export default function NewCapturePage() {
   const [consent, setConsent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [quotaInfo, setQuotaInfo] = useState<{ remaining: number; total: number } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/captures")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.quota) {
+          setQuotaInfo(data.quota);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const handleFillSandbox = () => {
     setUrl("/sandbox/post/internship-scam-alert");
@@ -30,7 +42,7 @@ export default function NewCapturePage() {
     }
 
     if (!consent) {
-      setErrorMsg("You must confirm the legal preservation consent acknowledgment.");
+      setErrorMsg("You must confirm the statutory preservation consent acknowledgment.");
       return;
     }
 
@@ -65,9 +77,23 @@ export default function NewCapturePage() {
       <div className="max-w-2xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-md bg-slate-100 border border-slate-200 text-slate-800 text-xs font-semibold mb-3">
-            <Cpu className="w-3.5 h-3.5 text-slate-700" />
-            <span>Autonomous Web Agent Dispatch</span>
+          <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+            <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-md bg-slate-100 border border-slate-200 text-slate-800 text-xs font-semibold">
+              <Cpu className="w-3.5 h-3.5 text-slate-700" />
+              <span>Autonomous Web Agent Dispatch</span>
+            </div>
+            {quotaInfo && (
+              <div className="text-xs font-semibold px-2.5 py-1 bg-white border border-slate-200 rounded-md text-slate-700 shadow-sm flex items-center space-x-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+                <span>
+                  Daily Quota:{" "}
+                  <strong className="text-blue-700 font-mono">
+                    {quotaInfo.remaining} of {quotaInfo.total}
+                  </strong>{" "}
+                  remaining today
+                </span>
+              </div>
+            )}
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
             New Evidence Capture
@@ -121,7 +147,7 @@ export default function NewCapturePage() {
               className="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-lg text-sm font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:bg-white transition-colors"
             />
             <p className="text-[11px] text-slate-500 mt-1.5">
-              Public web pages, social posts, forum discussions, or listings. No authentication credentials permitted.
+              Public web pages, social posts, forum discussions, or listings. No localhost or private IP addresses.
             </p>
           </div>
 
@@ -187,7 +213,7 @@ export default function NewCapturePage() {
             </div>
           </div>
 
-          {/* Consent Checkbox */}
+          {/* Exact FR-2.2 Statutory Consent Checkbox */}
           <div className="pt-2 border-t border-slate-100">
             <label className="flex items-start space-x-3 cursor-pointer">
               <input
@@ -198,7 +224,7 @@ export default function NewCapturePage() {
                 className="mt-1 w-4 h-4 text-slate-900 rounded border-slate-300 focus:ring-slate-900"
               />
               <span className="text-xs text-slate-600 leading-relaxed">
-                I confirm that I am preserving public web content for a legitimate legal, regulatory, or personal dispute purpose. I will not use Saakshi for stalking, harassment, or unlawful surveillance.
+                I am preserving content that concerns me or that I have a legitimate reason to preserve. I will not use Saakshi to stalk or harass anyone.
               </span>
             </label>
           </div>

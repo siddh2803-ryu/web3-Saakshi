@@ -20,6 +20,7 @@ export default function DashboardPage() {
   const [captures, setCaptures] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [quota, setQuota] = useState<{ remaining: number; total: number } | null>(null);
 
   const fetchCaptures = async () => {
     try {
@@ -27,6 +28,9 @@ export default function DashboardPage() {
       if (res.ok) {
         const data = await res.json();
         setCaptures(data.captures || []);
+        if (data.quota) {
+          setQuota(data.quota);
+        }
       }
     } catch (err) {
       console.error(err);
@@ -57,7 +61,10 @@ export default function DashboardPage() {
 
         <div className="flex items-center space-x-3">
           <div className="px-3.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 shadow-sm">
-            Quota: <span className="text-blue-700 font-mono">5 remaining today</span>
+            Quota:{" "}
+            <span className="text-blue-700 font-mono">
+              {quota ? `${quota.remaining} of ${quota.total} remaining today` : "5 remaining today"}
+            </span>
           </div>
           <Link
             href="/capture/new"

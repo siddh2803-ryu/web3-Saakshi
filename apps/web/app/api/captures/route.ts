@@ -1,54 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { saveCaptureRecord, listUserCaptures } from "@/lib/firebase/admin";
+import {
+  saveCaptureRecord,
+  listUserCaptures,
+  checkUserDailyQuota,
+} from "@/lib/firebase/admin";
 import { startAgentRun } from "@/lib/tinyfish/agent";
-
-function isPrivateOrLocalhost(urlString: string): boolean {
-  try {
-    const parsed = new URL(urlString);
-    const host = parsed.hostname.toLowerCase();
-
-    // Allow internal sandbox URLs for demo purposes
-    if (parsed.pathname.startsWith("/sandbox/")) {
-      return false;
-    }
-
-    if (
-      host === "localhost" ||
-      host === "127.0.0.1" ||
-      host === "0.0.0.0" ||
-      host === "::1" ||
-      host.endsWith(".local") ||
-      host.endsWith(".internal")
-    ) {
-      // In local development, allow localhost sandbox
-      if (process.env.NODE_ENV !== "production") {
-        return false;
-      }
-      return true;
-    }
-
-    // Check private IPv4 ranges: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16
-    const ipParts = host.split(".").map(Number);
-    if (ipParts.length === 4 && ipParts.every((p) => !isNaN(p))) {
-      if (ipParts[0] === 10) return true;
-      if (ipParts[0] === 127) return true;
-      if (ipParts[0] === 169 && ipParts[1] === 254) return true;
-      if (ipParts[0] === 192 && ipParts[1] === 168) return true;
-      if (ipParts[0] === 172 && ipParts[1] >= 16 && ipParts[1] <= 31) return true;
-    }
-
-    return false;
-  } catch {
-    return true;
-  }
-}
+import { validateCaptureUrl } from "@/lib/validation/url";
+import { NewCaptureRequestSchema } from "@/lib/tinyfish/schemas";
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const uid = searchParams.get("uid") || "demo-user";
-    const captures = await listUserCaptures(uid);
-    return NextResponse.json({ captures });
+    const [captures, quota] = await Promise.all([
+      listUserCaptures(uid),
+      checkUserDailyQuota(uid),
+    ]);
+    return NextResponse.json({ captures, quota });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: msg }, { status: 500 });
@@ -57,10 +25,29 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { url, goal, mode = "standard", consent, uid = "demo-user", caseId } = body;
+    // Kill Switch (Section 7.7)
+    if (process.env.CAPTURE_ENABLED === "false") {
+      return NextResponse.json(
+        { error: "Evidence capture is temporarily disabled for maintenance." },
+        { status: 503 }
+      );
+    }
 
-    // FR-2.2 Consent validation
+    const rawBody = await req.json().catch(() => null);
+    if (!rawBody) {
+      return NextResponse.json({ error: "Invalid JSON request body." }, { status: 400 });
+    }
+
+    // Validate body structure with Zod
+    const parsed = NewCaptureRequestSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      const firstError = parsed.error.issues[0]?.message || "Validation failed";
+      return NextResponse.json({ error: firstError, details: parsed.error.issues }, { status: 400 });
+    }
+
+    const { url, goal, mode, consent, uid, caseId } = parsed.data;
+
+    // FR-2.2 Statutory Consent Check
     if (!consent) {
       return NextResponse.json(
         { error: "Preservation consent must be acknowledged before capturing evidence." },
@@ -68,39 +55,28 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // FR-2.1 & FR-2.3 URL validation
-    if (!url || typeof url !== "string") {
-      return NextResponse.json({ error: "A valid target URL is required." }, { status: 400 });
-    }
-
-    let absoluteUrl = url.trim();
-    if (absoluteUrl.startsWith("/")) {
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-      absoluteUrl = `${appUrl}${absoluteUrl}`;
-    }
-
-    try {
-      const parsed = new URL(absoluteUrl);
-      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-        return NextResponse.json({ error: "URL protocol must be HTTP or HTTPS." }, { status: 400 });
-      }
-    } catch {
-      return NextResponse.json({ error: "Invalid URL format." }, { status: 400 });
-    }
-
-    if (isPrivateOrLocalhost(absoluteUrl)) {
+    // FR-2.4 Enforce Daily Quota
+    const quota = await checkUserDailyQuota(uid);
+    if (!quota.allowed) {
       return NextResponse.json(
-        { error: "Capturing private internal or localhost network addresses is restricted." },
+        {
+          error: `Daily capture quota exceeded (${quota.used}/${quota.total} captures used today). Try again tomorrow or upgrade plan.`,
+          quota,
+        },
+        { status: 429 }
+      );
+    }
+
+    // FR-2.1 & FR-2.3 URL validation (http/https only, reject localhost & private IP ranges)
+    const urlValidation = validateCaptureUrl(url, { allowSandboxPath: true });
+    if (!urlValidation.valid || !urlValidation.normalizedUrl) {
+      return NextResponse.json(
+        { error: urlValidation.error || "Invalid target URL." },
         { status: 400 }
       );
     }
 
-    if (goal && typeof goal === "string" && goal.length > 300) {
-      return NextResponse.json(
-        { error: "Investigation goal exceeds 300 characters limit." },
-        { status: 400 }
-      );
-    }
+    const absoluteUrl = urlValidation.normalizedUrl;
 
     // Generate Capture ID (timestamp + random entropy)
     const captureId = `cap_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 7)}`;
@@ -117,7 +93,7 @@ export async function POST(req: NextRequest) {
       url: absoluteUrl,
       finalUrl: absoluteUrl,
       goal: goal || "Capture the full post, author details, and comments.",
-      mode: mode === "deep" ? "deep" : "standard",
+      mode,
       status: "QUEUED",
       events: [
         {
@@ -140,7 +116,7 @@ export async function POST(req: NextRequest) {
       const agentRun = await startAgentRun({
         url: absoluteUrl,
         userGoal: goal,
-        mode: mode === "deep" ? "deep" : "standard",
+        mode,
         webhookUrl,
       });
 
@@ -171,7 +147,14 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    return NextResponse.json({ captureId, status: "QUEUED" });
+    return NextResponse.json({
+      captureId,
+      status: "QUEUED",
+      quota: {
+        remaining: quota.remaining - 1,
+        total: quota.total,
+      },
+    });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: msg }, { status: 500 });
