@@ -139,12 +139,36 @@ Exclusive 3-month remote engineering internship at Global AI Labs. Guaranteed st
 ## Comments
 - **Pooja Verma**: I paid the fee 30 minutes ago on that UPI, but haven't received any confirmation email or login credentials. Can someone assist?
 - **Rohan Das**: Legitimate internships never ask candidates for registration fees. This looks like a complete scam.`,
+  meta: {
+    title: "Fast-Track Winter Internship Program (Registration Fee Required)",
+    description: "Exclusive 3-month remote engineering internship at Global AI Labs.",
+    author: "CareerBridge Global",
+    published_date: "2026-10-20T12:00:00Z",
+    language: "en",
+    final_url: "https://chirp.local/sandbox/post/internship-scam-alert",
+    links: ["https://chirp.local/u/careerbridge_official"],
+    image_links: ["https://images.unsplash.com/photo-1516321318423-f06f85e504b3"],
+    etag: 'W/"saakshi-fixture-etag-001"',
+    last_modified: "2026-10-20T12:05:00Z",
+    latency_ms: 342,
+    errors: [],
+    error_codes: [],
+    error_events: [],
+  },
   title: "Fast-Track Winter Internship Program (Registration Fee Required)",
+  description: "Exclusive 3-month remote engineering internship at Global AI Labs.",
   author: "CareerBridge Global",
   publishedDate: "2026-10-20T12:00:00Z",
+  language: "en",
+  finalUrl: "https://chirp.local/sandbox/post/internship-scam-alert",
+  links: ["https://chirp.local/u/careerbridge_official"],
+  imageLinks: ["https://images.unsplash.com/photo-1516321318423-f06f85e504b3"],
   etag: 'W/"saakshi-fixture-etag-001"',
   lastModified: "2026-10-20T12:05:00Z",
+  latencyMs: 342,
   errors: [],
+  errorCodes: [],
+  errorEvents: [],
 };
 
 export const FIXTURE_BROWSER_CAPTURE: BrowserCaptureResult = {
@@ -175,8 +199,9 @@ export const FIXTURE_BROWSER_CAPTURE: BrowserCaptureResult = {
   ],
   tlsInfo: {
     protocol: "TLS 1.3",
-    subject: "CN=chirp.local",
     issuer: "CN=Let's Encrypt Authority X3, O=Let's Encrypt, C=US",
+    subjectName: "CN=chirp.local",
+    subject: "CN=chirp.local",
     validFrom: 1735689600,
     validTo: 1767225600,
   },
