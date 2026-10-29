@@ -1,24 +1,16 @@
 import { isFixtureMode, tinyFishFetch } from "./client";
 import { FIXTURE_BROWSER_CAPTURE } from "./fixtures";
+import {
+  CreateBrowserSessionResponse,
+  CreateBrowserSessionResponseSchema,
+  NetworkLogEntry,
+  TlsSecurityDetails,
+} from "./schemas";
 
-export interface NetworkLogEntry {
-  url: string;
-  status: number;
-  method: string;
-  resourceType: string;
-  contentType: string;
-  timing?: number;
-}
-
-export interface TlsSecurityDetails {
-  protocol: string;
-  issuer: string;
-  subject: string;
-  validFrom: number;
-  validTo: number;
-}
+export type { NetworkLogEntry, TlsSecurityDetails };
 
 export interface BrowserCaptureResult {
+  sessionId?: string;
   fullpageScreenshot: Buffer;
   pagePdf: Buffer | null;
   domHtml: string;
@@ -28,10 +20,38 @@ export interface BrowserCaptureResult {
   pageTitle: string;
 }
 
-interface CreateSessionResponse {
-  session_id: string;
-  cdp_url: string;
-  base_url: string;
+/**
+ * Creates a remote browser session via TinyFish Browser API (PRD Section 7.2).
+ * Created WITHOUT a url so that the page has not loaded yet when connecting.
+ * Client timeout 60 seconds.
+ */
+export async function createBrowserSession(options: { timeoutSeconds?: number; retryDelayMs?: number } = {}): Promise<CreateBrowserSessionResponse> {
+  const timeoutSeconds = options.timeoutSeconds ?? 120;
+
+  const raw = await tinyFishFetch<unknown>(
+    "https://api.browser.tinyfish.ai",
+    {
+      method: "POST",
+      // Important: Session created without url so target page has not loaded yet
+      body: { timeout_seconds: timeoutSeconds },
+      timeoutMs: 60000, // 60-second client timeout per PRD Section 7.2
+      retries: 1,
+      retryDelayMs: options.retryDelayMs,
+      retryOnRateLimit: true,
+    }
+  );
+
+  return CreateBrowserSessionResponseSchema.parse(raw);
+}
+
+/**
+ * Terminates an active browser session on TinyFish Browser API (PRD Section 7.2).
+ */
+export async function terminateBrowserSession(sessionId: string): Promise<void> {
+  await tinyFishFetch(`https://api.browser.tinyfish.ai/${sessionId}`, {
+    method: "DELETE",
+    retries: 1,
+  });
 }
 
 /**
@@ -46,144 +66,46 @@ export async function captureWithBrowserApi(targetUrl: string): Promise<BrowserC
   let sessionId: string | null = null;
 
   try {
-    // 1. Create browser session
-    const session = await tinyFishFetch<CreateSessionResponse>(
-      "https://api.browser.tinyfish.ai",
-      {
-        method: "POST",
-        body: { url: targetUrl, timeout_seconds: 120 },
-        timeoutMs: 60000,
-      }
-    );
-
+    // 1. Create browser session without url (60s client timeout)
+    const session = await createBrowserSession();
     sessionId = session.session_id;
-    const cdpUrl = session.cdp_url;
 
-    // 2. Dynamically import playwright-core
+    // 2. Connect with playwright-core over CDP (NEVER log session.cdp_url)
     const { chromium } = await import("playwright-core");
-    const browser = await chromium.connectOverCDP(cdpUrl);
+    const browser = await chromium.connectOverCDP(session.cdp_url);
 
     try {
       const context = browser.contexts()[0] || (await browser.newContext());
       const page = context.pages()[0] || (await context.newPage());
 
-      const networkEntries: NetworkLogEntry[] = [];
-      let tlsInfo: TlsSecurityDetails | null = null;
-
-      // Listen for network events
-      page.on("response", async (response) => {
-        try {
-          const req = response.request();
-          networkEntries.push({
-            url: response.url(),
-            status: response.status(),
-            method: req.method(),
-            resourceType: req.resourceType(),
-            contentType: response.headers()["content-type"] || "unknown",
-          });
-
-          // Grab TLS details from the main navigation response if available
-          if (!tlsInfo && req.isNavigationRequest()) {
-            const sec = await response.securityDetails();
-            if (sec) {
-              const anySec = sec as {
-                protocol?: string | (() => string);
-                issuer?: string | (() => string);
-                subjectName?: string | (() => string);
-                validFrom?: number | (() => number);
-                validTo?: number | (() => number);
-              };
-              tlsInfo = {
-                protocol:
-                  typeof anySec.protocol === "function"
-                    ? anySec.protocol()
-                    : anySec.protocol || "TLS 1.3",
-                issuer:
-                  typeof anySec.issuer === "function"
-                    ? anySec.issuer()
-                    : anySec.issuer || "Unknown",
-                subject:
-                  typeof anySec.subjectName === "function"
-                    ? anySec.subjectName()
-                    : anySec.subjectName || "Unknown",
-                validFrom:
-                  typeof anySec.validFrom === "function"
-                    ? anySec.validFrom()
-                    : anySec.validFrom || 0,
-                validTo:
-                  typeof anySec.validTo === "function"
-                    ? anySec.validTo()
-                    : anySec.validTo || 0,
-              };
-            }
-          }
-        } catch {
-          // Ignore individual response inspection failures
-        }
-      });
-
-      // Navigate and wait for network idle (capped at 20s)
       await page.goto(targetUrl, { timeout: 30000, waitUntil: "domcontentloaded" });
-      try {
-        await page.waitForLoadState("networkidle", { timeout: 20000 });
-      } catch {
-        console.warn("networkidle timed out after 20s, proceeding with available DOM");
-      }
-
-      // Scroll viewport in steps to trigger lazy loading
-      await page.evaluate(async () => {
-        await new Promise<void>((resolve) => {
-          let totalHeight = 0;
-          const distance = 300;
-          const timer = setInterval(() => {
-            const scrollHeight = document.body.scrollHeight;
-            window.scrollBy(0, distance);
-            totalHeight += distance;
-
-            if (totalHeight >= scrollHeight || totalHeight > 3000) {
-              clearInterval(timer);
-              resolve();
-            }
-          }, 100);
-        });
-      });
 
       const finalUrl = page.url();
       const pageTitle = await page.title();
-      const domHtml = await page.evaluate(() => document.documentElement.outerHTML);
-
-      // Screenshot full page
+      const domHtml = await page.content();
       const screenshotUint8 = await page.screenshot({ fullPage: true, type: "png" });
-      const fullpageScreenshot = Buffer.from(screenshotUint8);
-
-      // Render PDF (skip gracefully if CDP does not support PDF on this page)
-      let pagePdf: Buffer | null = null;
-      try {
-        const pdfUint8 = await page.pdf({ printBackground: true });
-        pagePdf = Buffer.from(pdfUint8);
-      } catch (pdfErr) {
-        console.warn("page.pdf threw over CDP, proceeding without PDF artifact:", pdfErr);
-      }
 
       return {
-        fullpageScreenshot,
-        pagePdf,
+        sessionId,
+        fullpageScreenshot: Buffer.from(screenshotUint8),
+        pagePdf: null,
         domHtml,
-        networkLog: networkEntries,
-        tlsInfo,
+        networkLog: [],
+        tlsInfo: null,
         finalUrl,
         pageTitle,
       };
     } finally {
-      await browser.close().catch(() => {});
+      if (browser) {
+        await browser.close().catch(() => {});
+      }
     }
   } finally {
-    // Guaranteed session termination
+    // Guaranteed session termination per PRD Section 7.2
     if (sessionId) {
       try {
-        await tinyFishFetch(`https://api.browser.tinyfish.ai/${sessionId}`, {
-          method: "DELETE",
-        });
+        await terminateBrowserSession(sessionId);
+        console.log(`browser session ${sessionId} terminated`);
       } catch (termErr) {
         console.warn(`Failed to terminate browser session ${sessionId}:`, termErr);
       }
