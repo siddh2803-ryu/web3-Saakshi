@@ -189,6 +189,17 @@ export async function runFinalizePipeline(captureId: string): Promise<boolean> {
     await logStage("FETCHING", "Fetching clean text and markdown structure via TinyFish Fetch...");
     const fetchResult = await fetchCleanText(browserCapture.finalUrl || targetUrl);
 
+    // Record any fetch error events / notices
+    if (fetchResult.errorEvents && fetchResult.errorEvents.length > 0) {
+      for (const ev of fetchResult.errorEvents) {
+        await logStage("FETCHING", `Fetch notice: ${ev}`);
+      }
+      if (fetchResult.errorCodes.some((c) => ["bot_blocked", "login_required"].includes(c))) {
+        isPartial = true;
+        partialReason = fetchResult.errorEvents.join("; ");
+      }
+    }
+
     rawArtifacts.push({
       id: "art_fetch_markdown",
       kind: "fetch_markdown",
@@ -201,7 +212,7 @@ export async function runFinalizePipeline(captureId: string): Promise<boolean> {
       id: "art_fetch_meta",
       kind: "fetch_meta",
       mime: "application/json",
-      plaintextBuffer: Buffer.from(JSON.stringify(fetchResult, null, 2), "utf8"),
+      plaintextBuffer: Buffer.from(JSON.stringify(fetchResult.meta, null, 2), "utf8"),
       capturedAt: new Date().toISOString(),
     });
 
@@ -287,8 +298,10 @@ export async function runFinalizePipeline(captureId: string): Promise<boolean> {
         tinyfish: {
           agentRunId: runId,
           agentSteps: agentRun?.num_of_steps || manifestArtifacts.length,
+          browserSessionId: browserCapture.sessionId,
           browserProfile: "stealth",
           proxyCountry: "US",
+          fetchLatencyMs: fetchResult.latencyMs,
         },
       },
       observed: {
