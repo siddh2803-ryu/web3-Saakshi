@@ -139,3 +139,92 @@ export const WebhookPayloadSchema = z.object({
 });
 
 export type WebhookPayload = z.infer<typeof WebhookPayloadSchema>;
+
+/**
+ * TinyFish Fetch API Schemas (PRD Section 7.3)
+ */
+export const TinyFishFetchResultSchema = z.object({
+  url: z.string().optional(),
+  final_url: z.string().nullable().optional(),
+  title: z.string().nullable().optional(),
+  description: z.string().nullable().optional(),
+  author: z.string().nullable().optional(),
+  published_date: z.string().nullable().optional(),
+  language: z.string().nullable().optional(),
+  links: z.array(z.string()).optional().default([]),
+  image_links: z.array(z.string()).optional().default([]),
+  etag: z.string().nullable().optional(),
+  last_modified: z.string().nullable().optional(),
+  text: z.string().default(""),
+  format: z.string().optional(),
+});
+
+export type TinyFishFetchResult = z.infer<typeof TinyFishFetchResultSchema>;
+
+export const TinyFishFetchErrorSchema = z.object({
+  url: z.string().optional(),
+  code: z.string(),
+  message: z.string().optional(),
+  status: z.number().optional(),
+});
+
+export type TinyFishFetchError = z.infer<typeof TinyFishFetchErrorSchema>;
+
+export const TinyFishFetchResponseSchema = z.object({
+  results: z.array(TinyFishFetchResultSchema).optional().default([]),
+  errors: z.array(TinyFishFetchErrorSchema).optional().default([]),
+});
+
+export type TinyFishFetchResponse = z.infer<typeof TinyFishFetchResponseSchema>;
+
+export const FetchMetaSchema = z.object({
+  title: z.string().nullable().optional(),
+  description: z.string().nullable().optional(),
+  author: z.string().nullable().optional(),
+  published_date: z.string().nullable().optional(),
+  language: z.string().nullable().optional(),
+  final_url: z.string().nullable().optional(),
+  links: z.array(z.string()).optional().default([]),
+  image_links: z.array(z.string()).optional().default([]),
+  etag: z.string().nullable().optional(),
+  last_modified: z.string().nullable().optional(),
+  latency_ms: z.number(),
+  errors: z.array(TinyFishFetchErrorSchema).optional().default([]),
+  error_codes: z.array(z.string()).optional().default([]),
+  error_events: z.array(z.string()).optional().default([]),
+});
+
+export type FetchMeta = z.infer<typeof FetchMetaSchema>;
+
+/**
+ * TinyFish Browser API Schemas (PRD Section 7.2)
+ */
+export const CreateBrowserSessionResponseSchema = z.object({
+  session_id: z.string().min(1),
+  cdp_url: z.string().min(1),
+  base_url: z.string().optional(),
+});
+
+export type CreateBrowserSessionResponse = z.infer<typeof CreateBrowserSessionResponseSchema>;
+
+export const NetworkLogEntrySchema = z.object({
+  url: z.string(),
+  status: z.number(),
+  method: z.string(),
+  resourceType: z.string(),
+  contentType: z.string(),
+  timing: z.number().optional(),
+});
+
+export type NetworkLogEntry = z.infer<typeof NetworkLogEntrySchema>;
+
+export const TlsSecurityDetailsSchema = z.object({
+  protocol: z.string(),
+  issuer: z.string(),
+  subjectName: z.string(),
+  subject: z.string().optional(),
+  validFrom: z.number(),
+  validTo: z.number(),
+});
+
+export type TlsSecurityDetails = z.infer<typeof TlsSecurityDetailsSchema>;
