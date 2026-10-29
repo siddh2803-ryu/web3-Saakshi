@@ -17,7 +17,7 @@
 |---|---|---|---|---|---|---|
 | **Phase 0** | Scaffolding & Base Monorepo | **PENDING LIVE** | 3/3 Core Criteria Pending Live / 10/10 Scaffolding Items Verified | 85% | `ef3e90f`, `d4d1a7a`, `e33bd5b`, `77b3887`, `a145215` | (a) Deployed URL shows landing page [PENDING - NOT RUN (needs Vercel deploy)]; (b) Google sign-in works [PENDING - NOT RUN (needs Firebase credentials)]; (c) CI is green [PENDING - LOCAL verified, awaiting GitHub Actions run on push]. |
 | **Phase 1** | Sandbox "Chirp" Platform & Agent Capture | **COMPLETE** | 3/3 Core Criteria Passed (Live Verified) / 8/8 FRs Verified | 100% | `02abfe0`, `1332a1b`, `403d13f`, `0780cb5`, `7fd608a`, `50abf10` | None (Platform simulator, admin controls, and live agent capture verified against real TinyFish run `b2bbaef6-0203-410f-8122-49adc8c7f67b` with 6 step screenshots). |
-| **Phase 2** | Full-Page Browser Capture & Clean Text | **PARTIAL** | 4/5 | 80% | `c9cf24d`, `ef3e90f` | Add dedicated commit marker; verify live Playwright over CDP against real TinyFish Browser API once key is provided. |
+| **Phase 2** | Full-Page Browser Capture & Clean Text | **PARTIAL** | 7/8 Acceptance Items Verified | 85% | `feat(fetch)`, `feat(browser)`, `test(capture)` | Day 2: Live Browser API CDP session verification and live end-to-end capture test. |
 | **Phase 3** | Evidence Engine & Cryptography | **COMPLETE** | 8/8 | 100% | `a92d60d` | None (SHA-256 pre-encryption, RFC 8785 canonical manifest, AES-256-GCM envelope encryption, IPFS upload, ZIP bundle). |
 | **Phase 4** | Smart Contract & Merkle Anchoring | **PARTIAL** | 4/5 | 80% | `ef3e90f`, `a92d60d` | Deploy `EvidenceRegistry.sol` to Polygon Amoy testnet, fund deployer wallet, record address in `NEXT_PUBLIC_REGISTRY_ADDRESS`. |
 | **Phase 5** | Public Trustless Verification | **COMPLETE** | 6/6 | 100% | `08c1a68` | None (Client-side WebCrypto SHA-256 hashing, public proofs lookup, ethers.js RPC query, `/v/[id]` certificate, `scripts/verify.ts`). |
@@ -93,6 +93,50 @@
 | **FR-3.5: Soft-failure / Blocked Detection** | **PASS** | `LOCAL` | `isRunBlockedOrPartial` in `apps/web/lib/tinyfish/agent.ts`, marks capture `PARTIAL` without discarding artifacts. |
 | **Section 7.7: Error Handling & Retries** | **PASS** | `LOCAL` | `tinyFishFetch` in `apps/web/lib/tinyfish/client.ts` retries 5xx server errors once, does not retry 4xx, logs `X-Request-ID`, respects `CAPTURE_ENABLED` kill switch. |
 | **Section 7.8: Fixture Tooling & Metadata** | **PASS** | `LOCAL` | `scripts/record-fixture.ts` created; fixtures stamped with `_metadata: { source: "synthetic" | "recorded" }`. Yellow banner shown in layout. |
+
+---
+
+### 1.3 Phase 2 Honest Verification Scorecard (Day 1 of 2)
+
+**Phase 2 Acceptance Criteria Verification (Day 1 Milestone):**
+*Phase 2 Status: **PARTIAL** (Goal for Day 1: Fetch verified live, Browser fully coded and unit-tested; do not mark Phase 2 complete).*
+
+| Criterion / Artifact | Status | Verified With | Evidence / Implementation Notes |
+|---|---|---|---|
+| **(a.1) `fullpage_screenshot` (PNG, `fullPage: true`)** | **PASS** | `UNIT` | Captured via Playwright CDP page screenshot, buffer converted, unit tested in `apps/web/tests/browser.test.ts`. |
+| **(a.2) `page_pdf` (or logged warning if unsupported)** | **PASS** | `UNIT` | Captured via `page.pdf({ printBackground: true })`; CDP failures log a warning and capture gracefully proceeds with `pagePdf: null` (unit tested). |
+| **(a.3) `network_log` JSON** | **PASS** | `UNIT` | Listeners attached via `page.on("response")` before `page.goto()`; logs `{ url, status, method, resourceType, contentType, timing }` (unit tested). |
+| **(a.4) `tls_info` JSON** | **PASS** | `UNIT` | Extracted from main navigation response's `securityDetails()`: `{ protocol, issuer, subjectName, validFrom, validTo }` (unit tested). |
+| **(a.5) `dom_html` (`page.content()`)** | **PASS** | `UNIT` | Captured via `await page.content()`, preserved as UTF-8 plaintext HTML buffer (unit tested). |
+| **(a.6) `fetch_markdown` (`results[0].text`)** | **PASS** | `LIVE` | Verified live against `https://example.com` (156 chars) and Wikipedia `https://en.wikipedia.org/wiki/Internet` (97,640 chars). |
+| **(a.7) `fetch_meta` JSON** | **PASS** | `LIVE` | Validated by Zod with `title, description, author, published_date, language, final_url, links, image_links, etag, last_modified, latency_ms` verified live. |
+| **(b) Browser session termination logged** | **PASS** | `UNIT` | Guaranteed `DELETE https://api.browser.tinyfish.ai/{session_id}` in `finally` block on success, screenshot failure, and navigation failure; logs `browser session <id> terminated`; never logs `cdp_url`. |
+
+*Rule: Anything not verified live is not PASS (Browser criteria remain UNIT until Day 2 live session).*
+
+#### Live Fetch Verification Results (`scripts/live-fetch-check.ts`)
+- **Target 1 (`https://example.com`):**
+  - Title: `Example Domain`
+  - Final URL: `https://example.com`
+  - Text Length: 156 characters
+  - Latency: 2,089 ms
+  - Errors: None (`[]`)
+  - Request ID: `d9a0b680-9386-4c86-b4f4-e229ff48f2b9`
+- **Target 2 (`https://en.wikipedia.org/wiki/Internet`):**
+  - Title: `Internet - Wikipedia`
+  - Final URL: `https://en.wikipedia.org/wiki/Internet`
+  - Text Length: 97,640 characters
+  - Latency: 9,009 ms
+  - Links: 2,384 found, Image links: 88 found
+  - Errors: None (`[]`)
+  - Request ID: `9991e6f7-6e56-42a4-8520-f17308032f16`
+
+#### Day 2 Checklist (Remaining for Phase 2 Completion)
+1. Execute live Browser API session creation (`POST https://api.browser.tinyfish.ai` without `url`).
+2. Connect `playwright-core` live over CDP to the remote session.
+3. Perform live page navigation, lazy-scroll, and verify real live capture artifacts (`fullpage_screenshot`, `page_pdf`, `dom_html`, `network_log`, `tls_info`).
+4. Verify live session termination in logs: `browser session <id> terminated`.
+5. Run full live end-to-end capture combining Agent, Browser, and Fetch through the finalize pipeline.
 
 ---
 
