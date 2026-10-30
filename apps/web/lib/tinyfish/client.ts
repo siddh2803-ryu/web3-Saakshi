@@ -78,6 +78,7 @@ export async function tinyFishFetch<T = unknown>(
         headers,
         body: options.body ? JSON.stringify(options.body) : undefined,
         signal: controller.signal,
+        cache: "no-store",
       });
     } catch (networkErr: unknown) {
       clearTimeout(timer);
@@ -167,8 +168,17 @@ export async function tinyFishFetch<T = unknown>(
     }
 
     console.log(`[TinyFish] [X-Request-ID: ${requestId}] ${method} ${url} -> HTTP ${response.status}`);
-    const data = (await response.json()) as T;
-    return data;
+    if (response.status === 204 || response.headers.get("content-length") === "0") {
+      return {} as T;
+    }
+    if (typeof response.text === "function") {
+      const text = await response.text();
+      if (!text || !text.trim()) {
+        return {} as T;
+      }
+      return JSON.parse(text) as T;
+    }
+    return (await response.json()) as T;
   }
 
   throw lastError;

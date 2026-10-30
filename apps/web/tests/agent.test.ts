@@ -249,6 +249,24 @@ describe("Phase 1: Agent & Capture Hardening Test Suite", () => {
       };
       expect(AgentRunResultSchema.safeParse(invalidCommentsResult).success).toBe(false);
     });
+
+    it("accepts AgentRunResponse with num_of_steps null or number", () => {
+      const inFlightResponse = {
+        run_id: "run-inflight-001",
+        status: "RUNNING",
+        num_of_steps: null,
+      };
+      const inFlightParsed = AgentRunResponseSchema.safeParse(inFlightResponse);
+      expect(inFlightParsed.success).toBe(true);
+
+      const completedResponse = {
+        run_id: "run-complete-001",
+        status: "COMPLETED",
+        num_of_steps: 6,
+      };
+      const completedParsed = AgentRunResponseSchema.safeParse(completedResponse);
+      expect(completedParsed.success).toBe(true);
+    });
   });
 
   // =========================================================================

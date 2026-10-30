@@ -86,7 +86,7 @@ export const AgentRunResponseSchema = z
     run_id: z.string(),
     status: AgentRunStatusSchema,
     streaming_url: z.string().nullable().optional(),
-    num_of_steps: z.number().optional(),
+    num_of_steps: z.number().nullable().optional(),
     result: AgentRunResultSchema.nullable().optional(),
     error: z.string().nullable().optional(),
     video_url: z.string().nullable().optional(),

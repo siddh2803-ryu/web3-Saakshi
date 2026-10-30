@@ -52,6 +52,7 @@ export async function terminateBrowserSession(sessionId: string): Promise<void> 
     method: "DELETE",
     retries: 1,
   });
+  console.log(`browser session ${sessionId} terminated`);
 }
 
 /**
@@ -179,7 +180,13 @@ export async function captureWithBrowserApi(targetUrl: string): Promise<BrowserC
       const domHtml = await page.content();
 
       // Screenshot full page (PNG, fullPage true)
-      const screenshotUint8 = await page.screenshot({ fullPage: true, type: "png" });
+      let screenshotUint8: Uint8Array;
+      try {
+        screenshotUint8 = await page.screenshot({ fullPage: true, type: "png", timeout: 60000 });
+      } catch (shotErr) {
+        console.warn("fullpage screenshot failed or timed out, falling back to viewport screenshot:", shotErr);
+        screenshotUint8 = await page.screenshot({ fullPage: false, type: "png", timeout: 30000 });
+      }
       const fullpageScreenshot = Buffer.from(screenshotUint8);
 
       // Render PDF (skip gracefully if CDP does not support PDF on this page)
@@ -211,7 +218,6 @@ export async function captureWithBrowserApi(targetUrl: string): Promise<BrowserC
     if (sessionId) {
       try {
         await terminateBrowserSession(sessionId);
-        console.log(`browser session ${sessionId} terminated`);
       } catch (termErr) {
         console.warn(`Failed to terminate browser session ${sessionId}:`, termErr);
       }

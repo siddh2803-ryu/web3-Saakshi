@@ -38,7 +38,7 @@ export async function startAgentRun(options: StartAgentOptions): Promise<{ run_i
     output_schema: AGENT_OUTPUT_SCHEMA,
   };
 
-  if (options.webhookUrl) {
+  if (options.webhookUrl && options.webhookUrl.startsWith("https://")) {
     body.webhook_url = options.webhookUrl;
   }
 

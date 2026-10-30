@@ -8,6 +8,8 @@ import { startAgentRun } from "@/lib/tinyfish/agent";
 import { validateCaptureUrl } from "@/lib/validation/url";
 import { NewCaptureRequestSchema } from "@/lib/tinyfish/schemas";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -81,10 +83,19 @@ export async function POST(req: NextRequest) {
     // Generate Capture ID (timestamp + random entropy)
     const captureId = `cap_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 7)}`;
 
-    // Build webhook URL
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    // Build webhook URL (TinyFish strictly requires HTTPS per Section 7.1)
+    const host = req.headers.get("x-forwarded-host") || req.headers.get("host") || "";
+    const proto = req.headers.get("x-forwarded-proto") || "http";
+    const requestOrigin = `${proto}://${host}`;
+    const configuredUrl = process.env.NEXT_PUBLIC_APP_URL;
+    const appUrl = (configuredUrl && configuredUrl.startsWith("https://"))
+      ? configuredUrl
+      : (requestOrigin.startsWith("https://") ? requestOrigin : undefined);
+
     const webhookSecret = process.env.WEBHOOK_SECRET || "dev_webhook_secret";
-    const webhookUrl = `${appUrl}/api/webhooks/tinyfish?token=${webhookSecret}&captureId=${captureId}`;
+    const webhookUrl = appUrl
+      ? `${appUrl.replace(/\/$/, "")}/api/webhooks/tinyfish?token=${webhookSecret}&captureId=${captureId}`
+      : undefined;
 
     const captureRecord = {
       id: captureId,

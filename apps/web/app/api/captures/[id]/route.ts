@@ -3,6 +3,8 @@ import { getCaptureRecord, listArtifactRecords, saveCaptureRecord } from "@/lib/
 import { getAgentRun } from "@/lib/tinyfish/agent";
 import { runFinalizePipeline } from "@/lib/pipeline/finalize";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }

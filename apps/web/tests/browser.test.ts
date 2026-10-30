@@ -546,4 +546,46 @@ describe("Phase 2: TinyFish Browser Module (PRD Section 7.2, 7.7)", () => {
     warnSpy.mockRestore();
     errSpy.mockRestore();
   });
+
+  it("handles HTTP 204 No Content gracefully during session termination without parsing errors", async () => {
+    let deleteCalled = false;
+    global.fetch = vi.fn().mockImplementation(async (url: string, opts: RequestInit) => {
+      if (opts.method === "DELETE") {
+        deleteCalled = true;
+        return {
+          ok: true,
+          status: 204,
+          headers: new Headers({ "x-request-id": "req-del-204" }),
+          text: async () => "",
+        };
+      }
+      throw new Error(`Unexpected call: ${opts.method} ${url}`);
+    });
+
+    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    await expect(terminateBrowserSession("tf-session-204-test")).resolves.toBeUndefined();
+    expect(deleteCalled).toBe(true);
+    expect(consoleSpy).toHaveBeenCalledWith("browser session tf-session-204-test terminated");
+    consoleSpy.mockRestore();
+  });
+
+  it("passes cache: 'no-store' to all HTTP requests to prevent Next.js caching", async () => {
+    let capturedOpts: RequestInit | undefined;
+    global.fetch = vi.fn().mockImplementation(async (_url: string, opts: RequestInit) => {
+      capturedOpts = opts;
+      return {
+        ok: true,
+        status: 201,
+        headers: new Headers({ "x-request-id": "req-cache-check" }),
+        json: async () => ({
+          session_id: "sess_cache_test",
+          cdp_url: "wss://browser.tinyfish.ai/devtools/page/test",
+        }),
+      };
+    });
+
+    await createBrowserSession();
+    expect(capturedOpts).toBeDefined();
+    expect((capturedOpts as any).cache).toBe("no-store");
+  });
 });
