@@ -10,14 +10,14 @@
 
 ## 1. Executive Summary & Phase Scorecard
 
-**Phases complete: 5 of 11 | Partial: 5 | Not started: 0 | Human tasks: 1**  
-**Progress:** `[██████████░░░░░░░░░░] 53% Phases (72.7% Acceptance Criteria: 48/66)`
+**Phases complete: 6 of 11 | Partial: 4 | Not started: 0 | Human tasks: 1**  
+**Progress:** `[███████████░░░░░░░░░] 55% Phases (74.2% Acceptance Criteria: 49/66)`
 
 | Phase | Name | Status | Criteria Passed | % Done | Commits | Remaining Work |
 |---|---|---|---|---|---|---|
 | **Phase 0** | Scaffolding & Base Monorepo | **PENDING LIVE** | 3/3 Core Criteria Pending Live / 10/10 Scaffolding Items Verified | 85% | `ef3e90f`, `d4d1a7a`, `e33bd5b`, `77b3887`, `a145215` | (a) Deployed URL shows landing page [PENDING - NOT RUN (needs Vercel deploy)]; (b) Google sign-in works [PENDING - NOT RUN (needs Firebase credentials)]; (c) CI is green [PENDING - LOCAL verified, awaiting GitHub Actions run on push]. |
 | **Phase 1** | Sandbox "Chirp" Platform & Agent Capture | **COMPLETE** | 3/3 Core Criteria Passed (Live Verified) / 8/8 FRs Verified | 100% | `02abfe0`, `1332a1b`, `403d13f`, `0780cb5`, `7fd608a`, `50abf10` | None (Platform simulator, admin controls, and live agent capture verified against real TinyFish run `b2bbaef6-0203-410f-8122-49adc8c7f67b` with 6 step screenshots). |
-| **Phase 2** | Full-Page Browser Capture & Clean Text | **PARTIAL** | 7/8 Acceptance Items Verified | 85% | `feat(fetch)`, `feat(browser)`, `test(capture)` | Day 2: Live Browser API CDP session verification and live end-to-end capture test. |
+| **Phase 2** | Full-Page Browser Capture & Clean Text | **COMPLETE** | 8/8 Core Acceptance Items Verified (Live Verified) | 100% | `feat(fetch)`, `feat(browser)`, `feat(capture)`, `test(capture)` | None (Live Browser API session over CDP, full-page screenshot, PDF, DOM HTML, network log, TLS info, Fetch markdown/meta, guaranteed session termination, and end-to-end full pipeline capture all live verified). |
 | **Phase 3** | Evidence Engine & Cryptography | **COMPLETE** | 8/8 | 100% | `a92d60d` | None (SHA-256 pre-encryption, RFC 8785 canonical manifest, AES-256-GCM envelope encryption, IPFS upload, ZIP bundle). |
 | **Phase 4** | Smart Contract & Merkle Anchoring | **PARTIAL** | 4/5 | 80% | `ef3e90f`, `a92d60d` | Deploy `EvidenceRegistry.sol` to Polygon Amoy testnet, fund deployer wallet, record address in `NEXT_PUBLIC_REGISTRY_ADDRESS`. |
 | **Phase 5** | Public Trustless Verification | **COMPLETE** | 6/6 | 100% | `08c1a68` | None (Client-side WebCrypto SHA-256 hashing, public proofs lookup, ethers.js RPC query, `/v/[id]` certificate, `scripts/verify.ts`). |
@@ -96,23 +96,58 @@
 
 ---
 
-### 1.3 Phase 2 Honest Verification Scorecard (Day 1 of 2)
+### 1.3 Phase 2 Honest Verification Scorecard
 
-**Phase 2 Acceptance Criteria Verification (Day 1 Milestone):**
-*Phase 2 Status: **PARTIAL** (Goal for Day 1: Fetch verified live, Browser fully coded and unit-tested; do not mark Phase 2 complete).*
+**Phase 2 Acceptance Criteria Verification:**
+*Phase 2 Status: **COMPLETE** (100% Core Acceptance Criteria Verified Live).*
 
 | Criterion / Artifact | Status | Verified With | Evidence / Implementation Notes |
 |---|---|---|---|
-| **(a.1) `fullpage_screenshot` (PNG, `fullPage: true`)** | **PASS** | `UNIT` | Captured via Playwright CDP page screenshot, buffer converted, unit tested in `apps/web/tests/browser.test.ts`. |
-| **(a.2) `page_pdf` (or logged warning if unsupported)** | **PASS** | `UNIT` | Captured via `page.pdf({ printBackground: true })`; CDP failures log a warning and capture gracefully proceeds with `pagePdf: null` (unit tested). |
-| **(a.3) `network_log` JSON** | **PASS** | `UNIT` | Listeners attached via `page.on("response")` before `page.goto()`; logs `{ url, status, method, resourceType, contentType, timing }` (unit tested). |
-| **(a.4) `tls_info` JSON** | **PASS** | `UNIT` | Extracted from main navigation response's `securityDetails()`: `{ protocol, issuer, subjectName, validFrom, validTo }` (unit tested). |
-| **(a.5) `dom_html` (`page.content()`)** | **PASS** | `UNIT` | Captured via `await page.content()`, preserved as UTF-8 plaintext HTML buffer (unit tested). |
-| **(a.6) `fetch_markdown` (`results[0].text`)** | **PASS** | `LIVE` | Verified live against `https://example.com` (156 chars) and Wikipedia `https://en.wikipedia.org/wiki/Internet` (97,640 chars). |
-| **(a.7) `fetch_meta` JSON** | **PASS** | `LIVE` | Validated by Zod with `title, description, author, published_date, language, final_url, links, image_links, etag, last_modified, latency_ms` verified live. |
-| **(b) Browser session termination logged** | **PASS** | `UNIT` | Guaranteed `DELETE https://api.browser.tinyfish.ai/{session_id}` in `finally` block on success, screenshot failure, and navigation failure; logs `browser session <id> terminated`; never logs `cdp_url`. |
+| **(a.1) `fullpage_screenshot` (PNG, `fullPage: true`)** | **PASS** | `LIVE + UNIT` | Captured live via Playwright CDP page screenshot. Verified live on `https://example.com` (54,433 bytes), Wikipedia (173,376 bytes), and sandbox capture `cap_mvvaatlb_q8q77` (345,427 bytes). |
+| **(a.2) `page_pdf` (or logged warning if unsupported)** | **PASS** | `LIVE + UNIT` | Captured live via `page.pdf({ printBackground: true })`. Verified live on `https://example.com` (35,099 bytes), Wikipedia (833,987 bytes), and sandbox capture `cap_mvvaatlb_q8q77` (662,629 bytes). CDP failure handling tested in unit tests. |
+| **(a.3) `network_log` JSON** | **PASS** | `LIVE + UNIT` | Listeners attached via `page.on("response")` before `page.goto()`; verified live on `https://example.com` (2 responses), Wikipedia (86 responses), and sandbox capture `cap_mvvaatlb_q8q77` (5,766 bytes, 21 responses). |
+| **(a.4) `tls_info` JSON** | **PASS** | `LIVE + UNIT` | Extracted live from main navigation response's `securityDetails()`: `example.com` (`TLS 1.3 | Cloudflare TLS Issuing ECC CA 3`), Wikipedia (`TLS 1.3 | YE2 | *.wikipedia.org`), sandbox capture `cap_mvvaatlb_q8q77` (170 bytes). |
+| **(a.5) `dom_html` (`page.content()`)** | **PASS** | `LIVE + UNIT` | Captured live via `page.content()`. Verified on `https://example.com` (1,989 chars), Wikipedia (1,427,565 chars), and sandbox capture `cap_mvvaatlb_q8q77` (39,557 bytes). |
+| **(a.6) `fetch_markdown` (`results[0].text`)** | **PASS** | `LIVE + UNIT` | Verified live against `https://example.com` (156 chars), Wikipedia (97,640 chars), and sandbox capture `cap_mvvaatlb_q8q77` (1,130 bytes clean markdown). |
+| **(a.7) `fetch_meta` JSON** | **PASS** | `LIVE + UNIT` | Validated by Zod with `title, description, author, published_date, language, final_url, links, image_links, etag, last_modified, latency_ms`. Verified live on sandbox capture `cap_mvvaatlb_q8q77` (1,333 bytes). |
+| **(b) Browser session termination logged** | **PASS** | `LIVE + UNIT` | Guaranteed `DELETE https://api.browser.tinyfish.ai/{session_id}` in `finally` block. Logged in production logs: `browser session tf-61e9036e-3508-4910-860a-a242a39ec9bd terminated` (full capture), `browser session tf-345e7e69-54c2-4669-930a-97cbf3050077 terminated` (example.com), `browser session tf-461e588a-dff3-4643-9561-0c738f19ced6 terminated` (wikipedia.org). Sensitive `cdp_url` never logged. |
 
-*Rule: Anything not verified live is not PASS (Browser criteria remain UNIT until Day 2 live session).*
+#### Live Standalone Browser Check Results (`scripts/live-browser-check.ts`)
+- **Target 1 (`https://example.com`):**
+  - Session ID: `tf-345e7e69-54c2-4669-930a-97cbf3050077`
+  - Screenshot: 54,433 bytes (PNG)
+  - Page PDF: 35,099 bytes
+  - DOM HTML: 1,989 characters
+  - Network Log: 2 entries captured
+  - TLS Info: `TLS 1.3 | Cloudflare TLS Issuing ECC CA 3 | example.com`
+  - Total Duration: 17,557 ms
+  - Termination: `browser session tf-345e7e69-54c2-4669-930a-97cbf3050077 terminated`
+- **Target 2 (`https://en.wikipedia.org/wiki/Internet`):**
+  - Session ID: `tf-461e588a-dff3-4643-9561-0c738f19ced6`
+  - Screenshot: 173,376 bytes (PNG)
+  - Page PDF: 833,987 bytes
+  - DOM HTML: 1,427,565 characters
+  - Network Log: 86 entries captured
+  - TLS Info: `TLS 1.3 | YE2 | *.wikipedia.org`
+  - Total Duration: 85,012 ms
+  - Termination: `browser session tf-461e588a-dff3-4643-9561-0c738f19ced6 terminated`
+
+#### Live End-to-End Full Capture Results (`scripts/live-full-capture.ts`)
+- **Capture ID:** `cap_mvvaatlb_q8q77`
+- **Target URL:** `https://camps-tobacco-long-auburn.trycloudflare.com/sandbox/post/internship-scam-alert`
+- **Agent Run ID:** `70f5d1bc-78ce-4947-ba97-c3f618031f0b` (Completed with live stream & steps)
+- **Pipeline Stage Progression:** `QUEUED` &rarr; `AGENT_RUNNING` &rarr; `BROWSER_CAPTURE` &rarr; `FETCHING` &rarr; `FINGERPRINTING` &rarr; `ENCRYPTING` &rarr; `UPLOADING` &rarr; `ANALYZING` &rarr; `READY`
+- **Session Termination Log:** `browser session tf-61e9036e-3508-4910-860a-a242a39ec9bd terminated`
+- **Captured Artifacts Grid (All 7 Phase 2 Artifacts Present):**
+  1. `art_fullpage_screenshot` (Kind: `fullpage_screenshot`, 345,427 bytes, SHA-256: `415edf38afc2a509ed573e038540fa7e7c3145f8c837270774056a4eb255880b`)
+  2. `art_page_pdf` (Kind: `page_pdf`, 662,629 bytes, SHA-256: `5a0e69807c52a4dc3999430c6a39cb2998a41eb4f6996e3ac6d3199cf9b6b2e5`)
+  3. `art_network_log` (Kind: `network_log`, 5,766 bytes, SHA-256: `f459b3c5fe437193e666710dcdaf110bf0506d3bfdc25c3b0da2cfab8c05093a`)
+  4. `art_tls_info` (Kind: `tls_info`, 170 bytes, SHA-256: `0150dcce70093a0f5db90cdcc30b78fa3ca8ba7f887d5f61c3446c3680e9fa15`)
+  5. `art_dom_html` (Kind: `dom_html`, 39,557 bytes, SHA-256: `8d8100d9549d0a0a18a2482174cc6449110f4fcbff15a37bdc624cde7426d203`)
+  6. `art_fetch_markdown` (Kind: `fetch_markdown`, 1,130 bytes, SHA-256: `19d0575a79a3833c0e84b93270f4b9a69cae342d0402093cbef1e4d0eadd034e`)
+  7. `art_fetch_meta` (Kind: `fetch_meta`, 1,333 bytes, SHA-256: `9edcd133067e0c0374ed21862c08f1f3487b571efeadbf6cf6d1bf5f8f55f610`)
+  - Plus agent step screenshots (`art_step_1`, `art_step_2`) and structured result (`art_agent_result`).
+- **Decrypted Preview Endpoints:** All 10 artifacts verified `HTTP 200` decrypted via `GET /api/captures/:id/artifacts/:artifactId`.
 
 #### Live Fetch Verification Results (`scripts/live-fetch-check.ts`)
 - **Target 1 (`https://example.com`):**
@@ -130,13 +165,6 @@
   - Links: 2,384 found, Image links: 88 found
   - Errors: None (`[]`)
   - Request ID: `9991e6f7-6e56-42a4-8520-f17308032f16`
-
-#### Day 2 Checklist (Remaining for Phase 2 Completion)
-1. Execute live Browser API session creation (`POST https://api.browser.tinyfish.ai` without `url`).
-2. Connect `playwright-core` live over CDP to the remote session.
-3. Perform live page navigation, lazy-scroll, and verify real live capture artifacts (`fullpage_screenshot`, `page_pdf`, `dom_html`, `network_log`, `tls_info`).
-4. Verify live session termination in logs: `browser session <id> terminated`.
-5. Run full live end-to-end capture combining Agent, Browser, and Fetch through the finalize pipeline.
 
 ---
 

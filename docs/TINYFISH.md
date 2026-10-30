@@ -58,16 +58,27 @@ This document records the integration details for TinyFish across Saakshi's arch
 | **(b) Agent result matches output schema in Section 7.1** | **PASS** | `LOCAL (Vitest + Zod)` | Validated with Zod schemas in `apps/web/lib/tinyfish/schemas.ts`. |
 | **(c) Blocked-result detection is unit-tested** | **PASS** | `LOCAL (Vitest)` | Tested across `blocked=true`, captcha, access denied, login required in `apps/web/tests/agent.test.ts`. |
 
-## Phase 2 Acceptance & Verification Status (Day 1 of 2)
+## Phase 2 Acceptance & Verification Status
 
-| Criterion (PRD Section 17) | Status | Verification Method | Action to Turn PASS |
+| Criterion (PRD Section 17) | Status | Verification Method | Live Evidence / Details |
 |---|---|---|---|
-| **(a) Each capture has `fullpage_screenshot`, `page_pdf` (or logged warning), `network_log`, `tls_info`, `dom_html`, `fetch_markdown`, and `fetch_meta`** | **PARTIAL** | `LIVE (Fetch) + UNIT (Browser)` | Fetch verified live against `https://example.com` (156 chars, 2089ms) and Wikipedia `https://en.wikipedia.org/wiki/Internet` (97,640 chars, 9009ms). Browser artifacts unit tested in `apps/web/tests/browser.test.ts`. Day 2 will verify live Browser API CDP capture. |
-| **(b) Logs show every browser session terminated** | **PASS** | `UNIT (Vitest)` | Verified termination calls `DELETE https://api.browser.tinyfish.ai/{session_id}` on success, screenshot error, and navigation error; logs `browser session <id> terminated`; never prints `cdp_url`. Day 2 will verify live in production logs. |
+| **(a) Each capture has `fullpage_screenshot`, `page_pdf` (or logged warning), `network_log`, `tls_info`, `dom_html`, `fetch_markdown`, and `fetch_meta`** | **PASS** | `LIVE + UNIT` | Live end-to-end capture `cap_mvvaatlb_q8q77` produced all 7 artifacts: `fullpage_screenshot` (345,427 bytes), `page_pdf` (662,629 bytes), `network_log` (5,766 bytes), `tls_info` (170 bytes), `dom_html` (39,557 bytes), `fetch_markdown` (1,130 bytes), and `fetch_meta` (1,333 bytes). Standalone browser checks verified on `example.com` and Wikipedia. |
+| **(b) Logs show every browser session terminated** | **PASS** | `LIVE + UNIT` | Verified guaranteed termination via `DELETE https://api.browser.tinyfish.ai/{session_id}` in `finally` block: `browser session tf-61e9036e-3508-4910-860a-a242a39ec9bd terminated` (full capture), `browser session tf-345e7e69-54c2-4669-930a-97cbf3050077 terminated` (example.com), `browser session tf-461e588a-dff3-4643-9561-0c738f19ced6 terminated` (wikipedia.org). Sensitive `cdp_url` never printed. |
 
-### Live Fetch Check Results
-- Target 1: `https://example.com` (Title: `Example Domain`, Length: 156 chars, Latency: 2,089 ms, Errors: 0, Request ID: `d9a0b680-9386-4c86-b4f4-e229ff48f2b9`)
-- Target 2: `https://en.wikipedia.org/wiki/Internet` (Title: `Internet - Wikipedia`, Length: 97,640 chars, Latency: 9,009 ms, Links: 2,384, Images: 88, Errors: 0, Request ID: `9991e6f7-6e56-42a4-8520-f17308032f16`)
+### Live Browser & Fetch Check Results
+- **Live Standalone Browser Check (`scripts/live-browser-check.ts`):**
+  - `https://example.com`: Screenshot 54,433 bytes (PNG), PDF 35,099 bytes, DOM 1,989 chars, 2 network log entries, TLS `TLS 1.3 | Cloudflare TLS Issuing ECC CA 3 | example.com`, duration 17,557ms. Log: `browser session tf-345e7e69-54c2-4669-930a-97cbf3050077 terminated`.
+  - `https://en.wikipedia.org/wiki/Internet`: Screenshot 173,376 bytes (PNG), PDF 833,987 bytes, DOM 1,427,565 chars, 86 network log entries, TLS `TLS 1.3 | YE2 | *.wikipedia.org`, duration 85,012ms. Log: `browser session tf-461e588a-dff3-4643-9561-0c738f19ced6 terminated`.
+- **Live End-to-End Capture (`scripts/live-full-capture.ts`):**
+  - Capture ID: `cap_mvvaatlb_q8q77`
+  - Target URL: `https://camps-tobacco-long-auburn.trycloudflare.com/sandbox/post/internship-scam-alert`
+  - Agent Run: `70f5d1bc-78ce-4947-ba97-c3f618031f0b` (Completed with live stream & steps)
+  - Final State: `READY`
+  - All 10 artifacts sealed with SHA-256 and previewable via `/api/captures/:id/artifacts/:artifactId`.
+  - Log: `browser session tf-61e9036e-3508-4910-860a-a242a39ec9bd terminated`.
+- **Live Fetch Check (`scripts/live-fetch-check.ts`):**
+  - Target 1: `https://example.com` (Title: `Example Domain`, Length: 156 chars, Latency: 2,089 ms, Errors: 0, Request ID: `d9a0b680-9386-4c86-b4f4-e229ff48f2b9`)
+  - Target 2: `https://en.wikipedia.org/wiki/Internet` (Title: `Internet - Wikipedia`, Length: 97,640 chars, Latency: 9,009 ms, Links: 2,384, Images: 88, Errors: 0, Request ID: `9991e6f7-6e56-42a4-8520-f17308032f16`)
 
 ### How to Record Live Fixtures (`scripts/record-fixture.ts`)
 ```bash
