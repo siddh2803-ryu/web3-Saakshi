@@ -1,4 +1,5 @@
 import JSZip from "jszip";
+import { Readable } from "stream";
 import { EvidenceManifest } from "./manifest";
 
 export interface BundleProofJson {
@@ -37,7 +38,7 @@ This evidence archive was cryptographically created and preserved by **Saakshi (
 
 ## Archive Contents
 - **manifest.json**: Complete RFC 8785 canonical manifest of all captured artifacts and metadata.
-- **proof.json**: Cryptographic Merkle inclusion proof and on-chain anchoring details on Polygon Amoy.
+- **proof.json**: Cryptographic Merkle inclusion proof and on-chain anchoring details on Polygon Amoy (present once anchored).
 - **certificate_part_a_draft.pdf**: Draft Certificate under Section 63(4) of the Bharatiya Sakshya Adhiniyam, 2023 (BSA).
 - **ai_analysis.json**: AI-extracted factual summary, parties, and complaint drafting aid (not part of the anchored manifest).
 - **artifacts/**: Plaintext artifacts as recorded by the TinyFish browser and agent.
@@ -65,26 +66,21 @@ You can verify the inclusion proof by calling \`verify(manifestHash, proof, root
 `;
 }
 
-/**
- * Builds a downloadable ZIP archive bundle containing all evidence files.
- */
-export async function buildEvidenceBundleZip(options: BundleOptions): Promise<Buffer> {
-  const zip = new JSZip();
-
+function populateZip(zip: JSZip, options: BundleOptions) {
   // 1. Add canonical manifest.json
   zip.file("manifest.json", JSON.stringify(options.manifest, null, 2));
 
-  // 2. Add proof.json if available
-  if (options.proofJson) {
+  // 2. Add proof.json only once anchored (FR-10.1)
+  if (options.proofJson && options.proofJson.txHash) {
     zip.file("proof.json", JSON.stringify(options.proofJson, null, 2));
   }
 
-  // 3. Add AI analysis if available
+  // 3. Add AI analysis when it exists
   if (options.aiAnalysisJson) {
     zip.file("ai_analysis.json", JSON.stringify(options.aiAnalysisJson, null, 2));
   }
 
-  // 4. Add Section 63(4) Draft Certificate PDF if generated
+  // 4. Add Section 63(4) Draft Certificate PDF when it exists
   if (options.certificatePdfBuffer) {
     zip.file("certificate_part_a_draft.pdf", options.certificatePdfBuffer);
   }
@@ -99,6 +95,31 @@ export async function buildEvidenceBundleZip(options: BundleOptions): Promise<Bu
       artifactsFolder.file(art.filename, art.plaintextBuffer);
     }
   }
+}
+
+/**
+ * Builds a streamable ZIP archive bundle (ReadableStream) without holding full ZIP in memory (FR-10.1).
+ */
+export function buildEvidenceBundleStream(options: BundleOptions): ReadableStream {
+  const zip = new JSZip();
+  populateZip(zip, options);
+
+  const nodeStream = zip.generateNodeStream({
+    type: "nodebuffer",
+    streamFiles: true,
+    compression: "DEFLATE",
+    compressionOptions: { level: 6 },
+  });
+
+  return Readable.toWeb(nodeStream as unknown as Readable) as unknown as ReadableStream;
+}
+
+/**
+ * Builds a downloadable ZIP archive bundle Buffer.
+ */
+export async function buildEvidenceBundleZip(options: BundleOptions): Promise<Buffer> {
+  const zip = new JSZip();
+  populateZip(zip, options);
 
   const zipBuffer = await zip.generateAsync({
     type: "nodebuffer",

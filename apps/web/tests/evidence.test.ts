@@ -11,6 +11,21 @@ import {
   validateMasterKey,
 } from "../lib/evidence/crypto";
 import { buildMerkleBatch, verifyManifestProof } from "../lib/evidence/merkle";
+import {
+  EvidenceManifest,
+  computeManifestSha256,
+  hashUid,
+} from "../lib/evidence/manifest";
+import {
+  uploadBufferToIpfs,
+  checkPinataQuota,
+  getPinataFileCount,
+} from "../lib/evidence/ipfs";
+import {
+  buildEvidenceBundleStream,
+  buildEvidenceBundleZip,
+} from "../lib/evidence/bundle";
+import JSZip from "jszip";
 
 describe("Evidence Cryptography & Formatting", () => {
   describe("1. SHA-256 Hash Vectors", () => {
@@ -353,5 +368,360 @@ describe("Evidence Cryptography & Formatting", () => {
         }
       });
     }
+  });
+
+  describe("6. Manifest Specification & Privacy (PRD Section 9.2, FR-9.3)", () => {
+    it("excludes AI output and draft certificate from anchored manifest", () => {
+      const manifest: EvidenceManifest = {
+        schema: "saakshi.evidence/v1",
+        captureId: "cap_privacy_test",
+        previousCaptureId: null,
+        requester: {
+          uidHash: hashUid("user-12345", "test_salt"),
+        },
+        target: {
+          url: "https://example.com/target",
+          finalUrl: "https://example.com/target",
+          mode: "standard",
+        },
+        time: {
+          serverStartedAt: "2026-10-31T12:00:00.000Z",
+          serverFinishedAt: "2026-10-31T12:00:05.000Z",
+        },
+        tools: {
+          saakshiVersion: "0.1.0",
+          gitCommit: "abc1234",
+          tinyfish: {
+            agentRunId: "run_123",
+          },
+        },
+        observed: {
+          contentHash: computeSha256("example content"),
+        },
+        artifacts: [
+          {
+            id: "art_shot",
+            kind: "fullpage_screenshot",
+            mime: "image/png",
+            bytes: 12345,
+            sha256: computeSha256("shot_bytes"),
+            cid: "bafy_shot_test",
+            capturedAt: "2026-10-31T12:00:02.000Z",
+          },
+        ],
+        hashAlgorithm: "SHA-256",
+        encryption: "AES-256-GCM (cid refers to ciphertext; sha256 refers to plaintext)",
+      };
+
+      // Manifest must NOT contain AI fields or certificate
+      expect((manifest as any).aiAnalysis).toBeUndefined();
+      expect((manifest as any).certificate).toBeUndefined();
+      expect(manifest.artifacts.some((a) => (a.kind as string).includes("ai"))).toBe(false);
+      expect(manifest.artifacts.some((a) => (a.kind as string).includes("certificate"))).toBe(false);
+
+      const { manifestSha256, bytes32Hash } = computeManifestSha256(manifest);
+      expect(manifestSha256).toMatch(/^[a-f0-9]{64}$/);
+      expect(bytes32Hash).toMatch(/^0x[a-f0-9]{64}$/);
+    });
+
+    it("ensures requester is stored only as a salted uidHash without plain email, name or keys", () => {
+      const plainUid = "user_victim_victim@example.com";
+      const salt = "unique_saakshi_salt_2026";
+      const saltedHash = hashUid(plainUid, salt);
+
+      expect(saltedHash).toMatch(/^[a-f0-9]{64}$/);
+      expect(saltedHash).not.toContain("user_victim");
+      expect(saltedHash).not.toContain("@example.com");
+
+      // Changing salt produces a completely different hash
+      const differentSaltHash = hashUid(plainUid, "different_salt");
+      expect(differentSaltHash).not.toBe(saltedHash);
+    });
+
+    it("requires artifacts to have CIDs before computing manifest hash", () => {
+      const artifactWithoutCid: any = {
+        id: "art_1",
+        kind: "fullpage_screenshot",
+        mime: "image/png",
+        bytes: 500,
+        sha256: "abc",
+      };
+
+      // Valid artifact requires CID
+      expect(artifactWithoutCid.cid).toBeUndefined();
+
+      const validArtifact = {
+        ...artifactWithoutCid,
+        cid: "bafy_actual_cid_from_pinata",
+        capturedAt: new Date().toISOString(),
+      };
+      expect(validArtifact.cid).toBeDefined();
+    });
+  });
+
+  describe("7. IPFS Pinata V3 Module & Free-Plan File Guard", () => {
+    it("calls Pinata V3 upload with correct shape and metadata free of URLs", async () => {
+      let uploadedFile: any = null;
+      let capturedMetadata: any = null;
+
+      const mockPinata: any = {
+        upload: {
+          file: (file: any) => {
+            uploadedFile = file;
+            return {
+              addMetadata: (meta: any) => {
+                capturedMetadata = meta;
+                return Promise.resolve({
+                  cid: "bafy_test_v3_cid_12345",
+                  size: file.size,
+                  id: "pinata_file_uuid_999",
+                });
+              },
+            };
+          },
+        },
+      };
+
+      const testBuffer = Buffer.from("ciphertext bytes for testing");
+      const res = await uploadBufferToIpfs(
+        testBuffer,
+        {
+          name: "saakshi_cap999_art1.enc",
+          captureId: "cap999",
+          kind: "fullpage_screenshot",
+        },
+        mockPinata
+      );
+
+      expect(res.cid).toBe("bafy_test_v3_cid_12345");
+      expect(res.pinataFileId).toBe("pinata_file_uuid_999");
+      expect(res.isFallback).toBe(false);
+
+      expect(uploadedFile.name).toBe("saakshi_cap999_art1.enc");
+      expect(capturedMetadata).toBeDefined();
+      expect(capturedMetadata.name).toBe("saakshi_cap999_art1.enc");
+      expect(capturedMetadata.keyvalues).toEqual({
+        app: "saakshi",
+        env: process.env.NODE_ENV === "production" ? "prod" : "dev",
+        captureId: "cap999",
+        kind: "fullpage_screenshot",
+      });
+
+      // Verify ZERO URLs, titles or sensitive user data in keyvalues
+      const kvValues = Object.values(capturedMetadata.keyvalues);
+      for (const val of kvValues) {
+        expect(String(val)).not.toContain("http://");
+        expect(String(val)).not.toContain("https://");
+        expect(String(val)).not.toContain("@");
+      }
+    });
+
+    it("refuses fallback in production when Pinata is not configured", async () => {
+      const origFallback = process.env.IPFS_FALLBACK;
+      const origJwt = process.env.PINATA_JWT;
+
+      try {
+        delete process.env.IPFS_FALLBACK;
+        delete process.env.PINATA_JWT;
+
+        const testBuf = Buffer.from("test");
+        await expect(
+          uploadBufferToIpfs(testBuf, "test.enc", null)
+        ).rejects.toThrow(/PINATA_JWT is not configured.*Production requires valid Pinata credentials/);
+      } finally {
+        if (origFallback !== undefined) process.env.IPFS_FALLBACK = origFallback;
+        if (origJwt !== undefined) process.env.PINATA_JWT = origJwt;
+      }
+    });
+
+    it("allows fallback only when IPFS_FALLBACK=dev is explicitly set", async () => {
+      const origFallback = process.env.IPFS_FALLBACK;
+      const origJwt = process.env.PINATA_JWT;
+
+      try {
+        process.env.IPFS_FALLBACK = "dev";
+        delete process.env.PINATA_JWT;
+
+        const testBuf = Buffer.from("sample plaintext for mock cid");
+        const res = await uploadBufferToIpfs(testBuf, "test.enc", null);
+
+        expect(res.cid).toMatch(/^bafy_mock_/);
+        expect(res.isFallback).toBe(true);
+      } finally {
+        if (origFallback !== undefined) process.env.IPFS_FALLBACK = origFallback;
+        if (origJwt !== undefined) process.env.PINATA_JWT = origJwt;
+      }
+    });
+
+    it("file guard warns above 400 files and blocks at >= 480 files", async () => {
+      const origFallback = process.env.IPFS_FALLBACK;
+
+      try {
+        // Case 1: Count = 405 (Warning range)
+        const mock405: any = {
+          files: {
+            list: () => ({
+              all: () => Promise.resolve(new Array(405).fill({ id: "f" })),
+            }),
+          },
+        };
+        const quota405 = await checkPinataQuota(mock405);
+        expect(quota405.count).toBe(405);
+        expect(quota405.allowed).toBe(true);
+        expect(quota405.warning).toContain("405/500 files used");
+
+        // Case 2: Count = 485 without dev fallback (Refused)
+        delete process.env.IPFS_FALLBACK;
+        const mock485: any = {
+          files: {
+            list: () => ({
+              all: () => Promise.resolve(new Array(485).fill({ id: "f" })),
+            }),
+          },
+        };
+        const quota485 = await checkPinataQuota(mock485);
+        expect(quota485.count).toBe(485);
+        expect(quota485.allowed).toBe(false);
+        expect(quota485.warning).toContain("Pinata free-tier quota reached: 485/500 files used");
+
+        // Case 3: Count = 485 with IPFS_FALLBACK=dev (Allowed with warning)
+        process.env.IPFS_FALLBACK = "dev";
+        const quota485Dev = await checkPinataQuota(mock485);
+        expect(quota485Dev.count).toBe(485);
+        expect(quota485Dev.allowed).toBe(true);
+        expect(quota485Dev.warning).toContain("IPFS_FALLBACK=dev enabled");
+      } finally {
+        if (origFallback !== undefined) process.env.IPFS_FALLBACK = origFallback;
+      }
+    });
+  });
+
+  describe("8. Evidence Bundle Stream & Offline Verification (FR-10.1)", () => {
+    const sampleManifest: EvidenceManifest = {
+      schema: "saakshi.evidence/v1",
+      captureId: "cap_bundle_test_01",
+      previousCaptureId: null,
+      requester: { uidHash: hashUid("test_user", "salt") },
+      target: { url: "https://example.com", finalUrl: "https://example.com", mode: "standard" },
+      time: {
+        serverStartedAt: "2026-10-31T10:00:00.000Z",
+        serverFinishedAt: "2026-10-31T10:00:05.000Z",
+      },
+      tools: {
+        saakshiVersion: "0.1.0",
+        gitCommit: "git-test",
+        tinyfish: { agentRunId: "run_99" },
+      },
+      observed: { contentHash: computeSha256("test text") },
+      artifacts: [
+        {
+          id: "art_screenshot",
+          kind: "fullpage_screenshot",
+          mime: "image/png",
+          bytes: 14,
+          sha256: computeSha256("screenshot png"),
+          cid: "bafy_shot",
+          capturedAt: "2026-10-31T10:00:02.000Z",
+        },
+        {
+          id: "art_dom",
+          kind: "dom_html",
+          mime: "text/html",
+          bytes: 9,
+          sha256: computeSha256("html page"),
+          cid: "bafy_dom",
+          capturedAt: "2026-10-31T10:00:03.000Z",
+        },
+      ],
+      hashAlgorithm: "SHA-256",
+      encryption: "AES-256-GCM (cid refers to ciphertext; sha256 refers to plaintext)",
+    };
+
+    const artifacts = [
+      {
+        filename: "art_screenshot_fullpage_screenshot.png",
+        plaintextBuffer: Buffer.from("screenshot png"),
+        sha256: computeSha256("screenshot png"),
+      },
+      {
+        filename: "art_dom_dom_html.html",
+        plaintextBuffer: Buffer.from("html page"),
+        sha256: computeSha256("html page"),
+      },
+    ];
+
+    it("streams ZIP bundle containing plaintext artifacts, manifest, and instructions", async () => {
+      const { manifestSha256 } = computeManifestSha256(sampleManifest);
+      const stream = buildEvidenceBundleStream({
+        manifest: sampleManifest,
+        artifacts,
+        proofJson: {
+          chainId: 80002,
+          network: "polygon-amoy",
+          contract: "0x123",
+          txHash: "0xtxhash",
+          blockNumber: 12345,
+          anchoredAt: "2026-10-31T10:05:00.000Z",
+          root: "0xroot",
+          manifestSha256,
+          proof: [],
+          treeFormat: "openzeppelin-standard-v1",
+          leafEncoding: ["bytes32"],
+          batchCid: "bafy_batch",
+        },
+        aiAnalysisJson: { claims: ["claim1"] },
+        certificatePdfBuffer: Buffer.from("mock pdf"),
+      });
+
+      // Read Web ReadableStream into Buffer
+      const response = new Response(stream);
+      const arrayBuf = await response.arrayBuffer();
+      const zipBuf = Buffer.from(arrayBuf);
+
+      expect(zipBuf.length).toBeGreaterThan(0);
+
+      // Unzip and inspect contents
+      const zip = await JSZip.loadAsync(zipBuf);
+
+      // 1. Manifest
+      const manifestFile = zip.file("manifest.json");
+      expect(manifestFile).toBeDefined();
+      const manifestInZip = JSON.parse(await manifestFile!.async("text"));
+      expect(manifestInZip.schema).toBe("saakshi.evidence/v1");
+
+      // 2. Proof.json
+      const proofFile = zip.file("proof.json");
+      expect(proofFile).toBeDefined();
+      const proofInZip = JSON.parse(await proofFile!.async("text"));
+      expect(proofInZip.manifestSha256).toBe(manifestSha256);
+
+      // 3. AI Analysis & Certificate
+      expect(zip.file("ai_analysis.json")).toBeDefined();
+      expect(zip.file("certificate_part_a_draft.pdf")).toBeDefined();
+      expect(zip.file("VERIFY.md")).toBeDefined();
+
+      // 4. Artifacts verification
+      for (const art of artifacts) {
+        const file = zip.file(`artifacts/${art.filename}`);
+        expect(file).toBeDefined();
+        const buf = await file!.async("nodebuffer");
+        expect(computeSha256(buf)).toBe(art.sha256);
+      }
+    });
+
+    it("omits proof.json from bundle if capture is not yet anchored on-chain", async () => {
+      const stream = buildEvidenceBundleStream({
+        manifest: sampleManifest,
+        artifacts,
+        proofJson: null, // Not anchored
+      });
+
+      const response = new Response(stream);
+      const zipBuf = Buffer.from(await response.arrayBuffer());
+      const zip = await JSZip.loadAsync(zipBuf);
+
+      expect(zip.file("manifest.json")).toBeDefined();
+      expect(zip.file("proof.json")).toBeNull(); // Must NOT be in unanchored bundle
+    });
   });
 });

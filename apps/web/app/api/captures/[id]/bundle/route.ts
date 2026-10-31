@@ -5,7 +5,10 @@ import {
   logCustodyEvent,
 } from "@/lib/firebase/admin";
 import { unwrapDek, decryptWithKey } from "@/lib/evidence/crypto";
-import { buildEvidenceBundleZip, DecryptedArtifactEntry } from "@/lib/evidence/bundle";
+import {
+  buildEvidenceBundleStream,
+  DecryptedArtifactEntry,
+} from "@/lib/evidence/bundle";
 import { renderCertificatePdf } from "@/lib/pdf/certificate";
 import { logCustodyOnChain } from "@/lib/chain/registry";
 import { computeSha256 } from "@/lib/evidence/hash";
@@ -110,11 +113,11 @@ export async function GET(
       console.warn("Certificate PDF generation error:", certErr);
     }
 
-    // Build ZIP
-    const zipBuffer = await buildEvidenceBundleZip({
+    // Build Streaming ZIP (FR-10.1)
+    const zipStream = buildEvidenceBundleStream({
       manifest: capture.manifest,
       artifacts: decryptedEntries,
-      proofJson: capture.anchoring
+      proofJson: capture.anchoring?.txHash
         ? {
             chainId: capture.anchoring.chainId || 80002,
             network: "polygon-amoy",
@@ -159,7 +162,7 @@ export async function GET(
       );
     }
 
-    return new NextResponse(new Uint8Array(zipBuffer), {
+    return new Response(zipStream, {
       headers: {
         "Content-Type": "application/zip",
         "Content-Disposition": `attachment; filename="saakshi_evidence_${captureId}.zip"`,

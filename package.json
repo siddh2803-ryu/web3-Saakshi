@@ -19,7 +19,9 @@
     "test:contracts": "npm run test --workspace=contracts",
     "test:web": "npm run test --workspace=apps/web",
     "contracts:compile": "npm run compile --workspace=contracts",
-    "contracts:test": "npm run test --workspace=contracts"
+    "contracts:test": "npm run test --workspace=contracts",
+    "check:bundle": "npx ts-node -r tsconfig-paths/register scripts/check-bundle.ts",
+    "pinata:cleanup": "npx ts-node -r tsconfig-paths/register scripts/pinata-cleanup.ts"
   },
   "devDependencies": {
     "typescript": "^5.6.3"
