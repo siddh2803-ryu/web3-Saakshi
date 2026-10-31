@@ -18,7 +18,7 @@
 | **Phase 0** | Scaffolding & Base Monorepo | **PENDING LIVE** | 3/3 Core Criteria Pending Live / 10/10 Scaffolding Items Verified | 85% | `ef3e90f`, `d4d1a7a`, `e33bd5b`, `77b3887`, `a145215` | (a) Deployed URL shows landing page [PENDING - NOT RUN (needs Vercel deploy)]; (b) Google sign-in works [PENDING - NOT RUN (needs Firebase credentials)]; (c) CI is green [PENDING - LOCAL verified, awaiting GitHub Actions run on push]. |
 | **Phase 1** | Sandbox "Chirp" Platform & Agent Capture | **COMPLETE** | 3/3 Core Criteria Passed (Live Verified) / 8/8 FRs Verified | 100% | `02abfe0`, `1332a1b`, `403d13f`, `0780cb5`, `7fd608a`, `50abf10` | None (Platform simulator, admin controls, and live agent capture verified against real TinyFish run `b2bbaef6-0203-410f-8122-49adc8c7f67b` with 6 step screenshots). |
 | **Phase 2** | Full-Page Browser Capture & Clean Text | **COMPLETE** | 8/8 Core Acceptance Items Verified (Live Verified) | 100% | `feat(fetch)`, `feat(browser)`, `feat(capture)`, `test(capture)` | None (Live Browser API session over CDP, full-page screenshot, PDF, DOM HTML, network log, TLS info, Fetch markdown/meta, guaranteed session termination, and end-to-end full pipeline capture all live verified). |
-| **Phase 3** | Evidence Engine & Cryptography | **COMPLETE** | 8/8 | 100% | `a92d60d` | None (SHA-256 pre-encryption, RFC 8785 canonical manifest, AES-256-GCM envelope encryption, IPFS upload, ZIP bundle). |
+| **Phase 3** | Evidence Engine & Cryptography | **PENDING LIVE** | 2/2 Core Acceptance Items Verified (32/32 Unit Tests PASS, Check-Bundle PASS) / Live IPFS Pending Token | 90% | `feat(evidence)`, `feat(ipfs)`, `test(evidence)` | Real IPFS Pinata V3 live upload & gateway retrieval pending `PINATA_JWT` in `.env.local`. Run `npx ts-node -r tsconfig-paths/register scripts/live-ipfs-check.ts` once set. |
 | **Phase 4** | Smart Contract & Merkle Anchoring | **PARTIAL** | 4/5 | 80% | `ef3e90f`, `a92d60d` | Deploy `EvidenceRegistry.sol` to Polygon Amoy testnet, fund deployer wallet, record address in `NEXT_PUBLIC_REGISTRY_ADDRESS`. |
 | **Phase 5** | Public Trustless Verification | **COMPLETE** | 6/6 | 100% | `08c1a68` | None (Client-side WebCrypto SHA-256 hashing, public proofs lookup, ethers.js RPC query, `/v/[id]` certificate, `scripts/verify.ts`). |
 | **Phase 6** | Watch with TinyFish Monitor | **COMPLETE** | 6/6 | 100% | `c9cf24d` | None (Page monitor creation, webhook handler, run-now inline processing, text diffing, auto re-capture on EDITED/DELETED). |
@@ -165,6 +165,31 @@
   - Links: 2,384 found, Image links: 88 found
   - Errors: None (`[]`)
   - Request ID: `9991e6f7-6e56-42a4-8520-f17308032f16`
+
+---
+
+### 1.4 Phase 3 Honest Verification Scorecard (Evidence Engine & Storage)
+
+#### Core Acceptance Criteria (PRD Section 17)
+| Criterion | Status | Verified With | Notes / Action to Turn PASS |
+|---|---|---|---|
+| **(a) Unit tests pass for SHA-256 test vectors, stable JCS output, encrypt/decrypt round trip and tamper detection (GCM auth failure)** | **PASS** | `UNIT` | 32/32 tests pass in `apps/web/tests/evidence.test.ts`. Verified NIST vectors (`""`, `"abc"`), RFC 8785 canonical serialization (ordering, numbers `1.0->1`, `-0->0`, `1e21`, small decimals, Unicode & escapes), NFC vs NFD normalization, AES-256-GCM round trip with bound AAD, auth tag / IV / ciphertext tamper detection, master key unwrapping & length validation, IV randomness (1,000 unique IVs), and artifact integrity checks. |
+| **(b) Downloaded bundle file hashes equal the manifest values (scripted check)** | **PASS** | `UNIT + LOCAL` | Verified in unit test suite (`apps/web/tests/evidence.test.ts` Section 8) and end-to-end with `scripts/check-bundle.ts`. Unzips archive, recalculates SHA-256 of all decrypted artifacts against `manifest.json`, recomputes `manifestSha256` via RFC 8785 JCS, and confirms `proof.json` consistency. |
+| **(c) Live IPFS storage verification with Pinata V3 API** | **PENDING** | `LIVE` | Code migrated to official `pinata` SDK V3 Files API with AAD-bound ciphertext uploads, encrypted manifest by default, zero URLs in metadata, free-plan file guard (warns at 400, blocks at 480), and crypto-shredding unpinning. Verification script ready at `scripts/live-ipfs-check.ts`. Requires setting `PINATA_JWT` in `.env.local` to execute live. |
+
+*Rule: Anything not verified live is not PASS.*
+
+#### Hardening & Security Upgrades Implemented
+1. **Master Key Validation**: `validateMasterKey` asserts `MASTER_KEY_B64` decodes to exactly 32 bytes at startup. Refuses execution with clear error if missing or invalid.
+2. **AES-GCM Additional Authenticated Data (AAD)**: Every artifact ciphertext bound to `AAD = "${captureId}:${artifactId}"`, preventing ciphertext swapping across captures or artifacts.
+3. **Integrity Check on Artifact Read**: Recomputes SHA-256 upon decryption in `GET /api/captures/:id/artifacts/:artifactId` and `GET /api/captures/:id/bundle`. Logs integrity error and refuses to serve corrupted data.
+4. **Pinata V3 Files API Migration**: Replaced legacy HTTP pinFileToIPFS with official `PinataSDK` V3 Files API (`https://uploads.pinata.cloud/v3/files`).
+5. **Metadata Sanitation**: Tagged with `{ app: "saakshi", env: "dev"|"prod", captureId, kind }`. Zero URLs, page titles, or personal user data in Pinata pin names or metadata.
+6. **Manifest Privacy by Default**: Plaintext manifest (which contains the target URL) is encrypted by default with AAD `${captureId}:manifest` and uploaded as ciphertext. Plaintext manifest is pinned only if owner explicitly enables `showUrlPublicly`.
+7. **Deterministic Fallback Restriction**: Fallback CIDs strictly forbidden in production; allowed only when `IPFS_FALLBACK=dev` is explicitly set. UI renders a prominent `"Demo data: not on IPFS"` badge when fallback data is displayed.
+8. **Free-Plan File Guard**: Queries account file count before capture uploads. Warns at >400 files; refuses uploads at >=480 files to prevent mid-capture failure on the 500-file free tier.
+9. **Crypto-Shredding (FR-5.5)**: Implemented `DELETE /api/captures/:id` which destroys the wrapped DEK in the database and unpins all artifact CIDs from Pinata.
+10. **Streaming ZIP Bundle (FR-10.1)**: `buildEvidenceBundleStream` streams ZIP files chunk-by-chunk using Web `ReadableStream`, eliminating high memory buffers.
 
 ---
 
