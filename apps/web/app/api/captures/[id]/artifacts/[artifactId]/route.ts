@@ -54,7 +54,8 @@ export async function GET(
     }
 
     try {
-      const plaintext = decryptWithKey(ciphertext, dek, artifact.iv, artifact.authTag);
+      const aad = `${captureId}:${artifact.id}`;
+      const plaintext = decryptWithKey(ciphertext, dek, artifact.iv, artifact.authTag, aad);
       return new NextResponse(new Uint8Array(plaintext), {
         headers: {
           "Content-Type": artifact.mime || "application/octet-stream",

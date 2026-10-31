@@ -51,7 +51,8 @@ export async function GET(
           const ipfsRes = await fetch(`${gateway}/${art.cid}`);
           if (ipfsRes.ok) {
             const ciphertext = Buffer.from(await ipfsRes.arrayBuffer());
-            plaintextBuffer = decryptWithKey(ciphertext, dek, art.iv, art.authTag);
+            const aad = `${captureId}:${art.id}`;
+            plaintextBuffer = decryptWithKey(ciphertext, dek, art.iv, art.authTag, aad);
           }
         } catch {
           // fallback

@@ -8,6 +8,7 @@ import {
   decryptWithKey,
   wrapDek,
   unwrapDek,
+  validateMasterKey,
 } from "../lib/evidence/crypto";
 import { buildMerkleBatch, verifyManifestProof } from "../lib/evidence/merkle";
 
@@ -137,26 +138,89 @@ describe("Evidence Cryptography & Formatting", () => {
       "base64"
     );
 
-    it("round-trips plaintext correctly", () => {
+    it("validates MASTER_KEY_B64 length and rejects invalid lengths", () => {
+      // 16 bytes (128-bit) base64
+      const key16 = Buffer.alloc(16, 0xaa).toString("base64");
+      expect(() => validateMasterKey(key16)).toThrow(/must decode to exactly 32 bytes/);
+
+      // 40 bytes base64
+      const key40 = Buffer.alloc(40, 0xbb).toString("base64");
+      expect(() => validateMasterKey(key40)).toThrow(/must decode to exactly 32 bytes/);
+
+      // Empty string
+      expect(() => validateMasterKey("")).toThrow(/not configured/);
+
+      // Valid 32 bytes
+      const validKey = Buffer.alloc(32, 0xcc).toString("base64");
+      const validated = validateMasterKey(validKey);
+      expect(validated.length).toBe(32);
+    });
+
+    it("round-trips plaintext correctly with bound AAD", () => {
       const dek = generateDek();
       const plaintext = Buffer.from("Court-admissible web evidence captured by TinyFish.");
+      const aad = "cap_2026_test:art_fullpage_screenshot";
 
-      const encrypted = encryptWithKey(plaintext, dek);
+      const encrypted = encryptWithKey(plaintext, dek, aad);
       const decrypted = decryptWithKey(
         encrypted.ciphertext,
         dek,
         encrypted.ivHex,
-        encrypted.authTagHex
+        encrypted.authTagHex,
+        aad
       );
 
       expect(decrypted.toString("utf8")).toBe(plaintext.toString("utf8"));
     });
 
+    it("fails decryption when AAD is wrong (prevents swapping between captures/artifacts)", () => {
+      const dek = generateDek();
+      const plaintext = Buffer.from("Confidential artifact belonging to Capture A");
+      const aadA = "capture_A:art_screenshot";
+      const aadB = "capture_B:art_screenshot"; // Swapped capture
+      const aadArtifactSwap = "capture_A:art_dom_html"; // Swapped artifact
+
+      const encrypted = encryptWithKey(plaintext, dek, aadA);
+
+      // Swap capture ID
+      expect(() => {
+        decryptWithKey(
+          encrypted.ciphertext,
+          dek,
+          encrypted.ivHex,
+          encrypted.authTagHex,
+          aadB
+        );
+      }).toThrow();
+
+      // Swap artifact ID
+      expect(() => {
+        decryptWithKey(
+          encrypted.ciphertext,
+          dek,
+          encrypted.ivHex,
+          encrypted.authTagHex,
+          aadArtifactSwap
+        );
+      }).toThrow();
+
+      // Missing AAD
+      expect(() => {
+        decryptWithKey(
+          encrypted.ciphertext,
+          dek,
+          encrypted.ivHex,
+          encrypted.authTagHex
+        );
+      }).toThrow();
+    });
+
     it("detects tampering in ciphertext (GCM auth tag check failure)", () => {
       const dek = generateDek();
       const plaintext = Buffer.from("Sensitive confidential post.");
+      const aad = "cap_1:art_1";
 
-      const encrypted = encryptWithKey(plaintext, dek);
+      const encrypted = encryptWithKey(plaintext, dek, aad);
 
       // Flip 1 byte in ciphertext
       const tamperedCiphertext = Buffer.from(encrypted.ciphertext);
@@ -167,7 +231,28 @@ describe("Evidence Cryptography & Formatting", () => {
           tamperedCiphertext,
           dek,
           encrypted.ivHex,
-          encrypted.authTagHex
+          encrypted.authTagHex,
+          aad
+        );
+      }).toThrow();
+    });
+
+    it("detects tampering in IV", () => {
+      const dek = generateDek();
+      const plaintext = Buffer.from("Sensitive confidential post.");
+      const aad = "cap_1:art_1";
+      const encrypted = encryptWithKey(plaintext, dek, aad);
+
+      const tamperedIv = Buffer.from(encrypted.ivHex, "hex");
+      tamperedIv[0] ^= 0x01;
+
+      expect(() => {
+        decryptWithKey(
+          encrypted.ciphertext,
+          dek,
+          tamperedIv.toString("hex"),
+          encrypted.authTagHex,
+          aad
         );
       }).toThrow();
     });
@@ -175,7 +260,8 @@ describe("Evidence Cryptography & Formatting", () => {
     it("detects tampering in auth tag", () => {
       const dek = generateDek();
       const plaintext = Buffer.from("Sensitive confidential post.");
-      const encrypted = encryptWithKey(plaintext, dek);
+      const aad = "cap_1:art_1";
+      const encrypted = encryptWithKey(plaintext, dek, aad);
 
       const tamperedTag = Buffer.from(encrypted.authTagHex, "hex");
       tamperedTag[0] ^= 0xff;
@@ -185,8 +271,19 @@ describe("Evidence Cryptography & Formatting", () => {
           encrypted.ciphertext,
           dek,
           encrypted.ivHex,
-          tamperedTag.toString("hex")
+          tamperedTag.toString("hex"),
+          aad
         );
+      }).toThrow();
+    });
+
+    it("fails to unwrap DEK when wrong master key is used", () => {
+      const dek = generateDek();
+      const wrongMasterKey = Buffer.alloc(32, 0x99);
+
+      const wrapped = wrapDek(dek, masterKey);
+      expect(() => {
+        unwrapDek(wrapped, wrongMasterKey);
       }).toThrow();
     });
 
@@ -196,6 +293,20 @@ describe("Evidence Cryptography & Formatting", () => {
       const unwrapped = unwrapDek(wrapped, masterKey);
 
       expect(unwrapped.toString("hex")).toBe(dek.toString("hex"));
+    });
+
+    it("ensures IVs are never reused across 1,000 encryptions", () => {
+      const dek = generateDek();
+      const plaintext = Buffer.from("Sample payload for IV randomness check");
+      const ivSet = new Set<string>();
+
+      for (let i = 0; i < 1000; i++) {
+        const encrypted = encryptWithKey(plaintext, dek);
+        expect(encrypted.ivHex.length).toBe(24); // 12 bytes = 24 hex chars
+        ivSet.add(encrypted.ivHex);
+      }
+
+      expect(ivSet.size).toBe(1000);
     });
   });
 

@@ -13,19 +13,35 @@ export interface WrappedKey {
 }
 
 /**
- * Retrieves the 256-bit Master Key from environment.
- * Throws if not configured or invalid length.
+ * Validates that MASTER_KEY_B64 decodes to exactly 32 bytes.
+ * Throws a clear error if missing or invalid length.
  */
-export function getMasterKey(): Buffer {
-  const b64 = process.env.MASTER_KEY_B64;
-  if (!b64) {
+export function validateMasterKey(b64: string = process.env.MASTER_KEY_B64 || ""): Buffer {
+  if (!b64 || b64.trim() === "") {
     throw new Error("MASTER_KEY_B64 is not configured in environment");
   }
   const buf = Buffer.from(b64, "base64");
   if (buf.length !== 32) {
-    throw new Error(`MASTER_KEY_B64 must be exactly 32 bytes (got ${buf.length} bytes)`);
+    throw new Error(`MASTER_KEY_B64 must decode to exactly 32 bytes (got ${buf.length} bytes)`);
   }
   return buf;
+}
+
+// Module-level startup check if MASTER_KEY_B64 is set in environment
+if (process.env.MASTER_KEY_B64) {
+  try {
+    validateMasterKey(process.env.MASTER_KEY_B64);
+  } catch (err) {
+    console.error("Startup configuration error: invalid MASTER_KEY_B64:", err);
+  }
+}
+
+/**
+ * Retrieves the validated 256-bit Master Key from environment.
+ * Refuses execution if not configured or invalid length.
+ */
+export function getMasterKey(): Buffer {
+  return validateMasterKey(process.env.MASTER_KEY_B64 || "");
 }
 
 /**
@@ -36,14 +52,22 @@ export function generateDek(): Buffer {
 }
 
 /**
- * Encrypts data using AES-256-GCM with a 96-bit (12-byte) IV.
+ * Encrypts data using AES-256-GCM with a fresh random 96-bit (12-byte) IV.
+ * Optionally binds ciphertext with Additional Authenticated Data (AAD) = `${captureId}:${artifactId}`.
  */
-export function encryptWithKey(plaintext: Buffer, key: Buffer): EncryptedPayload {
+export function encryptWithKey(
+  plaintext: Buffer,
+  key: Buffer,
+  aad?: string
+): EncryptedPayload {
   if (key.length !== 32) {
     throw new Error("AES-256 key must be 32 bytes");
   }
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", key, iv);
+  if (aad) {
+    cipher.setAAD(Buffer.from(aad, "utf8"));
+  }
   const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
   const authTag = cipher.getAuthTag();
 
@@ -55,14 +79,15 @@ export function encryptWithKey(plaintext: Buffer, key: Buffer): EncryptedPayload
 }
 
 /**
- * Decrypts data using AES-256-GCM with authentication tag check.
- * Throws on tampering or authentication tag mismatch.
+ * Decrypts data using AES-256-GCM with authentication tag check and optional AAD.
+ * Throws on tampering, authentication tag mismatch, or wrong AAD.
  */
 export function decryptWithKey(
   ciphertext: Buffer,
   key: Buffer,
   ivHex: string,
-  authTagHex: string
+  authTagHex: string,
+  aad?: string
 ): Buffer {
   if (key.length !== 32) {
     throw new Error("AES-256 key must be 32 bytes");
@@ -71,14 +96,21 @@ export function decryptWithKey(
   const authTag = Buffer.from(authTagHex, "hex");
   const decipher = createDecipheriv("aes-256-gcm", key, iv);
   decipher.setAuthTag(authTag);
+  if (aad) {
+    decipher.setAAD(Buffer.from(aad, "utf8"));
+  }
   return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
 }
 
 /**
  * Wraps a DEK using the Master Key via AES-256-GCM.
  */
-export function wrapDek(dek: Buffer, masterKey: Buffer = getMasterKey()): WrappedKey {
-  const enc = encryptWithKey(dek, masterKey);
+export function wrapDek(
+  dek: Buffer,
+  masterKey: Buffer = getMasterKey(),
+  aad?: string
+): WrappedKey {
+  const enc = encryptWithKey(dek, masterKey, aad);
   return {
     wrappedKeyHex: enc.ciphertext.toString("hex"),
     ivHex: enc.ivHex,
@@ -89,7 +121,11 @@ export function wrapDek(dek: Buffer, masterKey: Buffer = getMasterKey()): Wrappe
 /**
  * Unwraps a wrapped DEK using the Master Key.
  */
-export function unwrapDek(wrappedKey: WrappedKey, masterKey: Buffer = getMasterKey()): Buffer {
+export function unwrapDek(
+  wrappedKey: WrappedKey,
+  masterKey: Buffer = getMasterKey(),
+  aad?: string
+): Buffer {
   const ciphertext = Buffer.from(wrappedKey.wrappedKeyHex, "hex");
-  return decryptWithKey(ciphertext, masterKey, wrappedKey.ivHex, wrappedKey.authTagHex);
+  return decryptWithKey(ciphertext, masterKey, wrappedKey.ivHex, wrappedKey.authTagHex, aad);
 }

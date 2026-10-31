@@ -232,8 +232,9 @@ export async function runFinalizePipeline(captureId: string): Promise<boolean> {
       // Step A: Hash plaintext bytes
       const plaintextSha256 = computeSha256(art.plaintextBuffer);
 
-      // Step B: Encrypt with DEK
-      const encrypted = encryptWithKey(art.plaintextBuffer, dek);
+      // Step B: Encrypt with DEK bound to captureId and artifactId via AAD
+      const aad = `${captureId}:${art.id}`;
+      const encrypted = encryptWithKey(art.plaintextBuffer, dek, aad);
 
       // Step C: Upload ciphertext to IPFS
       const upload = await uploadBufferToIpfs(
