@@ -35,7 +35,7 @@ describe("Evidence Cryptography & Formatting", () => {
   });
 
   describe("2. RFC 8785 JSON Canonicalization (JCS)", () => {
-    it("orders object keys lexicographically", () => {
+    it("orders object keys lexicographically and handles nested structures", () => {
       const obj1 = { z: 1, a: 2, m: { y: 10, b: 20 } };
       const obj2 = { a: 2, m: { b: 20, y: 10 }, z: 1 };
 
@@ -45,6 +45,51 @@ describe("Evidence Cryptography & Formatting", () => {
       expect(canon1).toBe('{"a":2,"m":{"b":20,"y":10},"z":1}');
       expect(canon1).toBe(canon2);
       expect(computeSha256(canon1)).toBe(computeSha256(canon2));
+    });
+
+    it("serializes numbers according to RFC 8785 (1.0 -> 1, -0 -> 0, 1e21, small decimals)", () => {
+      // 1.0 becomes 1
+      expect(canonicalJson({ val: 1.0 })).toBe('{"val":1}');
+      // -0 becomes 0
+      expect(canonicalJson({ val: -0 })).toBe('{"val":0}');
+      // 1e21 uses ES6 format
+      expect(canonicalJson({ val: 1e21 })).toBe('{"val":1e+21}');
+      // Small decimals follow ES6 formatting
+      expect(canonicalJson({ val: 0.000001 })).toBe('{"val":0.000001}');
+      expect(canonicalJson({ val: 1e-7 })).toBe('{"val":1e-7}');
+    });
+
+    it("formats Unicode strings and escapes per RFC 8785", () => {
+      // Standard control character escapes \b, \f, \n, \r, \t and quotes/backslashes
+      const escapes = { text: "Line1\nLine2\tTabbed \"Quotes\" and \\backslashes\\" };
+      expect(canonicalJson(escapes)).toBe('{"text":"Line1\\nLine2\\tTabbed \\"Quotes\\" and \\\\backslashes\\\\"}');
+
+      // Unicode characters (NFC) must remain literal UTF-8, not escaped as \uXXXX
+      const unicodeObj = { symbol: "€", name: "Café", emoji: "😀" };
+      expect(canonicalJson(unicodeObj)).toBe('{"emoji":"😀","name":"Café","symbol":"€"}');
+    });
+
+    it("produces identical manifestSha256 regardless of property insertion order", () => {
+      const manifestA = {
+        schema: "saakshi.evidence/v1",
+        captureId: "cap_001",
+        target: { url: "https://example.com", mode: "standard" },
+        observed: { title: "Example", contentHash: "abc" },
+        artifacts: [{ id: "art1", sha256: "123", cid: "bafy1" }],
+      };
+
+      const manifestB = {
+        observed: { contentHash: "abc", title: "Example" },
+        schema: "saakshi.evidence/v1",
+        artifacts: [{ cid: "bafy1", id: "art1", sha256: "123" }],
+        captureId: "cap_001",
+        target: { mode: "standard", url: "https://example.com" },
+      };
+
+      const jcsA = canonicalJson(manifestA);
+      const jcsB = canonicalJson(manifestB);
+      expect(jcsA).toBe(jcsB);
+      expect(computeSha256(jcsA)).toBe(computeSha256(jcsB));
     });
   });
 
@@ -56,6 +101,33 @@ describe("Evidence Cryptography & Formatting", () => {
 
       expect(normalized).toBe("Café Internship\n\nFee: Rs 2000");
       expect(normalized).toBe(normalizeText("Café   Internship\n\n\nFee:   Rs 2000"));
+    });
+
+    it("ensures NFC and NFD input produce identical normalized text and contentHash", () => {
+      // "résumé" in NFC (precomposed) vs NFD (decomposed)
+      const nfc = "Preserving authentic résumé of author: Zoë Müller";
+      const nfd = nfc.normalize("NFD");
+
+      expect(nfc).not.toBe(nfd); // Under the hood binary representations differ
+
+      const normNfc = normalizeText(nfc);
+      const normNfd = normalizeText(nfd);
+
+      expect(normNfc).toBe(normNfd);
+      expect(computeSha256(normNfc)).toBe(computeSha256(normNfd));
+    });
+
+    it("ensures whitespace variants produce identical contentHash", () => {
+      const v1 = "Breaking  News:\tScam  detected!\r\n\r\n\r\n  Contact   police immediately.\n\n";
+      const v2 = "Breaking News: Scam detected!\n\nContact police immediately.";
+      const v3 = "  Breaking   News:   Scam   detected!  \r\n\r\n  Contact police immediately.   ";
+
+      const hash1 = computeSha256(normalizeText(v1));
+      const hash2 = computeSha256(normalizeText(v2));
+      const hash3 = computeSha256(normalizeText(v3));
+
+      expect(hash1).toBe(hash2);
+      expect(hash2).toBe(hash3);
     });
   });
 
