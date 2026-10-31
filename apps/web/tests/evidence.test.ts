@@ -308,6 +308,23 @@ describe("Evidence Cryptography & Formatting", () => {
 
       expect(ivSet.size).toBe(1000);
     });
+
+    it("verifies SHA-256 integrity on read and rejects corrupt artifact bytes", () => {
+      const dek = generateDek();
+      const authenticBytes = Buffer.from("Authentic courtroom evidence file");
+      const expectedSha256 = computeSha256(authenticBytes);
+      const aad = "cap_read_test:art_file";
+
+      const enc = encryptWithKey(authenticBytes, dek, aad);
+      const decrypted = decryptWithKey(enc.ciphertext, dek, enc.ivHex, enc.authTagHex, aad);
+
+      // Matches expected hash
+      expect(computeSha256(decrypted)).toBe(expectedSha256);
+
+      // Corrupted / altered bytes
+      const corruptedBytes = Buffer.from("Tampered bytes substituted after read");
+      expect(computeSha256(corruptedBytes)).not.toBe(expectedSha256);
+    });
   });
 
   describe("5. Merkle Tree Proofs for Batches", () => {

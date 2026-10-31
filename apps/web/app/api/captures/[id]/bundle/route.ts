@@ -53,6 +53,18 @@ export async function GET(
             const ciphertext = Buffer.from(await ipfsRes.arrayBuffer());
             const aad = `${captureId}:${art.id}`;
             plaintextBuffer = decryptWithKey(ciphertext, dek, art.iv, art.authTag, aad);
+
+            // Recompute SHA-256 and verify against manifest
+            const actualSha256 = computeSha256(plaintextBuffer);
+            if (actualSha256 !== art.sha256) {
+              console.error(
+                `[Integrity Error] Bundle artifact ${art.id} hash mismatch: expected ${art.sha256}, got ${actualSha256}`
+              );
+              return new NextResponse(
+                `Integrity verification failed for artifact ${art.id}: SHA-256 hash mismatch with manifest`,
+                { status: 500 }
+              );
+            }
           }
         } catch {
           // fallback

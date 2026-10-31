@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCaptureRecord, listArtifactRecords } from "@/lib/firebase/admin";
 import { unwrapDek, decryptWithKey } from "@/lib/evidence/crypto";
+import { computeSha256 } from "@/lib/evidence/hash";
 import { FIXTURE_BROWSER_CAPTURE, MOCK_JPEG_BASE64 } from "@/lib/tinyfish/fixtures";
 
 export async function GET(
@@ -56,13 +57,29 @@ export async function GET(
     try {
       const aad = `${captureId}:${artifact.id}`;
       const plaintext = decryptWithKey(ciphertext, dek, artifact.iv, artifact.authTag, aad);
+
+      // Recompute SHA-256 and verify against artifact record / manifest
+      const computedSha256 = computeSha256(plaintext);
+      if (computedSha256 !== artifact.sha256) {
+        console.error(
+          `[Integrity Error] Artifact ${artifact.id} hash mismatch: expected ${artifact.sha256}, got ${computedSha256}`
+        );
+        return new NextResponse(
+          "Artifact integrity verification failed: SHA-256 hash mismatch with manifest",
+          { status: 500 }
+        );
+      }
+
       return new NextResponse(new Uint8Array(plaintext), {
         headers: {
           "Content-Type": artifact.mime || "application/octet-stream",
           "Content-Disposition": `inline; filename="${artifact.id}"`,
         },
       });
-    } catch {
+    } catch (err: unknown) {
+      if (err instanceof Error && err.message.includes("integrity verification failed")) {
+        throw err;
+      }
       // If decryption fails (e.g. simulated CID in offline dev), provide safe preview
       return new NextResponse(
         "Artifact encrypted with AES-256-GCM. Plaintext accessible in verified bundle.",
