@@ -10,6 +10,7 @@ describe("Capture Pipeline Integration (Fixture Mode)", () => {
   beforeEach(async () => {
     process.env.TINYFISH_MODE = "fixture";
     process.env.MASTER_KEY_B64 = "DoJBQTTy+d9ncfCa7etwiFCqD+QNlp9MlfBslTwxYQ4=";
+    process.env.IPFS_FALLBACK = "dev";
 
     await saveCaptureRecord(testCaptureId, {
       id: testCaptureId,
