@@ -15,7 +15,7 @@ import {
   encryptWithKey,
   wrapDek,
 } from "@/lib/evidence/crypto";
-import { uploadBufferToIpfs, uploadJsonToIpfs } from "@/lib/evidence/ipfs";
+import { uploadBufferToIpfs, checkPinataQuota } from "@/lib/evidence/ipfs";
 import {
   EvidenceManifest,
   ManifestArtifact,
@@ -225,7 +225,16 @@ export async function runFinalizePipeline(captureId: string): Promise<boolean> {
     const dek = generateDek();
     const wrappedDek = wrapDek(dek);
 
-    await logStage("UPLOADING", "Pinning encrypted artifacts to IPFS...");
+    await logStage("UPLOADING", "Pinning encrypted artifacts to IPFS via Pinata V3...");
+    const quota = await checkPinataQuota();
+    if (!quota.allowed) {
+      throw new Error(quota.warning || "Pinata storage quota exceeded (>480 files). Upload rejected.");
+    }
+    if (quota.warning) {
+      await logStage("UPLOADING", quota.warning);
+    }
+
+    let usedFallbackCid = false;
     const manifestArtifacts: ManifestArtifact[] = [];
 
     for (const art of rawArtifacts) {
@@ -236,11 +245,18 @@ export async function runFinalizePipeline(captureId: string): Promise<boolean> {
       const aad = `${captureId}:${art.id}`;
       const encrypted = encryptWithKey(art.plaintextBuffer, dek, aad);
 
-      // Step C: Upload ciphertext to IPFS
+      // Step C: Upload ciphertext to IPFS (tagged with { app, env, captureId, kind })
       const upload = await uploadBufferToIpfs(
         encrypted.ciphertext,
-        `saakshi_${captureId}_${art.id}.enc`
+        {
+          name: `saakshi_${captureId}_${art.id}.enc`,
+          captureId,
+          kind: art.kind,
+        }
       );
+      if (upload.isFallback) {
+        usedFallbackCid = true;
+      }
 
       // Save artifact metadata in database
       const artifactRecord = {
@@ -253,6 +269,7 @@ export async function runFinalizePipeline(captureId: string): Promise<boolean> {
         bytes: art.plaintextBuffer.length,
         sha256: plaintextSha256,
         cid: upload.cid,
+        pinataFileId: upload.pinataFileId || null,
         iv: encrypted.ivHex,
         authTag: encrypted.authTagHex,
         capturedAt: art.capturedAt,
@@ -318,11 +335,37 @@ export async function runFinalizePipeline(captureId: string): Promise<boolean> {
 
     const { canonicalJsonString, manifestSha256, bytes32Hash } = computeManifestSha256(manifest);
 
-    // Upload canonical manifest to IPFS
-    const manifestUpload = await uploadJsonToIpfs(
-      canonicalJsonString,
-      `saakshi_${captureId}_manifest.json`
+    // FR-5.2: Privacy - do NOT pin plaintext manifest by default (it contains the target URL).
+    // Encrypt the manifest with DEK bound via AAD `${captureId}:manifest` and pin ciphertext.
+    const manifestPlaintext = Buffer.from(canonicalJsonString, "utf8");
+    const manifestAad = `${captureId}:manifest`;
+    const encryptedManifest = encryptWithKey(manifestPlaintext, dek, manifestAad);
+
+    const manifestUpload = await uploadBufferToIpfs(
+      encryptedManifest.ciphertext,
+      {
+        name: `saakshi_${captureId}_manifest.enc`,
+        captureId,
+        kind: "manifest_encrypted",
+      }
     );
+    if (manifestUpload.isFallback) {
+      usedFallbackCid = true;
+    }
+
+    // Pin a plaintext copy only when owner explicitly enabled showUrlPublicly
+    let publicManifestCid: string | null = null;
+    if (capture.showUrlPublicly) {
+      const publicUpload = await uploadBufferToIpfs(
+        manifestPlaintext,
+        {
+          name: `saakshi_${captureId}_manifest.json`,
+          captureId,
+          kind: "manifest_public",
+        }
+      );
+      publicManifestCid = publicUpload.cid;
+    }
 
     // 6. AI Analysis
     await logStage("ANALYZING", "Running Gemini analysis for factual claims, issue categories and complaint drafts...");
@@ -348,6 +391,11 @@ export async function runFinalizePipeline(captureId: string): Promise<boolean> {
       manifestSha256,
       manifestBytes32: bytes32Hash,
       manifestCid: manifestUpload.cid,
+      manifestPinataFileId: manifestUpload.pinataFileId || null,
+      manifestIv: encryptedManifest.ivHex,
+      manifestAuthTag: encryptedManifest.authTagHex,
+      publicManifestCid,
+      isFallbackCid: usedFallbackCid,
       contentHash,
       wrappedDek,
       artifactCount: manifestArtifacts.length,
