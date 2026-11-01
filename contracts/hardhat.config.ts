@@ -28,7 +28,7 @@ const config: HardhatUserConfig = {
   },
   etherscan: {
     apiKey: {
-      polygonAmoy: process.env.POLYGONSCAN_API_KEY || "",
+      polygonAmoy: process.env.ETHERSCAN_API_KEY || process.env.POLYGONSCAN_API_KEY || "",
     },
     customChains: [
       {
@@ -40,6 +40,9 @@ const config: HardhatUserConfig = {
         },
       },
     ],
+  },
+  sourcify: {
+    enabled: true,
   },
 };
 
