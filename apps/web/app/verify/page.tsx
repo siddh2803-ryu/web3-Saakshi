@@ -1,137 +1,592 @@
 "use client";
 
-import React, { useState } from "react";
-import { ethers } from "ethers";
-import { EVIDENCE_REGISTRY_ABI } from "@/lib/chain/abi";
+import React, { useState, useRef } from "react";
+import Link from "next/link";
+import JSZip from "jszip";
+import { StandardMerkleTree } from "@openzeppelin/merkle-tree";
 import {
   ShieldCheck,
   ShieldAlert,
   UploadCloud,
   CheckCircle2,
   XCircle,
-  FileCheck,
+  AlertTriangle,
+  HelpCircle,
   ExternalLink,
   Lock,
-  Cpu,
   ArrowRight,
-  Info,
+  RotateCw,
+  FolderArchive,
+  FileCheck,
 } from "lucide-react";
 import { formatIST, truncateHash } from "@/lib/utils";
+import { sha256Hex, computeCanonicalManifestHash } from "@/lib/evidence/webcrypto";
+import {
+  ResultState,
+  VerificationFileResult,
+  validateProofSecurity,
+  getClientCandidateRpcs,
+  executeDirectOnChainVerify,
+} from "@/lib/evidence/verification";
 
-interface VerificationResult {
-  filename: string;
-  sha256Hex: string;
-  isVerified: boolean;
-  statusText: string;
-  captureId?: string;
-  kind?: string;
-  blockNumber?: number;
-  anchoredAt?: string;
-  txHash?: string;
-  contract?: string;
-  root?: string;
-  chainVerified?: boolean;
+const MAX_FILE_SIZE_BYTES = 200 * 1024 * 1024; // 200 MB
+
+function formatUtc(timestampMsOrIso?: number | string): string {
+  if (!timestampMsOrIso) return "Pending";
+  try {
+    const d = typeof timestampMsOrIso === "number" ? new Date(timestampMsOrIso) : new Date(timestampMsOrIso);
+    return d.toISOString().replace("T", " ").replace(/\.\d{3}Z$/, " UTC");
+  } catch {
+    return "Pending";
+  }
 }
 
 export default function PublicVerifyPage() {
   const [verifying, setVerifying] = useState(false);
-  const [results, setResults] = useState<VerificationResult[]>([]);
+  const [results, setResults] = useState<VerificationFileResult[]>([]);
   const [dragOver, setDragOver] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Compute SHA-256 strictly in the browser using WebCrypto SubtleCrypto
-  const computeFileSha256InBrowser = async (file: File): Promise<string> => {
-    const arrayBuffer = await file.arrayBuffer();
-    const digestBuffer = await crypto.subtle.digest("SHA-256", arrayBuffer);
-    const hashArray = Array.from(new Uint8Array(digestBuffer));
-    return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("").toLowerCase();
+  const expectedContract = process.env.NEXT_PUBLIC_REGISTRY_ADDRESS;
+  const expectedChainId = process.env.NEXT_PUBLIC_CHAIN_ID || process.env.CHAIN_ID;
+  const explorerUrl = process.env.NEXT_PUBLIC_EXPLORER_URL;
+
+  // -------------------------------------------------------------
+  // Verification Pipeline for a Single Loose File
+  // -------------------------------------------------------------
+  const verifySingleFile = async (file: File): Promise<VerificationFileResult> => {
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      return {
+        filename: file.name,
+        sha256: "exceeded_limit",
+        state: "NOT_FOUND",
+        statusText: "File exceeds 200 MB limit. Files are never uploaded: only the 64-character hash is verified.",
+        steps: {
+          hashComputed: false,
+          foundInManifest: false,
+          merkleProofValid: false,
+          onChainConfirmed: false,
+        },
+      };
+    }
+
+    // Step 1: WebCrypto SHA-256 local hash
+    const arrayBuf = await file.arrayBuffer();
+    const sha256 = await sha256Hex(arrayBuf);
+
+    // Step 2: Query Saakshi public proof index
+    let proofData: any = null;
+    try {
+      const res = await fetch(`/api/verify/${sha256}`);
+      if (res.status === 429) {
+        return {
+          filename: file.name,
+          sha256,
+          state: "CHAIN_CHECK_FAILED",
+          statusText: "Rate limit reached on verification index. Please wait a minute and retry.",
+          steps: {
+            hashComputed: true,
+            foundInManifest: false,
+            merkleProofValid: false,
+            onChainConfirmed: false,
+          },
+        };
+      }
+      const data = await res.json();
+      if (data.found && data.proof) {
+        proofData = data.proof;
+      }
+    } catch {
+      // Index unreachable
+    }
+
+    if (!proofData) {
+      return {
+        filename: file.name,
+        sha256,
+        state: "NOT_FOUND",
+        statusText: "Not found in Saakshi's records. This file was not captured by Saakshi, or it has been changed.",
+        steps: {
+          hashComputed: true,
+          foundInManifest: false,
+          merkleProofValid: false,
+          onChainConfirmed: false,
+        },
+      };
+    }
+
+    // Step 3: Security check on proof contract & chain
+    const contractAddress = proofData.contract || expectedContract;
+    const securityCheck = validateProofSecurity(proofData, {
+      contract: expectedContract,
+      chainId: expectedChainId,
+    });
+
+    if (!securityCheck.valid) {
+      return {
+        filename: file.name,
+        sha256,
+        state: "ALTERED",
+        statusText: securityCheck.error || "This proof points to a different contract.",
+        securityError: securityCheck.error,
+        steps: {
+          hashComputed: true,
+          foundInManifest: true,
+          merkleProofValid: false,
+          onChainConfirmed: false,
+        },
+        captureId: proofData.captureId,
+        kind: proofData.kind,
+        contract: contractAddress,
+        root: proofData.root,
+      };
+    }
+
+    if (!proofData.txHash || !proofData.root) {
+      return {
+        filename: file.name,
+        sha256,
+        state: "NOT_YET_ANCHORED",
+        statusText: "The capture exists but has not been anchored to the blockchain yet.",
+        steps: {
+          hashComputed: true,
+          foundInManifest: true,
+          merkleProofValid: false,
+          onChainConfirmed: false,
+        },
+        captureId: proofData.captureId,
+        kind: proofData.kind,
+      };
+    }
+
+    // Step 4: Merkle proof verification in JavaScript
+    let merkleOk = false;
+    try {
+      const leafHash = proofData.manifestSha256.startsWith("0x")
+        ? proofData.manifestSha256
+        : `0x${proofData.manifestSha256}`;
+
+      merkleOk = StandardMerkleTree.verify(
+        proofData.root,
+        ["bytes32"],
+        [leafHash],
+        proofData.proof || []
+      );
+    } catch (mErr) {
+      console.warn("Merkle verification error:", mErr);
+      merkleOk = false;
+    }
+
+    // Step 5: Direct blockchain RPC check from client browser
+    const candidateRpcs = getClientCandidateRpcs();
+    const onChainResult = await executeDirectOnChainVerify(
+      proofData.manifestSha256,
+      proofData.proof || [],
+      proofData.root,
+      contractAddress,
+      candidateRpcs
+    );
+
+    if ("error" in onChainResult) {
+      return {
+        filename: file.name,
+        sha256,
+        state: "CHAIN_CHECK_FAILED",
+        statusText: `The blockchain RPC was unreachable or returned an error (${onChainResult.error}).`,
+        steps: {
+          hashComputed: true,
+          foundInManifest: true,
+          merkleProofValid: merkleOk,
+          onChainConfirmed: false,
+        },
+        captureId: proofData.captureId,
+        kind: proofData.kind,
+        contract: contractAddress,
+        root: proofData.root,
+        txHash: proofData.txHash,
+        blockNumber: proofData.blockNumber,
+        chainId: proofData.chainId,
+      };
+    }
+
+    if (!onChainResult.ok) {
+      return {
+        filename: file.name,
+        sha256,
+        state: "ALTERED",
+        statusText: "On-chain verification failed: Merkle proof was rejected by the smart contract.",
+        steps: {
+          hashComputed: true,
+          foundInManifest: true,
+          merkleProofValid: false,
+          onChainConfirmed: false,
+        },
+        captureId: proofData.captureId,
+        kind: proofData.kind,
+        contract: contractAddress,
+        root: proofData.root,
+        txHash: proofData.txHash,
+      };
+    }
+
+    // Successfully verified on-chain
+    const blockTimeMs = onChainResult.timestamp * 1000;
+    return {
+      filename: file.name,
+      sha256,
+      state: "VERIFIED",
+      statusText: `Verified: this exact file existed unaltered on the blockchain.`,
+      steps: {
+        hashComputed: true,
+        foundInManifest: true,
+        merkleProofValid: true,
+        onChainConfirmed: true,
+      },
+      captureId: proofData.captureId,
+      kind: proofData.kind,
+      blockNumber: proofData.blockNumber,
+      blockTimeIst: formatIST(blockTimeMs),
+      blockTimeUtc: formatUtc(blockTimeMs),
+      txHash: proofData.txHash,
+      contract: contractAddress,
+      root: proofData.root,
+      chainId: proofData.chainId,
+    };
   };
 
-  const verifyFiles = async (files: FileList | File[]) => {
-    setVerifying(true);
-    const newResults: VerificationResult[] = [];
+  // -------------------------------------------------------------
+  // Trustless Bundle Verification (Browser ZIP Only, Zero Saakshi API Calls)
+  // -------------------------------------------------------------
+  const verifyBundleFile = async (file: File): Promise<VerificationFileResult[]> => {
+    const bundleResults: VerificationFileResult[] = [];
+    const arrayBuf = await file.arrayBuffer();
 
-    const rpcUrl =
-      process.env.NEXT_PUBLIC_AMOY_RPC_URL || "https://rpc-amoy.polygon.technology";
-    const defaultContract =
-      process.env.NEXT_PUBLIC_REGISTRY_ADDRESS || "0x0000000000000000000000000000000000000000";
-
-    for (const file of Array.from(files)) {
-      try {
-        // Step 1: Compute SHA-256 locally on client device
-        const sha256Hex = await computeFileSha256InBrowser(file);
-
-        // Step 2: Query public proof index
-        const res = await fetch(`/api/verify/${sha256Hex}`);
-        const data = await res.json();
-
-        if (!data.found || !data.proof) {
-          newResults.push({
-            filename: file.name,
-            sha256Hex,
-            isVerified: false,
-            statusText: "No match: this file differs from anything Saakshi anchored.",
-          });
-          continue;
-        }
-
-        const proofData = data.proof;
-        const contractAddress = proofData.contract || defaultContract;
-
-        // Step 3: Direct read-only call to blockchain from browser
-        let chainVerified = false;
-
-        try {
-          if (contractAddress && contractAddress !== "0x0000000000000000000000000000000000000000") {
-            const provider = new ethers.JsonRpcProvider(rpcUrl);
-            const contract = new ethers.Contract(contractAddress, EVIDENCE_REGISTRY_ABI, provider);
-
-            const manifestBytes32 = proofData.manifestSha256.startsWith("0x")
-              ? proofData.manifestSha256
-              : `0x${proofData.manifestSha256}`;
-
-            const [ok] = await contract.verify(
-              manifestBytes32,
-              proofData.proof || [],
-              proofData.root
-            );
-            chainVerified = ok;
-          } else {
-            // Simulated local contract confirmation
-            chainVerified = true;
-          }
-        } catch (chainErr) {
-          console.warn("Direct RPC call failed, falling back to recorded proof:", chainErr);
-          chainVerified = !!proofData.txHash;
-        }
-
-        newResults.push({
+    let zip: JSZip;
+    try {
+      zip = await JSZip.loadAsync(arrayBuf);
+    } catch (zipErr) {
+      return [
+        {
           filename: file.name,
-          sha256Hex,
-          isVerified: chainVerified,
-          statusText: chainVerified
-            ? `Verified: this exact file existed unaltered at ${formatIST(proofData.anchoredAt || Date.now())} in Polygon block #${proofData.blockNumber}`
-            : "Verification failed on-chain.",
-          captureId: proofData.captureId,
-          kind: proofData.kind,
-          blockNumber: proofData.blockNumber,
-          anchoredAt: proofData.anchoredAt,
-          txHash: proofData.txHash,
+          sha256: "invalid_zip",
+          state: "NOT_FOUND",
+          statusText: `Could not parse ZIP evidence bundle: ${zipErr instanceof Error ? zipErr.message : String(zipErr)}`,
+          steps: {
+            hashComputed: false,
+            foundInManifest: false,
+            merkleProofValid: false,
+            onChainConfirmed: false,
+          },
+          isBundle: true,
+        },
+      ];
+    }
+
+    // 1. Read manifest.json
+    const manifestFile = zip.file("manifest.json");
+    if (!manifestFile) {
+      return [
+        {
+          filename: file.name,
+          sha256: "missing_manifest",
+          state: "NOT_FOUND",
+          statusText: "Invalid bundle: manifest.json is missing.",
+          steps: {
+            hashComputed: true,
+            foundInManifest: false,
+            merkleProofValid: false,
+            onChainConfirmed: false,
+          },
+          isBundle: true,
+        },
+      ];
+    }
+
+    let manifest: any;
+    try {
+      const manifestStr = await manifestFile.async("string");
+      manifest = JSON.parse(manifestStr);
+    } catch {
+      return [
+        {
+          filename: file.name,
+          sha256: "corrupted_manifest",
+          state: "ALTERED",
+          statusText: "This bundle has been changed since it was captured (malformed manifest.json).",
+          steps: {
+            hashComputed: true,
+            foundInManifest: false,
+            merkleProofValid: false,
+            onChainConfirmed: false,
+          },
+          isBundle: true,
+        },
+      ];
+    }
+
+    // 2. Recompute canonical manifestSha256 via RFC 8785 JCS
+    const { manifestSha256 } = await computeCanonicalManifestHash(manifest);
+
+    // 3. Read proof.json
+    const proofFile = zip.file("proof.json");
+    if (!proofFile) {
+      return [
+        {
+          filename: "manifest.json",
+          sha256: manifestSha256,
+          state: "NOT_YET_ANCHORED",
+          statusText: "The capture exists in bundle but has not been anchored to the blockchain yet (missing proof.json).",
+          steps: {
+            hashComputed: true,
+            foundInManifest: true,
+            merkleProofValid: false,
+            onChainConfirmed: false,
+          },
+          captureId: manifest.captureId,
+          isBundle: true,
+        },
+      ];
+    }
+
+    let proofJson: any;
+    try {
+      const proofStr = await proofFile.async("string");
+      proofJson = JSON.parse(proofStr);
+    } catch {
+      return [
+        {
+          filename: "proof.json",
+          sha256: "corrupted_proof",
+          state: "ALTERED",
+          statusText: "This file has been changed since it was captured (malformed proof.json).",
+          steps: {
+            hashComputed: true,
+            foundInManifest: true,
+            merkleProofValid: false,
+            onChainConfirmed: false,
+          },
+          captureId: manifest.captureId,
+          isBundle: true,
+        },
+      ];
+    }
+
+    // Security check: verify proof contract and chain match expected deployment
+    const contractAddress = proofJson.contract || expectedContract;
+    const securityCheck = validateProofSecurity(proofJson, {
+      contract: expectedContract,
+      chainId: expectedChainId,
+    });
+
+    if (!securityCheck.valid) {
+      return [
+        {
+          filename: `${file.name} (proof.json)`,
+          sha256: manifestSha256,
+          state: "ALTERED",
+          statusText: securityCheck.error || "This proof points to a different contract.",
+          securityError: securityCheck.error,
+          steps: {
+            hashComputed: true,
+            foundInManifest: true,
+            merkleProofValid: false,
+            onChainConfirmed: false,
+          },
+          captureId: manifest.captureId,
           contract: contractAddress,
-          root: proofData.root,
-          chainVerified,
+          root: proofJson.root,
+          isBundle: true,
+        },
+      ];
+    }
+
+    // Verify manifestSha256 against proof.json
+    if (proofJson.manifestSha256.toLowerCase() !== manifestSha256.toLowerCase()) {
+      return [
+        {
+          filename: "manifest.json",
+          sha256: manifestSha256,
+          state: "ALTERED",
+          statusText: "This file has been changed since it was captured (manifest hash does not match anchored proof).",
+          steps: {
+            hashComputed: true,
+            foundInManifest: false,
+            merkleProofValid: false,
+            onChainConfirmed: false,
+          },
+          captureId: manifest.captureId,
+          isBundle: true,
+        },
+      ];
+    }
+
+    // Verify Merkle inclusion proof in JavaScript
+    let merkleValid = false;
+    try {
+      const leafHash = `0x${manifestSha256}`;
+      merkleValid = StandardMerkleTree.verify(
+        proofJson.root,
+        ["bytes32"],
+        [leafHash],
+        proofJson.proof || []
+      );
+    } catch {
+      merkleValid = false;
+    }
+
+    // Direct On-Chain Query via public RPC node
+    const candidateRpcs = getClientCandidateRpcs();
+    const onChainResult = await executeDirectOnChainVerify(
+      manifestSha256,
+      proofJson.proof || [],
+      proofJson.root,
+      contractAddress,
+      candidateRpcs
+    );
+
+    const onChainConfirmed = !("error" in onChainResult) && onChainResult.ok;
+    const blockTimeMs = !("error" in onChainResult) ? onChainResult.timestamp * 1000 : 0;
+
+    // 4. Verify each individual artifact in the bundle
+    const manifestArtifacts: any[] = manifest.artifacts || [];
+    for (const art of manifestArtifacts) {
+      // Find entry in ZIP
+      const entry =
+        zip.file(`artifacts/${art.filename}`) ||
+        zip.file(`artifacts/${art.id}_${art.kind}`) ||
+        zip.file(`artifacts/${art.id}`) ||
+        zip.file(art.filename);
+
+      if (!entry) {
+        bundleResults.push({
+          filename: art.filename || art.id,
+          sha256: art.sha256,
+          state: "ALTERED",
+          statusText: "This file has been changed since it was captured (missing from artifacts directory).",
+          steps: {
+            hashComputed: false,
+            foundInManifest: true,
+            merkleProofValid: merkleValid,
+            onChainConfirmed,
+          },
+          captureId: manifest.captureId,
+          kind: art.kind,
+          isBundle: true,
         });
-      } catch (err: unknown) {
-        newResults.push({
-          filename: file.name,
-          sha256Hex: "error",
-          isVerified: false,
-          statusText: `Failed to process file: ${err instanceof Error ? err.message : String(err)}`,
+        continue;
+      }
+
+      const fileU8 = await entry.async("uint8array");
+      const computedHash = await sha256Hex(fileU8);
+
+      if (computedHash.toLowerCase() !== art.sha256.toLowerCase()) {
+        bundleResults.push({
+          filename: art.filename || art.id,
+          sha256: computedHash,
+          state: "ALTERED",
+          statusText: "This file has been changed since it was captured.",
+          steps: {
+            hashComputed: true,
+            foundInManifest: true,
+            merkleProofValid: merkleValid,
+            onChainConfirmed,
+          },
+          captureId: manifest.captureId,
+          kind: art.kind,
+          isBundle: true,
+        });
+        continue;
+      }
+
+      // Hash matches manifest! Check on-chain result
+      if ("error" in onChainResult) {
+        bundleResults.push({
+          filename: art.filename || art.id,
+          sha256: computedHash,
+          state: "CHAIN_CHECK_FAILED",
+          statusText: `The blockchain RPC was unreachable or returned an error (${onChainResult.error}).`,
+          steps: {
+            hashComputed: true,
+            foundInManifest: true,
+            merkleProofValid: merkleValid,
+            onChainConfirmed: false,
+          },
+          captureId: manifest.captureId,
+          kind: art.kind,
+          contract: contractAddress,
+          root: proofJson.root,
+          txHash: proofJson.txHash,
+          blockNumber: proofJson.blockNumber,
+          chainId: proofJson.chainId,
+          isBundle: true,
+        });
+      } else if (!onChainResult.ok) {
+        bundleResults.push({
+          filename: art.filename || art.id,
+          sha256: computedHash,
+          state: "ALTERED",
+          statusText: "On-chain verification failed: Smart contract rejected the Merkle proof.",
+          steps: {
+            hashComputed: true,
+            foundInManifest: true,
+            merkleProofValid: false,
+            onChainConfirmed: false,
+          },
+          captureId: manifest.captureId,
+          kind: art.kind,
+          isBundle: true,
+        });
+      } else {
+        bundleResults.push({
+          filename: art.filename || art.id,
+          sha256: computedHash,
+          state: "VERIFIED",
+          statusText: "Verified: this exact file existed unaltered on the blockchain.",
+          steps: {
+            hashComputed: true,
+            foundInManifest: true,
+            merkleProofValid: true,
+            onChainConfirmed: true,
+          },
+          captureId: manifest.captureId,
+          kind: art.kind,
+          blockNumber: proofJson.blockNumber,
+          blockTimeIst: formatIST(blockTimeMs),
+          blockTimeUtc: formatUtc(blockTimeMs),
+          txHash: proofJson.txHash,
+          contract: contractAddress,
+          root: proofJson.root,
+          chainId: proofJson.chainId,
+          isBundle: true,
         });
       }
     }
 
-    setResults(newResults);
+    return bundleResults;
+  };
+
+  // -------------------------------------------------------------
+  // Master File Dispatcher
+  // -------------------------------------------------------------
+  const verifyFiles = async (files: FileList | File[]) => {
+    setVerifying(true);
+    setStatusMessage("Processing files locally with WebCrypto...");
+    const accumulated: VerificationFileResult[] = [];
+
+    for (const file of Array.from(files)) {
+      if (file.name.toLowerCase().endsWith(".zip")) {
+        const zipResults = await verifyBundleFile(file);
+        accumulated.push(...zipResults);
+      } else {
+        const singleResult = await verifySingleFile(file);
+        accumulated.push(singleResult);
+      }
+    }
+
+    setResults(accumulated);
     setVerifying(false);
+    setStatusMessage(`Verification complete for ${accumulated.length} item(s).`);
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -142,21 +597,66 @@ export default function PublicVerifyPage() {
     }
   };
 
+  // Retry blockchain check on any items that suffered network/RPC failure
+  const retryFailedChecks = async () => {
+    setVerifying(true);
+    setStatusMessage("Retrying blockchain RPC connection...");
+    const updated = await Promise.all(
+      results.map(async (res) => {
+        if (res.state !== "CHAIN_CHECK_FAILED" || !res.contract || !res.root) {
+          return res;
+        }
+
+        const candidateRpcs = getClientCandidateRpcs();
+        const onChain = await executeDirectOnChainVerify(
+          res.sha256,
+          [],
+          res.root,
+          res.contract,
+          candidateRpcs
+        );
+
+        if (!("error" in onChain) && onChain.ok) {
+          const blockTimeMs = onChain.timestamp * 1000;
+          return {
+            ...res,
+            state: "VERIFIED" as ResultState,
+            statusText: "Verified: this exact file existed unaltered on the blockchain.",
+            steps: {
+              ...res.steps,
+              onChainConfirmed: true,
+            },
+            blockTimeIst: formatIST(blockTimeMs),
+            blockTimeUtc: formatUtc(blockTimeMs),
+          };
+        }
+        return res;
+      })
+    );
+    setResults(updated);
+    setVerifying(false);
+  };
+
+  const hasRpcFailure = results.some((r) => r.state === "CHAIN_CHECK_FAILED");
+
   return (
-    <div className="min-h-[calc(100vh-4rem)] py-12 px-4 sm:px-6 lg:px-8 max-w-4xl mx-auto">
+    <div className="min-h-[calc(100vh-4rem)] py-12 px-4 sm:px-6 lg:px-8 max-w-4xl mx-auto space-y-10">
       {/* Header */}
-      <div className="text-center mb-10">
-        <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-semibold mb-4">
+      <div className="text-center">
+        <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-md bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-semibold mb-4">
           <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
           <span>Trustless Client-Side Verification</span>
         </div>
         <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Verify Web Evidence</h1>
-        <p className="text-sm text-slate-600 max-w-xl mx-auto mt-2 leading-relaxed">
-          Files never leave your computer. SHA-256 digests are computed inside your browser using the W3C WebCrypto API and verified against the Polygon Amoy blockchain.
+        <p className="text-sm text-slate-600 max-w-2xl mx-auto mt-2 leading-relaxed">
+          Files never leave your computer. SHA-256 digests are computed inside your browser using W3C WebCrypto.
+        </p>
+        <p className="text-xs text-slate-500 font-medium mt-1">
+          Saakshi&apos;s index finds the proof; your browser checks it on the blockchain.
         </p>
       </div>
 
-      {/* Drag & Drop Zone */}
+      {/* Accessible Drop Zone */}
       <div
         onDragOver={(e) => {
           e.preventDefault();
@@ -165,139 +665,281 @@ export default function PublicVerifyPage() {
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
         className={`border-2 border-dashed rounded-2xl p-10 text-center transition-all bg-white shadow-sm ${
-          dragOver ? "border-blue-600 bg-blue-50/20" : "border-slate-300 hover:border-slate-400"
+          dragOver ? "border-emerald-600 bg-emerald-50/20" : "border-slate-300 hover:border-slate-400"
         }`}
       >
-        <UploadCloud className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+        <UploadCloud className="w-12 h-12 text-slate-400 mx-auto mb-3" />
         <h2 className="text-base font-bold text-slate-900">
-          Drop any artifact or bundle file here
+          Drop any artifact or evidence bundle here
         </h2>
         <p className="text-xs text-slate-500 mt-1">
-          Supports PNG screenshots, PDF exports, JSON manifests, and text files.
+          JPG/PNG screenshots, PDF, JSON, text and ZIP evidence bundles (up to 200 MB per file).
         </p>
-        <label className="mt-6 inline-block px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg cursor-pointer shadow-sm transition-colors focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-slate-900">
-          <span>Choose Files Locally</span>
-          <input
-            type="file"
-            multiple
-            className="hidden"
-            onChange={(e) => {
-              if (e.target.files && e.target.files.length > 0) {
-                verifyFiles(e.target.files);
-              }
-            }}
-          />
-        </label>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="sr-only"
+          id="verify-file-input"
+          aria-label="Choose files to verify locally"
+          onChange={(e) => {
+            if (e.target.files && e.target.files.length > 0) {
+              verifyFiles(e.target.files);
+            }
+          }}
+        />
+
+        <div className="mt-6 flex items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors focus:ring-2 focus:ring-slate-900 focus:outline-none"
+          >
+            Choose Files Locally
+          </button>
+        </div>
+      </div>
+
+      {/* Accessible Live Region */}
+      <div className="sr-only" aria-live="polite" role="status">
+        {statusMessage}
       </div>
 
       {/* Verifying Loader */}
       {verifying && (
-        <div className="mt-8 p-6 bg-white rounded-xl border border-slate-200 text-center space-y-3 shadow-sm">
+        <div className="p-6 bg-white rounded-xl border border-slate-200 text-center space-y-3 shadow-sm">
           <div className="w-8 h-8 border-2 border-slate-900 border-t-transparent rounded-full animate-spin mx-auto" />
           <p className="text-xs font-mono text-slate-600">
-            Computing WebCrypto SHA-256 and querying Polygon Amoy contract...
+            Evaluating WebCrypto SHA-256 digest and executing direct blockchain RPC verification...
           </p>
         </div>
       )}
 
-      {/* Results List */}
-      <div className="mt-8 space-y-4">
-        {results.map((res, idx) => (
-          <div
-            key={idx}
-            className={`p-6 rounded-xl border transition-all ${
-              res.isVerified
-                ? "bg-emerald-50/40 border-emerald-300 shadow-sm"
-                : "bg-rose-50/40 border-rose-300 shadow-sm"
-            }`}
-          >
-            <div className="flex items-start space-x-4">
-              <div className="mt-0.5">
-                {res.isVerified ? (
-                  <CheckCircle2 className="w-6 h-6 text-emerald-600" />
-                ) : (
-                  <XCircle className="w-6 h-6 text-rose-600" />
-                )}
-              </div>
-
-              <div className="flex-1 space-y-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-slate-900">{res.filename}</h3>
-                  <span
-                    className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                      res.isVerified
-                        ? "bg-emerald-100 text-emerald-900 border border-emerald-300"
-                        : "bg-rose-100 text-rose-900 border border-rose-300"
-                    }`}
-                  >
-                    {res.isVerified ? "VERIFIED VALID" : "NO MATCH / ALTERED"}
-                  </span>
-                </div>
-
-                <p className="text-xs text-slate-800 leading-relaxed font-medium">
-                  {res.statusText}
-                </p>
-
-                <div className="p-3 bg-white rounded-lg border border-slate-200 font-mono text-[11px] text-slate-700 break-all space-y-1">
-                  <div>
-                    <span className="text-slate-400">Local SHA-256:</span> {res.sha256Hex}
-                  </div>
-                  {res.txHash && (
-                    <div className="flex items-center justify-between pt-1">
-                      <span>
-                        <span className="text-slate-400">Polygon Tx:</span> {truncateHash(res.txHash, 10, 8)}
-                      </span>
-                      <a
-                        href={`https://amoy.polygonscan.com/tx/${res.txHash}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-blue-700 hover:underline flex items-center space-x-1"
-                      >
-                        <span>Polygonscan</span>
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
-                    </div>
-                  )}
-                </div>
-
-                {res.captureId && (
-                  <div className="pt-1">
-                    <a
-                      href={`/v/${res.captureId}`}
-                      className="text-xs font-semibold text-blue-700 hover:underline flex items-center space-x-1"
-                    >
-                      <span>View Public Certificate</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </a>
-                  </div>
-                )}
-              </div>
-            </div>
+      {/* Retry Action Banner on RPC Failure */}
+      {hasRpcFailure && !verifying && (
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <AlertTriangle className="w-5 h-5 text-amber-600" />
+            <p className="text-xs text-amber-900 font-medium">
+              One or more blockchain RPC checks failed to connect. Try connecting via a fallback node.
+            </p>
           </div>
-        ))}
-      </div>
+          <button
+            type="button"
+            onClick={retryFailedChecks}
+            className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-lg flex items-center space-x-1.5 shadow-sm transition-colors"
+          >
+            <RotateCw className="w-3.5 h-3.5" />
+            <span>Retry Blockchain Check</span>
+          </button>
+        </div>
+      )}
 
-      {/* Zero Upload Technical Guarantee Card */}
-      <div className="mt-12 bg-white rounded-xl border border-slate-200/90 p-6 shadow-sm space-y-3">
+      {/* Results List */}
+      {results.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-slate-900">
+              Verification Outcomes ({results.length})
+            </h3>
+            <span className="text-xs text-slate-500 font-mono">
+              Pure client-side verification
+            </span>
+          </div>
+
+          {results.map((res, idx) => {
+            const isVerified = res.state === "VERIFIED";
+            const isAltered = res.state === "ALTERED";
+            const isNotFound = res.state === "NOT_FOUND";
+            const isPendingAnchor = res.state === "NOT_YET_ANCHORED";
+            const isChainFailed = res.state === "CHAIN_CHECK_FAILED";
+
+            return (
+              <div
+                key={idx}
+                className={`p-6 rounded-xl border transition-all ${
+                  isVerified
+                    ? "bg-emerald-50/50 border-emerald-300 shadow-sm"
+                    : isAltered
+                    ? "bg-rose-50/50 border-rose-300 shadow-sm"
+                    : isNotFound
+                    ? "bg-slate-50 border-slate-300 shadow-sm"
+                    : "bg-amber-50/50 border-amber-300 shadow-sm"
+                }`}
+              >
+                <div className="flex items-start space-x-4">
+                  <div className="mt-0.5 shrink-0">
+                    {isVerified && <CheckCircle2 className="w-6 h-6 text-emerald-600" />}
+                    {isAltered && <XCircle className="w-6 h-6 text-rose-600" />}
+                    {isNotFound && <HelpCircle className="w-6 h-6 text-slate-500" />}
+                    {(isPendingAnchor || isChainFailed) && (
+                      <AlertTriangle className="w-6 h-6 text-amber-600" />
+                    )}
+                  </div>
+
+                  <div className="flex-1 space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center space-x-2">
+                        {res.isBundle && <FolderArchive className="w-4 h-4 text-slate-500" />}
+                        <h4 className="text-sm font-bold text-slate-900">{res.filename}</h4>
+                        {res.kind && (
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                            {res.kind}
+                          </span>
+                        )}
+                      </div>
+
+                      <span
+                        className={`text-[10px] font-bold px-2.5 py-0.5 rounded-md ${
+                          isVerified
+                            ? "bg-emerald-100 text-emerald-900 border border-emerald-300"
+                            : isAltered
+                            ? "bg-rose-100 text-rose-900 border border-rose-300"
+                            : isNotFound
+                            ? "bg-slate-200 text-slate-800 border border-slate-300"
+                            : "bg-amber-100 text-amber-900 border border-amber-300"
+                        }`}
+                      >
+                        {res.state}
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-slate-800 leading-relaxed font-medium">
+                      {res.statusText}
+                    </p>
+
+                    {/* Step-by-Step Checks Progress */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-[11px] font-mono">
+                      <div
+                        className={`p-2 rounded border flex items-center space-x-1.5 ${
+                          res.steps.hashComputed
+                            ? "bg-emerald-50/70 border-emerald-200 text-emerald-800"
+                            : "bg-slate-50 border-slate-200 text-slate-400"
+                        }`}
+                      >
+                        <span className="font-bold">1.</span>
+                        <span>Hash Computed</span>
+                      </div>
+                      <div
+                        className={`p-2 rounded border flex items-center space-x-1.5 ${
+                          res.steps.foundInManifest
+                            ? "bg-emerald-50/70 border-emerald-200 text-emerald-800"
+                            : "bg-slate-50 border-slate-200 text-slate-400"
+                        }`}
+                      >
+                        <span className="font-bold">2.</span>
+                        <span>In Manifest</span>
+                      </div>
+                      <div
+                        className={`p-2 rounded border flex items-center space-x-1.5 ${
+                          res.steps.merkleProofValid
+                            ? "bg-emerald-50/70 border-emerald-200 text-emerald-800"
+                            : "bg-slate-50 border-slate-200 text-slate-400"
+                        }`}
+                      >
+                        <span className="font-bold">3.</span>
+                        <span>Merkle Proof</span>
+                      </div>
+                      <div
+                        className={`p-2 rounded border flex items-center space-x-1.5 ${
+                          res.steps.onChainConfirmed
+                            ? "bg-emerald-50/70 border-emerald-200 text-emerald-800"
+                            : "bg-slate-50 border-slate-200 text-slate-400"
+                        }`}
+                      >
+                        <span className="font-bold">4.</span>
+                        <span>On-Chain Root</span>
+                      </div>
+                    </div>
+
+                    {/* Hash & On-chain Details Box */}
+                    <div className="p-3 bg-white rounded-lg border border-slate-200 font-mono text-[11px] text-slate-700 break-all space-y-1.5">
+                      <div>
+                        <span className="text-slate-400">Local SHA-256: </span>
+                        <span className="select-all">{res.sha256}</span>
+                      </div>
+
+                      {res.blockNumber && (
+                        <div className="text-slate-600">
+                          <span className="text-slate-400">Block Number: </span>
+                          <span className="font-bold">#{res.blockNumber}</span>
+                          {res.blockTimeIst && (
+                            <span>
+                              {" "}
+                              &bull; {res.blockTimeIst}{" "}
+                              <span className="text-slate-400">({res.blockTimeUtc})</span>
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {res.txHash && (
+                        <div className="flex items-center justify-between pt-0.5">
+                          <span>
+                            <span className="text-slate-400">Tx Hash: </span>
+                            <span className="select-all">{truncateHash(res.txHash, 10, 8)}</span>
+                          </span>
+                          {explorerUrl ? (
+                            <a
+                              href={`${explorerUrl}/tx/${res.txHash}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-blue-700 hover:underline flex items-center space-x-1"
+                            >
+                              <span>Explorer</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 font-sans">
+                              (Local Chain)
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Link to Capture Record */}
+                    {res.captureId && (
+                      <div className="pt-1">
+                        <Link
+                          href={`/v/${res.captureId}`}
+                          className="text-xs font-semibold text-blue-700 hover:underline inline-flex items-center space-x-1"
+                        >
+                          <span>View Public Evidence Certificate</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Technical Architecture Guarantee Card */}
+      <div className="bg-white rounded-xl border border-slate-200/90 p-6 shadow-sm space-y-3">
         <div className="flex items-center space-x-2 text-slate-900 font-bold text-sm">
           <Lock className="w-4 h-4 text-slate-700" />
           <h3>How Independent Client-Side Verification Operates</h3>
         </div>
         <p className="text-xs text-slate-600 leading-relaxed">
-          Anyone holding an artifact file, screenshot, or manifest can independently substantiate that it has not been modified since the moment of capture.
+          Anyone holding an artifact file, screenshot, or ZIP bundle can independently substantiate that it has not been modified since capture.
         </p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 text-xs text-slate-700">
           <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
             <span className="font-bold block text-slate-900 mb-1">1. Local Hashing</span>
-            <span>Your browser reads the file bytes locally and evaluates the SHA-256 digest via W3C WebCrypto. No file data is transmitted.</span>
+            <span>Your browser reads the file bytes locally and evaluates the SHA-256 digest via W3C WebCrypto. No file bytes leave your device.</span>
           </div>
           <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
-            <span className="font-bold block text-slate-900 mb-1">2. Merkle Proof Match</span>
-            <span>The computed hash is matched against the manifest&apos;s RFC 8785 inclusion tree to obtain the Merkle proof path.</span>
+            <span className="font-bold block text-slate-900 mb-1">2. Merkle Batch Tree</span>
+            <span>The computed hash is matched against the Merkle batch tree to obtain the cryptographic inclusion path.</span>
           </div>
           <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
             <span className="font-bold block text-slate-900 mb-1">3. Direct Blockchain Call</span>
-            <span>Your browser directly queries the Polygon Amoy smart contract (EvidenceRegistry.sol) to verify root commitment and block timestamp.</span>
+            <span>Your browser directly queries the EvidenceRegistry smart contract to verify the anchored root and block timestamp.</span>
           </div>
         </div>
       </div>
