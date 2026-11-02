@@ -119,8 +119,14 @@ export async function GET(
       artifacts: decryptedEntries,
       proofJson: capture.anchoring?.txHash
         ? {
-            chainId: capture.anchoring.chainId || 80002,
-            network: "polygon-amoy",
+            chainId:
+              capture.anchoring.chainId ||
+              Number(process.env.NEXT_PUBLIC_CHAIN_ID || process.env.CHAIN_ID || 80002),
+            network:
+              capture.anchoring.network ||
+              (Number(process.env.NEXT_PUBLIC_CHAIN_ID || process.env.CHAIN_ID) === 31337
+                ? "local"
+                : "polygon-amoy"),
             contract: capture.anchoring.contract || "",
             txHash: capture.anchoring.txHash || "",
             blockNumber: capture.anchoring.blockNumber || 0,

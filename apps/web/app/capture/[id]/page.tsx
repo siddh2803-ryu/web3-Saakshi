@@ -281,15 +281,21 @@ export default function CaptureDetailPage() {
               {capture.anchoring?.txHash && (
                 <>
                   <span>&bull;</span>
-                  <a
-                    href={`https://amoy.polygonscan.com/tx/${capture.anchoring.txHash}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-blue-700 hover:underline flex items-center space-x-1"
-                  >
-                    <span>Polygonscan</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
+                  {process.env.NEXT_PUBLIC_EXPLORER_URL ? (
+                    <a
+                      href={`${process.env.NEXT_PUBLIC_EXPLORER_URL}/tx/${capture.anchoring.txHash}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-blue-700 hover:underline flex items-center space-x-1"
+                    >
+                      <span>Explorer</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  ) : (
+                    <span className="font-mono text-[11px] text-slate-500">
+                      Tx: {truncateHash(capture.anchoring.txHash, 6, 4)}
+                    </span>
+                  )}
                 </>
               )}
             </div>
@@ -705,15 +711,21 @@ export default function CaptureDetailPage() {
                       <span className="font-sans font-semibold text-slate-600 block mb-1">
                         Transaction Hash:
                       </span>
-                      <a
-                        href={`https://amoy.polygonscan.com/tx/${capture.anchoring.txHash}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="p-2 bg-slate-50 border border-slate-200 rounded-lg block break-all text-blue-700 hover:underline flex items-center justify-between"
-                      >
-                        <span>{capture.anchoring.txHash}</span>
-                        <ExternalLink className="w-3.5 h-3.5 shrink-0 ml-2" />
-                      </a>
+                      {process.env.NEXT_PUBLIC_EXPLORER_URL ? (
+                        <a
+                          href={`${process.env.NEXT_PUBLIC_EXPLORER_URL}/tx/${capture.anchoring.txHash}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="p-2 bg-slate-50 border border-slate-200 rounded-lg block break-all text-blue-700 hover:underline flex items-center justify-between"
+                        >
+                          <span>{capture.anchoring.txHash}</span>
+                          <ExternalLink className="w-3.5 h-3.5 shrink-0 ml-2" />
+                        </a>
+                      ) : (
+                        <span className="p-2 bg-slate-50 border border-slate-200 rounded-lg block break-all font-mono text-slate-800">
+                          {capture.anchoring.txHash}
+                        </span>
+                      )}
                     </div>
                   </div>
 

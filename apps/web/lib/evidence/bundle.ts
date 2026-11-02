@@ -57,7 +57,7 @@ Canonicalize \`manifest.json\` per RFC 8785 (JCS) and compute SHA-256. The resul
 - Manifest Hash: \`${proofJson?.manifestSha256 || "Pending anchoring"}\`
 
 ### 3. Verify Blockchain Timestamp & Merkle Inclusion
-- Network: Polygon Amoy (${proofJson?.chainId || 80002})
+- Network: ${proofJson?.network || (proofJson?.chainId === 31337 ? "Local Hardhat" : "Polygon Amoy")} (${proofJson?.chainId || process.env.NEXT_PUBLIC_CHAIN_ID || 80002})
 - Registry Contract: \`${proofJson?.contract || "Not yet anchored"}\`
 - Transaction Hash: \`${proofJson?.txHash || "Not yet anchored"}\`
 - Merkle Root: \`${proofJson?.root || "Not yet anchored"}\`

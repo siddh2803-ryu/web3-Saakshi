@@ -142,7 +142,7 @@ export default function LandingPage() {
               </p>
             </div>
             <div className="mt-4 pt-3 border-t border-slate-100 text-[11px] text-slate-500 font-mono">
-              Chain: Polygon Amoy (ID: 80002)
+              Chain: {process.env.NEXT_PUBLIC_CHAIN_ID === "31337" ? "Local Hardhat (ID: 31337)" : `Polygon Amoy (ID: ${process.env.NEXT_PUBLIC_CHAIN_ID || "80002"})`}
             </div>
           </div>
 

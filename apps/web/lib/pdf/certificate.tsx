@@ -276,7 +276,11 @@ export const CertificateDocument: React.FC<CertificateProps> = ({
             <View style={{ width: qrDataUrl ? "78%" : "100%" }}>
               <View style={styles.fieldRow}>
                 <Text style={styles.fieldLabel}>Blockchain Network:</Text>
-                <Text style={styles.fieldValue}>Polygon Amoy Testnet (Chain ID: 80002)</Text>
+                <Text style={styles.fieldValue}>
+                  {Number(anchoring?.chainId || process.env.NEXT_PUBLIC_CHAIN_ID || 80002) === 31337
+                    ? "Local Hardhat (Chain ID: 31337)"
+                    : `Polygon Amoy Testnet (Chain ID: ${anchoring?.chainId || process.env.NEXT_PUBLIC_CHAIN_ID || 80002})`}
+                </Text>
               </View>
               <View style={styles.fieldRow}>
                 <Text style={styles.fieldLabel}>Contract Address:</Text>

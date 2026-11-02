@@ -162,16 +162,18 @@ export default function RootLayout({
                     Terms &amp; Evidentiary Disclaimers
                   </Link>
                 </li>
-                <li>
-                  <a
-                    href="https://amoy.polygonscan.com"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="hover:text-slate-900 hover:underline"
-                  >
-                    Polygon Amoy Explorer
-                  </a>
-                </li>
+                {process.env.NEXT_PUBLIC_EXPLORER_URL ? (
+                  <li>
+                    <a
+                      href={process.env.NEXT_PUBLIC_EXPLORER_URL}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="hover:text-slate-900 hover:underline"
+                    >
+                      Block Explorer
+                    </a>
+                  </li>
+                ) : null}
                 <li>
                   <Link href="/sandbox/post/internship-scam-alert" className="hover:text-slate-900 hover:underline">
                     Demo Post Benchmark

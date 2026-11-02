@@ -15,6 +15,33 @@ export interface VerifyOnChainResult {
   anchoredAt: number;
 }
 
+export function getRpcUrl(): string {
+  return (
+    process.env.RPC_URL ||
+    process.env.NEXT_PUBLIC_RPC_URL ||
+    process.env.AMOY_RPC_URL ||
+    process.env.NEXT_PUBLIC_AMOY_RPC_URL ||
+    "https://polygon-amoy-bor-rpc.publicnode.com"
+  );
+}
+
+export function getChainId(): number {
+  const raw = process.env.NEXT_PUBLIC_CHAIN_ID || process.env.CHAIN_ID;
+  return raw ? Number(raw) : 80002;
+}
+
+export function getCandidateRpcUrls(): string[] {
+  const primary = getRpcUrl();
+  const list = [
+    primary,
+    process.env.NEXT_PUBLIC_AMOY_RPC_URL,
+    process.env.AMOY_RPC_URL,
+    "https://polygon-amoy-bor-rpc.publicnode.com",
+    "https://polygon-amoy.drpc.org",
+  ].filter((u): u is string => Boolean(u));
+  return Array.from(new Set(list));
+}
+
 /**
  * Returns an ethers Contract instance connected to the deployed EvidenceRegistry.
  */
@@ -25,18 +52,12 @@ export function getRegistryContract(
   if (!contractAddress) {
     throw new Error("EvidenceRegistry contract address is not configured");
   }
-  const provider =
-    signerOrProvider ||
-    new ethers.JsonRpcProvider(
-      process.env.AMOY_RPC_URL ||
-        process.env.NEXT_PUBLIC_AMOY_RPC_URL ||
-        "https://rpc-amoy.polygon.technology"
-    );
+  const provider = signerOrProvider || new ethers.JsonRpcProvider(getRpcUrl());
   return new ethers.Contract(contractAddress, EVIDENCE_REGISTRY_ABI, provider);
 }
 
 /**
- * Anchors a Merkle root to the Polygon Amoy blockchain using the server's anchor private key.
+ * Anchors a Merkle root to the blockchain using the server's anchor private key.
  */
 export async function anchorRootOnChain(
   root: `0x${string}`,
@@ -45,7 +66,8 @@ export async function anchorRootOnChain(
 ): Promise<AnchorResult> {
   const privateKey = process.env.ANCHOR_PRIVATE_KEY;
   const contractAddress = process.env.NEXT_PUBLIC_REGISTRY_ADDRESS;
-  const rpcUrl = process.env.AMOY_RPC_URL || "https://rpc-amoy.polygon.technology";
+  const rpcUrl = getRpcUrl();
+  const chainId = getChainId();
 
   if (!privateKey || !contractAddress) {
     // Simulated anchor response for local/testing without wallet keys
@@ -55,7 +77,7 @@ export async function anchorRootOnChain(
       blockNumber: 1234567,
       anchoredAt: new Date().toISOString(),
       root,
-      chainId: Number(process.env.NEXT_PUBLIC_CHAIN_ID || 80002),
+      chainId,
       contract: contractAddress || "0x0000000000000000000000000000000000000000",
     };
   }
@@ -74,7 +96,7 @@ export async function anchorRootOnChain(
     blockNumber: receipt.blockNumber,
     anchoredAt: timestamp,
     root,
-    chainId: Number(process.env.NEXT_PUBLIC_CHAIN_ID || 80002),
+    chainId,
     contract: contractAddress,
   };
 }
@@ -86,31 +108,39 @@ export async function verifyOnChain(
   manifestHash: string,
   proof: string[],
   root: string,
-  rpcUrl: string = process.env.NEXT_PUBLIC_AMOY_RPC_URL || "https://rpc-amoy.polygon.technology",
+  rpcUrl: string = getRpcUrl(),
   contractAddress: string = process.env.NEXT_PUBLIC_REGISTRY_ADDRESS || ""
 ): Promise<VerifyOnChainResult> {
   if (!contractAddress) {
     return { ok: false, anchoredAt: 0 };
   }
 
-  try {
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
-    const contract = new ethers.Contract(contractAddress, EVIDENCE_REGISTRY_ABI, provider);
+  const candidateUrls = [rpcUrl, ...getCandidateRpcUrls().filter((u) => u !== rpcUrl)];
+  let lastErr: unknown = null;
 
-    const [ok, timestamp]: [boolean, bigint] = await contract.verify(
-      manifestHash,
-      proof,
-      root
-    );
+  for (const url of candidateUrls) {
+    try {
+      const provider = new ethers.JsonRpcProvider(url);
+      const contract = new ethers.Contract(contractAddress, EVIDENCE_REGISTRY_ABI, provider);
 
-    return {
-      ok,
-      anchoredAt: Number(timestamp),
-    };
-  } catch (err) {
-    console.error("verifyOnChain failed:", err);
-    return { ok: false, anchoredAt: 0 };
+      const [ok, timestamp]: [boolean, bigint] = await contract.verify(
+        manifestHash,
+        proof,
+        root
+      );
+
+      return {
+        ok,
+        anchoredAt: Number(timestamp),
+      };
+    } catch (err) {
+      lastErr = err;
+      console.warn(`verifyOnChain failed with RPC ${url}, trying fallback if available:`, err);
+    }
   }
+
+  console.error("verifyOnChain failed across all candidate RPCs:", lastErr);
+  return { ok: false, anchoredAt: 0 };
 }
 
 /**
@@ -123,7 +153,7 @@ export async function logCustodyOnChain(
 ): Promise<string | null> {
   const privateKey = process.env.ANCHOR_PRIVATE_KEY;
   const contractAddress = process.env.NEXT_PUBLIC_REGISTRY_ADDRESS;
-  const rpcUrl = process.env.AMOY_RPC_URL || "https://rpc-amoy.polygon.technology";
+  const rpcUrl = getRpcUrl();
 
   if (!privateKey || !contractAddress) {
     return null;

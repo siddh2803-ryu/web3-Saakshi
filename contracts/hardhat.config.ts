@@ -3,6 +3,7 @@ import "@nomicfoundation/hardhat-toolbox";
 import * as dotenv from "dotenv";
 import * as path from "path";
 
+dotenv.config({ path: path.resolve(__dirname, "../.env.chain-local") });
 dotenv.config({ path: path.resolve(__dirname, "../.env.local") });
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
@@ -20,9 +21,13 @@ const config: HardhatUserConfig = {
     hardhat: {
       chainId: 31337,
     },
+    localhost: {
+      url: process.env.RPC_URL || process.env.NEXT_PUBLIC_RPC_URL || "http://127.0.0.1:8545",
+      chainId: 31337,
+    },
     amoy: {
-      url: process.env.AMOY_RPC_URL || "https://rpc-amoy.polygon.technology",
-      chainId: 80002,
+      url: process.env.AMOY_RPC_URL || process.env.RPC_URL || "https://rpc-amoy.polygon.technology",
+      chainId: Number(process.env.CHAIN_ID || process.env.NEXT_PUBLIC_CHAIN_ID || 80002),
       accounts: process.env.ANCHOR_PRIVATE_KEY ? [process.env.ANCHOR_PRIVATE_KEY] : [],
     },
   },

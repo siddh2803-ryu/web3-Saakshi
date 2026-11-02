@@ -1,3 +1,7 @@
+# Temporary and local test files
+tmp/
+deployments/local.json
+
 # Dependencies
 node_modules/
 .pnp

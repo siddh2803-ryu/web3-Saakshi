@@ -22,7 +22,9 @@
     "contracts:test": "npm run test --workspace=contracts",
     "check:bundle": "npx ts-node -r tsconfig-paths/register scripts/check-bundle.ts",
     "pinata:cleanup": "npx ts-node -r tsconfig-paths/register scripts/pinata-cleanup.ts",
-    "new:wallet": "npx ts-node -r tsconfig-paths/register scripts/new-wallet.ts"
+    "new:wallet": "npx ts-node -r tsconfig-paths/register scripts/new-wallet.ts",
+    "verify:bundle": "npx ts-node -r tsconfig-paths/register scripts/verify.ts",
+    "chain:local": "bash scripts/chain-local.sh"
   },
   "devDependencies": {
     "typescript": "^5.6.3"

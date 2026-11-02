@@ -21,6 +21,9 @@
 | T2.2 | Perform live CDP test over real TinyFish Browser API once `TINYFISH_API_KEY` is supplied. | **S** | Credentials | P0 |
 
 ### Phase 4: Smart Contract & Merkle Anchoring (PARTIAL -> COMPLETE)
+> [!IMPORTANT]
+> Before the event: fund the anchor wallet, run Phase 4 Steps 3 to 7 on Amoy, then re-run Phase 5 Step 6 end-to-end tests against Amoy.
+
 | Task ID | Task Description | Size | Dependencies | Priority |
 |---|---|---|---|---|
 | T4.1 | Fund ANCHOR_ROLE wallet with Polygon Amoy testnet POL (Chain ID 80002). | **S** | Amoy Faucet | P0 (Human) |
