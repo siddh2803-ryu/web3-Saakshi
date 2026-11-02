@@ -12,7 +12,7 @@ import { computeManifestSha256, EvidenceManifest } from "../apps/web/lib/evidenc
 import { buildMerkleBatch, verifyManifestProof } from "../apps/web/lib/evidence/merkle";
 import { anchorRootOnChain } from "../apps/web/lib/chain/registry";
 import { buildEvidenceBundleStream, BundleProofJson } from "../apps/web/lib/evidence/bundle";
-import { saveCaptureRecord, savePublicProof, getPublicProof } from "../apps/web/lib/firebase/admin";
+import { saveCaptureRecord, savePublicProof, getPublicProof, saveArtifactRecord } from "../apps/web/lib/firebase/admin";
 import JSZip from "jszip";
 
 async function main() {
@@ -170,6 +170,11 @@ async function main() {
     manifestSha256,
     anchoring: proofJson,
   });
+
+  // Save artifact records to store
+  for (const art of manifest.artifacts) {
+    await saveArtifactRecord(captureId, art);
+  }
 
   // Build ZIP bundle stream
   const artifacts = [
