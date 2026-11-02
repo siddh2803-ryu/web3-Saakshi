@@ -189,6 +189,8 @@ export function ScopedVerifier({ captureId, manifestSha256, artifacts }: ScopedV
           {results.map((res, i) => (
             <div
               key={i}
+              data-testid="scoped-match-result"
+              data-matched={String(res.matched)}
               className={`p-3 rounded-lg border text-xs flex items-start space-x-3 ${
                 res.matched
                   ? "bg-emerald-50/60 border-emerald-300 text-emerald-950"

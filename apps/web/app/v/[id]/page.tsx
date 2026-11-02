@@ -58,7 +58,8 @@ export default async function PublicProofPage({ params }: PageProps) {
     return notFound();
   }
 
-  const artifacts = await listArtifactRecords(captureId);
+  const dbArtifacts = await listArtifactRecords(captureId);
+  const artifacts = dbArtifacts.length > 0 ? dbArtifacts : (capture.manifest?.artifacts || []);
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   const verifyUrl = `${appUrl}/v/${captureId}`;

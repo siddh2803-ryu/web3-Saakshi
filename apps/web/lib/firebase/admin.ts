@@ -1,5 +1,6 @@
 /* eslint-disable */
 import * as admin from "firebase-admin";
+import * as nodeFs from "fs";
 
 // Global in-memory storage fallback for local development and test environments
 const inMemoryStore = (global as any).__saakshiStore || {
@@ -17,6 +18,39 @@ const inMemoryStore = (global as any).__saakshiStore || {
 if (typeof global !== "undefined") {
   (global as any).__saakshiStore = inMemoryStore;
 }
+
+const DEV_STORE_PATH = "/tmp/saakshi_dev_store.json";
+
+function loadDevStoreFromDisk() {
+  try {
+    if (nodeFs.existsSync(DEV_STORE_PATH)) {
+      const data = JSON.parse(nodeFs.readFileSync(DEV_STORE_PATH, "utf8"));
+      if (data.captures) {
+        for (const [k, v] of Object.entries(data.captures)) inMemoryStore.captures.set(k, v);
+      }
+      if (data.publicProofs) {
+        for (const [k, v] of Object.entries(data.publicProofs)) inMemoryStore.publicProofs.set(k, v);
+      }
+      if (data.artifacts) {
+        for (const [k, v] of Object.entries(data.artifacts)) inMemoryStore.artifacts.set(k, v as any[]);
+      }
+    }
+  } catch {}
+}
+
+function persistDevStoreToDisk() {
+  try {
+    const data = {
+      captures: Object.fromEntries(inMemoryStore.captures.entries()),
+      publicProofs: Object.fromEntries(inMemoryStore.publicProofs.entries()),
+      artifacts: Object.fromEntries(inMemoryStore.artifacts.entries()),
+    };
+    nodeFs.writeFileSync(DEV_STORE_PATH, JSON.stringify(data), "utf8");
+  } catch {}
+}
+
+// Initial load
+loadDevStoreFromDisk();
 
 let firestoreInstance: admin.firestore.Firestore | null = null;
 
@@ -53,6 +87,9 @@ export async function getCaptureRecord(id: string): Promise<any | null> {
     const doc = await fs.collection("captures").doc(id).get();
     return doc.exists ? doc.data() : null;
   }
+  if (!inMemoryStore.captures.has(id)) {
+    loadDevStoreFromDisk();
+  }
   return inMemoryStore.captures.get(id) || null;
 }
 
@@ -64,6 +101,7 @@ export async function saveCaptureRecord(id: string, data: any): Promise<void> {
   }
   const existing = inMemoryStore.captures.get(id) || {};
   inMemoryStore.captures.set(id, { ...existing, ...data, updatedAt: new Date().toISOString() });
+  persistDevStoreToDisk();
 }
 
 export async function listUserCaptures(uid: string): Promise<any[]> {
@@ -131,6 +169,7 @@ export async function saveArtifactRecord(captureId: string, artifact: any): Prom
     arts.push(artifact);
   }
   inMemoryStore.artifacts.set(captureId, arts);
+  persistDevStoreToDisk();
 }
 
 export async function listArtifactRecords(captureId: string): Promise<any[]> {
@@ -144,6 +183,9 @@ export async function listArtifactRecords(captureId: string): Promise<any[]> {
       .get();
     return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
   }
+  if (!inMemoryStore.artifacts.has(captureId)) {
+    loadDevStoreFromDisk();
+  }
   return inMemoryStore.artifacts.get(captureId) || [];
 }
 
@@ -155,6 +197,7 @@ export async function savePublicProof(sha256Hex: string, proofData: any): Promis
     return;
   }
   inMemoryStore.publicProofs.set(clean, proofData);
+  persistDevStoreToDisk();
 }
 
 export async function getPublicProof(sha256Hex: string): Promise<any | null> {
@@ -163,6 +206,9 @@ export async function getPublicProof(sha256Hex: string): Promise<any | null> {
   if (fs) {
     const doc = await fs.collection("publicProofs").doc(clean).get();
     return doc.exists ? doc.data() : null;
+  }
+  if (!inMemoryStore.publicProofs.has(clean)) {
+    loadDevStoreFromDisk();
   }
   return inMemoryStore.publicProofs.get(clean) || null;
 }

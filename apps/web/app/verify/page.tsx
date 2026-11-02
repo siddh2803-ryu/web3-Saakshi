@@ -450,13 +450,27 @@ export default function PublicVerifyPage() {
 
     // 4. Verify each individual artifact in the bundle
     const manifestArtifacts: any[] = manifest.artifacts || [];
+    const zipArtifactPaths: string[] = [];
+    zip.forEach((p, e) => {
+      if (!e.dir && (p.startsWith("artifacts/") || !p.includes("/"))) {
+        zipArtifactPaths.push(p);
+      }
+    });
+
     for (const art of manifestArtifacts) {
-      // Find entry in ZIP
-      const entry =
-        zip.file(`artifacts/${art.filename}`) ||
-        zip.file(`artifacts/${art.id}_${art.kind}`) ||
-        zip.file(`artifacts/${art.id}`) ||
-        zip.file(art.filename);
+      // Find matching entry in ZIP by id, kind, or filename
+      const matchedPath = zipArtifactPaths.find((p) => {
+        const base = p.startsWith("artifacts/") ? p.slice(10) : p;
+        return (
+          base === art.filename ||
+          base === art.id ||
+          base === `${art.id}_${art.kind}` ||
+          base.startsWith(`${art.id}.`) ||
+          base.startsWith(`${art.id}_`)
+        );
+      });
+
+      const entry = matchedPath ? zip.file(matchedPath) : null;
 
       if (!entry) {
         bundleResults.push({
@@ -758,6 +772,8 @@ export default function PublicVerifyPage() {
             return (
               <div
                 key={idx}
+                data-testid="verification-outcome"
+                data-state={res.state}
                 className={`p-6 rounded-xl border transition-all ${
                   isVerified
                     ? "bg-emerald-50/50 border-emerald-300 shadow-sm"
