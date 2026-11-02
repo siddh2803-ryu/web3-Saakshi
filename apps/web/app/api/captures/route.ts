@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 import {
   saveCaptureRecord,
   listUserCaptures,
@@ -80,8 +81,8 @@ export async function POST(req: NextRequest) {
 
     const absoluteUrl = urlValidation.normalizedUrl;
 
-    // Generate Capture ID (timestamp + random entropy)
-    const captureId = `cap_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 7)}`;
+    // Generate Unguessable Capture ID (128-bit cryptographic entropy)
+    const captureId = `cap_${crypto.randomBytes(16).toString("hex")}`;
 
     // Build webhook URL (TinyFish strictly requires HTTPS per Section 7.1)
     const host = req.headers.get("x-forwarded-host") || req.headers.get("host") || "";

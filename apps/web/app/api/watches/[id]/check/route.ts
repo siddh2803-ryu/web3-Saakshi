@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 import {
   getWatchRecord,
   saveWatchRecord,
@@ -56,7 +57,7 @@ export async function POST(
 
     // 4. On EDITED or DELETED: initiate automatic re-capture (FR-8.4)
     if (classification.type === "EDITED" || classification.type === "DELETED") {
-      recaptureId = `cap_re_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 6)}`;
+      recaptureId = `cap_re_${crypto.randomBytes(16).toString("hex")}`;
       const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
       const webhookSecret = process.env.WEBHOOK_SECRET || "dev_webhook_secret";
       const webhookUrl = `${appUrl}/api/webhooks/tinyfish?token=${webhookSecret}&captureId=${recaptureId}`;

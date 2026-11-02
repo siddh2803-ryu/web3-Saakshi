@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 import {
   getWatchRecord,
   saveWatchRecord,
@@ -50,7 +51,7 @@ export async function POST(req: NextRequest) {
     let recaptureId: string | null = null;
 
     if (classification.type === "EDITED" || classification.type === "DELETED") {
-      recaptureId = `cap_re_${Date.now().toString(36)}`;
+      recaptureId = `cap_re_${crypto.randomBytes(16).toString("hex")}`;
       const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
       const webhookSecret = process.env.WEBHOOK_SECRET || "dev_webhook_secret";
       const webhookUrl = `${appUrl}/api/webhooks/tinyfish?token=${webhookSecret}&captureId=${recaptureId}`;

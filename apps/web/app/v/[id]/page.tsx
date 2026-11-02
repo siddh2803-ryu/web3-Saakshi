@@ -1,16 +1,54 @@
 import React from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Metadata } from "next";
 import { getCaptureRecord, listArtifactRecords } from "@/lib/firebase/admin";
 import QRCode from "qrcode";
-import { ShieldCheck, ExternalLink, Download, Layers, CheckCircle2, ArrowRight } from "lucide-react";
+import {
+  ShieldCheck,
+  ExternalLink,
+  CheckCircle2,
+  Lock,
+  Clock,
+  FileCode,
+  QrCode,
+  Calendar,
+} from "lucide-react";
 import { formatIST, truncateHash } from "@/lib/utils";
+import { ScopedVerifier } from "@/components/scoped-verifier";
 
 interface PageProps {
   params: { id: string };
 }
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  return {
+    title: "Saakshi Evidence Record | Public Verification",
+    description: "Public cryptographic verification record for tamper-proof digital evidence anchored on blockchain.",
+    openGraph: {
+      title: "Saakshi Evidence Record | Public Verification",
+      description: "Public cryptographic verification record for tamper-proof digital evidence anchored on blockchain.",
+      type: "website",
+    },
+    twitter: {
+      card: "summary",
+      title: "Saakshi Evidence Record | Public Verification",
+      description: "Public cryptographic verification record for tamper-proof digital evidence anchored on blockchain.",
+    },
+  };
+}
+
+function formatUtc(isoString?: string): string {
+  if (!isoString) return "Pending";
+  try {
+    const d = new Date(isoString);
+    return d.toISOString().replace("T", " ").replace(/\.\d{3}Z$/, " UTC");
+  } catch {
+    return "Pending";
+  }
+}
 
 export default async function PublicProofPage({ params }: PageProps) {
   const captureId = params.id;
@@ -26,10 +64,26 @@ export default async function PublicProofPage({ params }: PageProps) {
   const verifyUrl = `${appUrl}/v/${captureId}`;
   const qrDataUrl = await QRCode.toDataURL(verifyUrl, { margin: 1, width: 220 }).catch(() => null);
 
+  const showUrl =
+    capture.showUrlPublicly === true || capture.manifest?.target?.showUrlPublicly === true;
+
+  const explorerUrl = process.env.NEXT_PUBLIC_EXPLORER_URL;
+  const isAnchored = !!capture.anchoring?.txHash;
+
+  const captureTimeIst = formatIST(capture.createdAt);
+  const captureTimeUtc = formatUtc(capture.createdAt);
+
+  const anchorTimeIst = capture.anchoring?.anchoredAt
+    ? formatIST(capture.anchoring.anchoredAt)
+    : "Pending batch anchoring";
+  const anchorTimeUtc = capture.anchoring?.anchoredAt
+    ? formatUtc(capture.anchoring.anchoredAt)
+    : "Pending batch anchoring";
+
   return (
-    <div className="min-h-[calc(100vh-4rem)] py-12 px-4 sm:px-6 lg:px-8 max-w-4xl mx-auto">
+    <div className="min-h-[calc(100vh-4rem)] py-12 px-4 sm:px-6 lg:px-8 max-w-4xl mx-auto space-y-8">
       {/* Header Badge */}
-      <div className="text-center mb-8">
+      <div className="text-center">
         <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-md bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-bold mb-3">
           <ShieldCheck className="w-4 h-4 text-emerald-700" />
           <span>Public Web Evidence Record</span>
@@ -37,7 +91,7 @@ export default async function PublicProofPage({ params }: PageProps) {
         <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
           Immutable Evidence Certificate
         </h1>
-        <p className="text-xs text-slate-500 font-mono mt-1">Capture ID: {capture.id}</p>
+        <p className="text-xs text-slate-500 font-mono mt-1 select-all">Capture ID: {capture.id}</p>
       </div>
 
       {/* Main Certificate Card */}
@@ -48,10 +102,12 @@ export default async function PublicProofPage({ params }: PageProps) {
             <CheckCircle2 className="w-8 h-8 text-emerald-600 shrink-0" />
             <div>
               <h2 className="text-sm font-bold text-emerald-950">
-                Anchored to Polygon Blockchain
+                {isAnchored ? "Anchored on Blockchain" : "Evidence Sealed & Pending Batch Anchor"}
               </h2>
               <p className="text-xs text-emerald-800 mt-0.5">
-                Timestamped in block #{capture.anchoring?.blockNumber || "Pending"} at {formatIST(capture.anchoring?.anchoredAt || capture.createdAt)}
+                {isAnchored
+                  ? `Recorded in block #${capture.anchoring.blockNumber} • ${anchorTimeIst} (${anchorTimeUtc})`
+                  : `Sealed at ${captureTimeIst} (${captureTimeUtc})`}
               </p>
             </div>
           </div>
@@ -59,27 +115,38 @@ export default async function PublicProofPage({ params }: PageProps) {
             href="/verify"
             className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold rounded-lg text-center shadow-sm transition-colors whitespace-nowrap"
           >
-            Verify a File Against This Record
+            Open Universal Verifier
           </Link>
         </div>
 
-        {/* Target Details */}
+        {/* Preserved Subject Details */}
         <div className="space-y-3 pt-2">
           <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
             Preserved Subject
           </h3>
-          <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 text-xs space-y-2">
+          <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 text-xs space-y-2.5">
             <div>
               <span className="font-semibold text-slate-700">Page Title: </span>
-              <span className="text-slate-900 font-bold">{capture.manifest?.observed?.title || "Observed Web Publication"}</span>
+              <span className="text-slate-900 font-bold">
+                {capture.manifest?.observed?.title || "Observed Web Publication"}
+              </span>
             </div>
             <div>
               <span className="font-semibold text-slate-700">Target URI: </span>
-              <span className="text-slate-600 font-mono break-all">{capture.url}</span>
+              {showUrl ? (
+                <span className="text-slate-800 font-mono break-all">{capture.url}</span>
+              ) : (
+                <span className="inline-flex items-center space-x-1 text-slate-500 font-mono italic">
+                  <Lock className="w-3 h-3 text-slate-400" />
+                  <span>Hidden by evidence owner for privacy</span>
+                </span>
+              )}
             </div>
             <div>
               <span className="font-semibold text-slate-700">Time of Capture: </span>
-              <span className="text-slate-900">{formatIST(capture.createdAt)}</span>
+              <span className="text-slate-900">
+                {captureTimeIst} <span className="text-slate-500">({captureTimeUtc})</span>
+              </span>
             </div>
           </div>
         </div>
@@ -89,28 +156,53 @@ export default async function PublicProofPage({ params }: PageProps) {
           <div className="space-y-4 text-xs">
             <div>
               <span className="font-semibold text-slate-500 block mb-1">Manifest SHA-256:</span>
-              <span className="p-2 bg-slate-50 border border-slate-200 rounded-lg block font-mono break-all text-slate-800">
-                {capture.manifestSha256}
+              <span className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg block font-mono break-all text-slate-800 select-all">
+                {capture.manifestSha256 || "Pending manifest generation"}
               </span>
             </div>
+
             <div>
               <span className="font-semibold text-slate-500 block mb-1">Merkle Root:</span>
-              <span className="p-2 bg-slate-50 border border-slate-200 rounded-lg block font-mono break-all text-slate-800">
-                {capture.anchoring?.root || "Pending"}
+              <span className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg block font-mono break-all text-slate-800 select-all">
+                {capture.anchoring?.root || "Pending batch root anchoring"}
               </span>
             </div>
+
             {capture.anchoring?.txHash && (
               <div>
                 <span className="font-semibold text-slate-500 block mb-1">Transaction Hash:</span>
-                <a
-                  href={`https://amoy.polygonscan.com/tx/${capture.anchoring.txHash}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="p-2 bg-slate-50 border border-slate-200 rounded-lg block font-mono break-all text-blue-700 hover:underline flex items-center justify-between"
-                >
-                  <span>{capture.anchoring.txHash}</span>
-                  <ExternalLink className="w-3.5 h-3.5 ml-2 shrink-0" />
-                </a>
+                {explorerUrl ? (
+                  <a
+                    href={`${explorerUrl}/tx/${capture.anchoring.txHash}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg block font-mono break-all text-blue-700 hover:underline flex items-center justify-between"
+                  >
+                    <span>{capture.anchoring.txHash}</span>
+                    <ExternalLink className="w-3.5 h-3.5 ml-2 shrink-0" />
+                  </a>
+                ) : (
+                  <span className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg block font-mono break-all text-slate-800 select-all">
+                    {capture.anchoring.txHash}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {capture.anchoring?.blockNumber && (
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <span className="font-semibold text-slate-500 block mb-0.5">Block Number:</span>
+                  <span className="font-mono text-slate-900 font-bold">
+                    #{capture.anchoring.blockNumber}
+                  </span>
+                </div>
+                <div>
+                  <span className="font-semibold text-slate-500 block mb-0.5">Chain ID:</span>
+                  <span className="font-mono text-slate-900 font-bold">
+                    {capture.anchoring.chainId || "31337"}
+                  </span>
+                </div>
               </div>
             )}
           </div>
@@ -121,14 +213,17 @@ export default async function PublicProofPage({ params }: PageProps) {
               /* eslint-disable-next-line @next/next/no-img-element */
               <img
                 src={qrDataUrl}
-                alt="QR Code for Public Proof"
+                alt="QR Code for Public Certificate Verification"
                 width={144}
                 height={144}
                 className="w-36 h-36 rounded-lg border border-slate-200 shadow-sm"
               />
             )}
-            <span className="text-[11px] font-semibold text-slate-600 mt-2">
-              Scan to inspect or verify proof on-chain
+            <span className="text-[11px] font-semibold text-slate-700 mt-2">
+              Scan to inspect or verify certificate
+            </span>
+            <span className="text-[10px] text-slate-400 font-mono mt-0.5 break-all">
+              {verifyUrl}
             </span>
           </div>
         </div>
@@ -146,11 +241,24 @@ export default async function PublicProofPage({ params }: PageProps) {
                   <span className="text-slate-400">({art.kind})</span>
                   <div className="text-[11px] text-slate-600 break-all select-all">{art.sha256}</div>
                 </div>
-                <span className="text-[10px] text-slate-400 shrink-0">{(art.bytes / 1024).toFixed(1)} KB</span>
+                <span className="text-[10px] text-slate-400 shrink-0">
+                  {((art.bytes || 0) / 1024).toFixed(1)} KB
+                </span>
               </div>
             ))}
           </div>
         </div>
+
+        {/* Scoped Verifier Drop Zone */}
+        <ScopedVerifier
+          captureId={captureId}
+          manifestSha256={capture.manifestSha256}
+          artifacts={artifacts.map((a: any) => ({
+            id: a.id,
+            kind: a.kind,
+            sha256: a.sha256,
+          }))}
+        />
       </div>
     </div>
   );
