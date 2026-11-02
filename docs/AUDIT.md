@@ -361,3 +361,4 @@
 | **Linting** | `npm run lint` | **PASS (0 errors)** | 3 minor Next.js `<img>` optimization warnings; zero ESLint errors. |
 | **Production Build** | `npm run build` | **PASS (16/16 pages)** | Next.js 14 App Router compiled successfully with all static and dynamic routes. |
 | **End-to-End Smoke Test**| `npx ts-node -r tsconfig-paths/register scripts/smoke.ts` | **PASS (4/4 stages)** | Agent start -> Finalize pipeline -> Merkle batch -> Anchoring -> Merkle verification. |
+<!-- Last audited: 2026-11-02 18:30:03 UTC -->
