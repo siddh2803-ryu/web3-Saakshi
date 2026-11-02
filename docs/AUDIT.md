@@ -193,6 +193,42 @@
 
 ---
 
+### 1.5 Phase 4 Status (Smart Contract & Merkle Anchoring)
+
+> [!WARNING]
+> Phase 4 Amoy testnet deployment is **PARKED** awaiting testnet POL funding for the deployer wallet. Phase 4 is **NOT** marked complete.
+> Testing and validation are currently running in **LOCAL CHAIN MODE** (Hardhat node, Chain ID 31337).
+
+#### Acceptance Criteria (PRD Section 17)
+| Criterion | Status | Verified With | Notes / Action to Turn PASS |
+|---|---|---|---|
+| **(a) Contract unit tests pass (anchoring, duplicate rejection, verify returns correct timestamp)** | **PASS** | `UNIT` | 9/9 Hardhat unit tests pass in `contracts/test/EvidenceRegistry.test.ts`. Confirms access control, Merkle inclusion across batch sizes 1, 2, and 7, duplicate root rejection, and custody event logging. |
+| **(b) Merkle tree JS implementation produces roots and proofs verified by contract** | **PASS** | `UNIT + LOCAL` | Verified in contract tests and `scripts/anchor-local.ts`. OpenZeppelin StandardMerkleTree JS implementation perfectly matches Solidity `verify()` double-hash leaf semantics. |
+| **(c) Deployed to Polygon Amoy; verified on Polygonscan; live anchor returns real txHash** | **PENDING** | `LOCAL CHAIN` | Deployed and verified on Local Hardhat Chain (`0x5FbDB2315678afecb367f032d93F642f64180aa3`, Chain ID 31337). Live Amoy deployment (Chain ID 80002) is pending test POL funding. |
+
+---
+
+### 1.6 Phase 5 Honest Verification Scorecard (Public Verification)
+
+#### Core Acceptance Criteria (PRD Section 17)
+| Criterion | Status | Verified With | Notes / Action to Turn PASS |
+|---|---|---|---|
+| **(a) An original file shows green (verified)** | **PASS** | `LOCAL CHAIN` | Tested via Playwright E2E and browser: original bundle files (`art_screenshot_fullpage`, `art_pdf_export`, `art_dom_html`) and loose original file show green `VERIFIED`. Displays block number, block timestamp in IST and UTC, transaction hash, and step-by-step checklist. |
+| **(b) The same file with 1 changed byte shows red** | **PASS** | `LOCAL CHAIN` | Tested via Playwright E2E: in bundle mode, altering 1 byte in `art_screenshot_fullpage.png` shows red `ALTERED` ("This file has been changed since it was captured."). In single-file mode, shows grey `NOT FOUND` ("Not found in Saakshi's records. This file was not captured by Saakshi, or it has been changed."). |
+| **(c) It works signed out** | **PASS** | `LOCAL CHAIN` | Tested in clean Playwright incognito browser context without any cookies, localStorage, or auth tokens. `/verify` and `/v/[id]` are completely unauthenticated and accessible. |
+| **(d) The browser's network tab shows RPC call going to blockchain endpoint, not Saakshi API** | **PASS (Local) / PENDING (Amoy)** | `LOCAL CHAIN` | **Zero API Calls**: Playwright network request listener confirmed 0 calls to Saakshi `/api` during bundle verification. Direct RPC call confirmed to local blockchain endpoint (`http://127.0.0.1:8545`). Direct call to live Polygon Amoy RPC is **PENDING** until live Amoy deployment. |
+
+#### Phase 5 Gaps & Resolutions
+1. **Ambiguous Result States Resolved**: Implemented all 5 explicit PRD states (`VERIFIED`, `NOT_FOUND`, `ALTERED`, `NOT_YET_ANCHORED`, `CHAIN_CHECK_FAILED`) with step-by-step audit trail (hash computed &rarr; found in manifest &rarr; Merkle proof &rarr; on-chain root).
+2. **Trustless Bundle Verification**: Added pure client-side ZIP parsing via JSZip/WebCrypto. Evaluates RFC 8785 canonical manifest hash, validates proof, and executes direct `eth_call` to `EvidenceRegistry.verify()` with zero Saakshi API requests.
+3. **Security Against Rogue Contracts/Chains**: Both browser and CLI verifier inspect `proof.json` against configured `NEXT_PUBLIC_REGISTRY_ADDRESS` and `NEXT_PUBLIC_CHAIN_ID`. Rejects mismatched contracts/chains with `ALTERED` / Security Error.
+4. **RPC Fallback & Retry**: Browser cycles through candidate RPC list on connection failure, and provides a clear "Retry Blockchain Check" action.
+5. **Public Certificate Page (`/v/[id]`)**: Full metadata display (capture time, artifacts, fingerprints, block number, QR code). Target URL hidden by default unless owner explicitly opted into public display. Includes scoped drop-zone verifier and social OpenGraph tags.
+6. **Rate Limiting & Input Validation**: Added sliding window IP rate limiter (60 req/min) on `/api/verify/[sha256]` with clean production errors.
+7. **Accessibility & Usability**: Drop zone supports keyboard access (real button + file input), live regions (`aria-live="polite"`), and 200 MB file limit guard.
+
+---
+
 ## 2. Requirements Traceability Matrix (PRD Section 6)
 
 | FR ID | Feature Description | Priority | Phase | Status | Code Evidence / File Paths | Remaining Work |
@@ -355,10 +391,12 @@
 
 | Test Category | Command Executed | Outcome | Details |
 |---|---|---|---|
-| **Contract Unit Tests** | `npm run test:contracts` | **9 / 9 PASS** | `EvidenceRegistry` anchoring, duplicate rejection, Merkle inclusion, custody logging (501ms). |
-| **Web Unit Tests** | `npm run test:web` | **52 / 52 PASS** | Agent client, URL validation, blocked detection, Zod schema validation, quota & consent, evidence hashing, canonical manifest, envelope encryption, IPFS, watch classification, Gemini schema, pipeline integration (1.6s). |
-| **Static Typecheck** | `tsc --noEmit` (both workspaces) | **PASS (0 errors)** | Full TypeScript strict typechecking succeeded across web and contracts. |
-| **Linting** | `npm run lint` | **PASS (0 errors)** | 3 minor Next.js `<img>` optimization warnings; zero ESLint errors. |
-| **Production Build** | `npm run build` | **PASS (16/16 pages)** | Next.js 14 App Router compiled successfully with all static and dynamic routes. |
+| **Contract Unit Tests** | `npm run test:contracts` | **9 / 9 PASS** | `EvidenceRegistry` anchoring, duplicate rejection, Merkle inclusion, custody logging (472ms). |
+| **Web Unit Tests** | `npm run test:web` | **101 / 101 PASS** | Agent client, URL validation, blocked detection, Zod schema, quota & consent, evidence hashing, canonical manifest, envelope encryption, IPFS, watch classification, Gemini schema, pipeline integration, verification parity, result states, and proof security (2.8s). |
+| **Static Typecheck** | `npm run typecheck` | **PASS (0 errors)** | Full TypeScript strict typechecking succeeded across web and contracts. |
+| **Linting** | `npm run lint` | **PASS (0 errors)** | Zero ESLint errors across all packages. |
+| **Production Build** | `npm run build` | **PASS (15/15 pages)** | Next.js 14 App Router compiled successfully with all static and dynamic routes. |
+| **Playwright E2E Verification** | `npx ts-node -r tsconfig-paths/register scripts/e2e-verify.ts` | **PASS (6/6 stages)** | Trustless bundle verification, 0 API calls, direct RPC query, tampered bundle (ALTERED), single-file loose verify, 1-byte tampered file (NOT FOUND), unrelated file (NOT FOUND), `/v/[id]` scoped verifier & privacy. |
+| **Offline CLI Verifier** | `npm run verify:bundle tmp/test_bundle.zip` | **PASS (5/5 checks)** | Manifest, JCS hash, artifact fingerprints, Merkle proof, on-chain state. Tampered bundle correctly rejected with exit code 1. |
 | **End-to-End Smoke Test**| `npx ts-node -r tsconfig-paths/register scripts/smoke.ts` | **PASS (4/4 stages)** | Agent start -> Finalize pipeline -> Merkle batch -> Anchoring -> Merkle verification. |
-<!-- Last audited: 2026-11-02 18:30:03 UTC -->
+<!-- Last audited: 2026-11-03 00:20:00 IST (Local Chain Mode) -->
