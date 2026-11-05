@@ -80,6 +80,41 @@ This document records the integration details for TinyFish across Saakshi's arch
   - Target 1: `https://example.com` (Title: `Example Domain`, Length: 156 chars, Latency: 2,089 ms, Errors: 0, Request ID: `d9a0b680-9386-4c86-b4f4-e229ff48f2b9`)
   - Target 2: `https://en.wikipedia.org/wiki/Internet` (Title: `Internet - Wikipedia`, Length: 97,640 chars, Latency: 9,009 ms, Links: 2,384, Images: 88, Errors: 0, Request ID: `9991e6f7-6e56-42a4-8520-f17308032f16`)
 
+## Phase 6 Acceptance & Verification Status (Part 1 of 3)
+
+| Criterion (PRD Section 17) | Status | Verification Method | Live Evidence / Details |
+|---|---|---|---|
+| **(a) Create TinyFish Page Monitor with hourly cron & purpose** | **PASS** | `LIVE + UNIT` | Monitor creation verified live against OpenAPI 3.0 spec endpoint `POST https://agent.tinyfish.ai/v1/monitors`. Created monitor `4625aec3-55e9-4135-91ca-1406957d073f` on `https://example.com` returning baseline run `57947c7b-d359-4d3e-8955-4cdadcf3bb9a`. Validated with Zod schema. |
+| **(b) Store baseline contentHash from monitor creation run** | **PASS** | `LIVE + UNIT` | Baseline run parsed from creation response; baseline hash `0a080719be9fbb82a86a45b80dc8c2a430fbe17dc93d23758debac092864d00f` computed on normalized text (Unicode NFC, volatile tokens stripped) and retained for subsequent comparisons. |
+| **(c) "Check now" calls Monitor run-now and processes inline** | **PASS** | `LIVE + UNIT` | Verified live: two consecutive `POST https://agent.tinyfish.ai/v1/monitors/{id}/runs` calls (`2dfad43c-b3fb-472c-85f4-18f1909cb57e` and `ffbd0630-e228-4414-9fe3-acc9306e66a8`) returned `HTTP 201` inline. Both classified as `NO_CHANGE` with identical content hash. |
+| **(d) Scheduled webhooks at `/api/webhooks/monitor?token=...`** | **PENDING** | `UNIT + LOCAL` | Webhook route handler `apps/web/app/api/webhooks/monitor/route.ts` validated with query token authentication, parsing scheduled run results/errors, and recording watch events. Live end-to-end receipt from TinyFish scheduler pending public domain/tunnel deployment in Part 2. |
+| **(e) On EDITED/DELETED: line diff, auto re-capture, in-app alert** | **PENDING** | `UNIT + LOCAL` | Classifier, 20 KB capped unified line diff, and word-level change tokens verified with 16 comprehensive unit tests. Full end-to-end live re-capture execution on altered Chirp post pending Part 2. |
+| **(f) Watch timeline with type, time, diff, and re-capture link** | **PENDING** | `UNIT + LOCAL` | Watch timeline UI component in `apps/web/app/capture/[id]/page.tsx` renders check events, diffs, and links. Live multi-event timeline drilldown pending Part 3. |
+
+### Live Monitor Verification Results (`scripts/live-monitor-check.ts`)
+- **Target URL:** `https://example.com`
+- **Schedule:** Daily (`0 0 * * *`)
+- **Created Monitor ID:** `4625aec3-55e9-4135-91ca-1406957d073f`
+  - Name: `saakshi-check_1793902124818`
+  - Status: `active`
+  - HTTP Status: `201 Created` (Request ID: `fdd1b97a-5f48-483a-89c8-c8d4a5259da0`)
+  - Baseline Run ID: `57947c7b-d359-4d3e-8955-4cdadcf3bb9a` (`is_baseline: true`)
+  - Baseline Hash: `0a080719be9fbb82a86a45b80dc8c2a430fbe17dc93d23758debac092864d00f`
+  - Baseline Text Length: 156 characters
+- **Check #1 (runNow):**
+  - Run ID: `2dfad43c-b3fb-472c-85f4-18f1909cb57e` (`HTTP 201`, Request ID: `d822a663-d090-4e57-92e6-01335fc83a7e`)
+  - Results: 1 | Errors: 0
+  - Classification: `NO_CHANGE` (Reason: `Content hash strictly matches baseline (volatile counters/timestamps stripped)`)
+- **Check #2 (runNow):**
+  - Run ID: `ffbd0630-e228-4414-9fe3-acc9306e66a8` (`HTTP 201`, Request ID: `44ef9543-a86e-41d9-90ab-b64d0fdf46cf`)
+  - Results: 1 | Errors: 0
+  - Classification: `NO_CHANGE` (Reason: `Content hash strictly matches baseline (volatile counters/timestamps stripped)`)
+- **Consistent Hash Across Runs:** `true` (`0a080719be9fbb82a86a45b80dc8c2a430fbe17dc93d23758debac092864d00f`)
+- **Monitor Cleanup & Deletion:**
+  - `DELETE https://agent.tinyfish.ai/v1/monitors/4625aec3-55e9-4135-91ca-1406957d073f` (`HTTP 200`, Request ID: `0cfc1dad-129b-4091-9515-af7a61e090aa`)
+  - Response: `{ deleted: true, id: "4625aec3-55e9-4135-91ca-1406957d073f" }`
+  - Account Cleanup: `npm run monitor:cleanup` confirmed 0 active `saakshi-*` monitors remaining.
+
 ### How to Record Live Fixtures (`scripts/record-fixture.ts`)
 ```bash
 # 1. Add your real TinyFish key to .env.local:
