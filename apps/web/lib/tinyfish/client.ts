@@ -2,6 +2,23 @@ export function isFixtureMode(): boolean {
   return process.env.TINYFISH_MODE === "fixture";
 }
 
+/**
+ * Redacts sensitive tokens or secrets from URLs before logging.
+ */
+export function sanitizeUrl(urlStr: string): string {
+  try {
+    const parsed = new URL(urlStr);
+    for (const key of Array.from(parsed.searchParams.keys())) {
+      if (/^(token|secret|key|api_key|apikey|auth|signature)$/i.test(key)) {
+        parsed.searchParams.set(key, "[REDACTED]");
+      }
+    }
+    return parsed.toString();
+  } catch {
+    return urlStr.replace(/([?&](?:token|secret|key|api_key|apikey|auth|signature)=)[^&]+/gi, "$1[REDACTED]");
+  }
+}
+
 export interface TinyFishRequestOptions {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   headers?: Record<string, string>;
@@ -88,7 +105,7 @@ export async function tinyFishFetch<T = unknown>(
       if (attempt < maxRetries) {
         const backoff = options.retryDelayMs ?? 2000;
         console.warn(
-          `[TinyFish] Network attempt ${attempt + 1} failed for ${url}, retrying in ${(backoff / 1000).toFixed(1)}s...`,
+          `[TinyFish] Network attempt ${attempt + 1} failed for ${sanitizeUrl(url)}, retrying in ${(backoff / 1000).toFixed(1)}s...`,
           networkErr
         );
         await new Promise((r) => setTimeout(r, backoff));
@@ -122,13 +139,13 @@ export async function tinyFishFetch<T = unknown>(
         }
       }
 
-      let friendlyMsg = `TinyFish API error (${status}) at ${url} [reqId: ${requestId}]${errorText ? `: ${errorText}` : ""}`;
+      let friendlyMsg = `TinyFish API error (${status}) at ${sanitizeUrl(url)} [reqId: ${requestId}]${errorText ? `: ${errorText}` : ""}`;
       if (status === 401 || status === 403) {
         friendlyMsg = `TinyFish authentication/authorization failed (${status}) [reqId: ${requestId}]: ${errorText || "Verify TINYFISH_API_KEY and account permissions"}`;
       } else if (status === 402) {
         friendlyMsg = `Capture credits exhausted: TinyFish wallet empty (402) [reqId: ${requestId}]: ${errorText || "Add funds or upgrade plan"}`;
       } else if (status === 404) {
-        friendlyMsg = `TinyFish resource not found (404) at ${url} [reqId: ${requestId}]${errorText ? `: ${errorText}` : ""}`;
+        friendlyMsg = `TinyFish resource not found (404) at ${sanitizeUrl(url)} [reqId: ${requestId}]${errorText ? `: ${errorText}` : ""}`;
       } else if (status === 429) {
         friendlyMsg = `TinyFish rate limit exceeded (429) [reqId: ${requestId}]: ${errorText || "Please slow down requests"}${retryAfterSeconds !== undefined ? ` (Retry-After: ${retryAfterSeconds}s)` : ""}`;
       } else if (status === 503) {
@@ -142,7 +159,7 @@ export async function tinyFishFetch<T = unknown>(
       // 503 retries once after 5 seconds per PRD 7.2 / 7.7
       if (status === 503 && attempt < maxRetries) {
         const backoff = options.retryDelayMs ?? 5000;
-        console.warn(`[TinyFish] Retrying ${url} after 503 (attempt ${attempt + 1} of ${maxRetries}, backoff ${backoff}ms)...`);
+        console.warn(`[TinyFish] Retrying ${sanitizeUrl(url)} after 503 (attempt ${attempt + 1} of ${maxRetries}, backoff ${backoff}ms)...`);
         await new Promise((r) => setTimeout(r, backoff));
         continue;
       }
@@ -150,7 +167,7 @@ export async function tinyFishFetch<T = unknown>(
       // Other 5xx retries once after 2-second backoff per PRD 7.7
       if (status >= 500 && attempt < maxRetries) {
         const backoff = options.retryDelayMs ?? 2000;
-        console.warn(`[TinyFish] Retrying ${url} after HTTP ${status} (attempt ${attempt + 1} of ${maxRetries}, backoff ${backoff}ms)...`);
+        console.warn(`[TinyFish] Retrying ${sanitizeUrl(url)} after HTTP ${status} (attempt ${attempt + 1} of ${maxRetries}, backoff ${backoff}ms)...`);
         await new Promise((r) => setTimeout(r, backoff));
         continue;
       }
@@ -158,7 +175,7 @@ export async function tinyFishFetch<T = unknown>(
       // 429 honors Retry-After when retryOnRateLimit is true
       if (status === 429 && options.retryOnRateLimit && attempt < maxRetries) {
         const backoff = options.retryDelayMs ?? (retryAfterSeconds ? retryAfterSeconds * 1000 : 2000);
-        console.warn(`[TinyFish] Retrying ${url} after 429 (attempt ${attempt + 1} of ${maxRetries}, backoff ${backoff}ms honoring Retry-After)...`);
+        console.warn(`[TinyFish] Retrying ${sanitizeUrl(url)} after 429 (attempt ${attempt + 1} of ${maxRetries}, backoff ${backoff}ms honoring Retry-After)...`);
         await new Promise((r) => setTimeout(r, backoff));
         continue;
       }
@@ -167,7 +184,7 @@ export async function tinyFishFetch<T = unknown>(
       throw new TinyFishApiError(friendlyMsg, status, requestId, retryAfterSeconds);
     }
 
-    console.log(`[TinyFish] [X-Request-ID: ${requestId}] ${method} ${url} -> HTTP ${response.status}`);
+    console.log(`[TinyFish] [X-Request-ID: ${requestId}] ${method} ${sanitizeUrl(url)} -> HTTP ${response.status}`);
     if (response.status === 204 || response.headers.get("content-length") === "0") {
       return {} as T;
     }

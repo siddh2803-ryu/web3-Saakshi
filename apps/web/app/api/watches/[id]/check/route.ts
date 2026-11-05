@@ -34,8 +34,9 @@ export async function POST(
     // 1. Run monitor now via TinyFish
     const monitorRun = await runMonitorNow(watch.monitorId);
 
-    // 2. Fetch fresh text directly as well to ensure latest snapshot
-    let freshText = monitorRun.results?.[0]?.text || "";
+    // 2. Extract fresh text or fetch directly to ensure latest snapshot
+    const rawRunText = monitorRun.results?.[0]?.text;
+    let freshText = typeof rawRunText === "string" ? rawRunText : (rawRunText ? JSON.stringify(rawRunText) : "");
     let errors = monitorRun.errors || [];
 
     if (!freshText && errors.length === 0) {
