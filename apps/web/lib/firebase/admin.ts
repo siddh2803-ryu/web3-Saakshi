@@ -34,6 +34,12 @@ function loadDevStoreFromDisk() {
       if (data.artifacts) {
         for (const [k, v] of Object.entries(data.artifacts)) inMemoryStore.artifacts.set(k, v as any[]);
       }
+      if (data.watches) {
+        for (const [k, v] of Object.entries(data.watches)) inMemoryStore.watches.set(k, v);
+      }
+      if (data.watchEvents) {
+        for (const [k, v] of Object.entries(data.watchEvents)) inMemoryStore.watchEvents.set(k, v as any[]);
+      }
     }
   } catch {}
 }
@@ -44,6 +50,8 @@ function persistDevStoreToDisk() {
       captures: Object.fromEntries(inMemoryStore.captures.entries()),
       publicProofs: Object.fromEntries(inMemoryStore.publicProofs.entries()),
       artifacts: Object.fromEntries(inMemoryStore.artifacts.entries()),
+      watches: Object.fromEntries(inMemoryStore.watches.entries()),
+      watchEvents: Object.fromEntries(inMemoryStore.watchEvents.entries()),
     };
     nodeFs.writeFileSync(DEV_STORE_PATH, JSON.stringify(data), "utf8");
   } catch {}
@@ -221,6 +229,7 @@ export async function saveWatchRecord(watchId: string, data: any): Promise<void>
   }
   const existing = inMemoryStore.watches.get(watchId) || {};
   inMemoryStore.watches.set(watchId, { ...existing, ...data });
+  persistDevStoreToDisk();
 }
 
 export async function getWatchRecord(watchId: string): Promise<any | null> {
@@ -262,6 +271,27 @@ export async function saveWatchEvent(watchId: string, event: any): Promise<void>
   const events = inMemoryStore.watchEvents.get(watchId) || [];
   events.unshift(event);
   inMemoryStore.watchEvents.set(watchId, events);
+  persistDevStoreToDisk();
+}
+
+export async function countUserActiveWatches(uid: string): Promise<number> {
+  const fs = getAdminFirestore();
+  if (fs) {
+    const snap = await fs
+      .collection("watches")
+      .where("ownerUid", "==", uid)
+      .where("state", "==", "active")
+      .get();
+    return snap.size;
+  }
+  loadDevStoreFromDisk();
+  let count = 0;
+  for (const w of inMemoryStore.watches.values()) {
+    if (w.ownerUid === uid && w.state === "active") {
+      count++;
+    }
+  }
+  return count;
 }
 
 export async function listWatchEvents(watchId: string): Promise<any[]> {
