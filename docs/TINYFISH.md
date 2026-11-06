@@ -80,40 +80,76 @@ This document records the integration details for TinyFish across Saakshi's arch
   - Target 1: `https://example.com` (Title: `Example Domain`, Length: 156 chars, Latency: 2,089 ms, Errors: 0, Request ID: `d9a0b680-9386-4c86-b4f4-e229ff48f2b9`)
   - Target 2: `https://en.wikipedia.org/wiki/Internet` (Title: `Internet - Wikipedia`, Length: 97,640 chars, Latency: 9,009 ms, Links: 2,384, Images: 88, Errors: 0, Request ID: `9991e6f7-6e56-42a4-8520-f17308032f16`)
 
-## Phase 6 Acceptance & Verification Status (Part 1 of 3)
+## Phase 6 Acceptance & Verification Status (Part 2 of 3)
 
 | Criterion (PRD Section 17) | Status | Verification Method | Live Evidence / Details |
 |---|---|---|---|
-| **(a) Create TinyFish Page Monitor with hourly cron & purpose** | **PASS** | `LIVE + UNIT` | Monitor creation verified live against OpenAPI 3.0 spec endpoint `POST https://agent.tinyfish.ai/v1/monitors`. Created monitor `4625aec3-55e9-4135-91ca-1406957d073f` on `https://example.com` returning baseline run `57947c7b-d359-4d3e-8955-4cdadcf3bb9a`. Validated with Zod schema. |
-| **(b) Store baseline contentHash from monitor creation run** | **PASS** | `LIVE + UNIT` | Baseline run parsed from creation response; baseline hash `0a080719be9fbb82a86a45b80dc8c2a430fbe17dc93d23758debac092864d00f` computed on normalized text (Unicode NFC, volatile tokens stripped) and retained for subsequent comparisons. |
-| **(c) "Check now" calls Monitor run-now and processes inline** | **PASS** | `LIVE + UNIT` | Verified live: two consecutive `POST https://agent.tinyfish.ai/v1/monitors/{id}/runs` calls (`2dfad43c-b3fb-472c-85f4-18f1909cb57e` and `ffbd0630-e228-4414-9fe3-acc9306e66a8`) returned `HTTP 201` inline. Both classified as `NO_CHANGE` with identical content hash. |
-| **(d) Scheduled webhooks at `/api/webhooks/monitor?token=...`** | **PENDING** | `UNIT + LOCAL` | Webhook route handler `apps/web/app/api/webhooks/monitor/route.ts` validated with query token authentication, parsing scheduled run results/errors, and recording watch events. Live end-to-end receipt from TinyFish scheduler pending public domain/tunnel deployment in Part 2. |
-| **(e) On EDITED/DELETED: line diff, auto re-capture, in-app alert** | **PENDING** | `UNIT + LOCAL` | Classifier, 20 KB capped unified line diff, and word-level change tokens verified with 16 comprehensive unit tests. Full end-to-end live re-capture execution on altered Chirp post pending Part 2. |
-| **(f) Watch timeline with type, time, diff, and re-capture link** | **PENDING** | `UNIT + LOCAL` | Watch timeline UI component in `apps/web/app/capture/[id]/page.tsx` renders check events, diffs, and links. Live multi-event timeline drilldown pending Part 3. |
+| **(a) Create TinyFish Page Monitor with hourly cron & purpose** | **PASS** | `LIVE + UNIT` | Monitor creation verified live against OpenAPI 3.0 spec endpoint `POST https://agent.tinyfish.ai/v1/monitors`. Tested on `https://example.com` and live Chirp sandbox post. Validated with Zod schema. |
+| **(b) Store baseline contentHash from monitor creation run** | **PASS** | `LIVE + UNIT` | Baseline run parsed from creation response; baseline hash computed on normalized text (Unicode NFC, volatile tokens stripped) and retained for subsequent comparisons. |
+| **(c) "Check now" calls Monitor run-now and processes inline** | **PASS** | `LIVE + UNIT` | Verified live on live Chirp sandbox post: "Check now" called `runMonitorNow` returning inline in 2,129ms; classified as `NO_CHANGE` with identical content hash. |
+| **(d) Scheduled webhooks at `/api/webhooks/monitor?token=...`** | **PENDING** | `UNIT + LOCAL` | Webhook route handler `apps/web/app/api/webhooks/monitor/route.ts` validated with query token authentication, parsing scheduled run results/errors, and recording watch events with in-app alert triggers. Live end-to-end receipt from TinyFish recurring scheduler pending Part 3. |
+| **(e) On EDITED/DELETED: line diff, auto re-capture, in-app alert** | **PASS** | `LIVE + UNIT` | Verified live on live Chirp sandbox post: (1) Editing post detected in 1,573ms as `EDITED`, unified diff generated showing modified fee/stipend lines, auto re-capture `cap_re_a496702ed141d679917d11badb926e7f` initiated; (2) Deleting post detected in 6,414ms (< 60s) as `DELETED`, auto re-capture `cap_re_18e49dea3f2b8060287cf5b050ee66fe` initiated, and in-app alert banners displayed. |
+| **(f) Watch timeline with type, time, diff, and re-capture link** | **PASS** | `LIVE + UNIT` | Watch timeline UI component in `apps/web/app/capture/[id]/page.tsx` renders check events, colored diff view (`+`, `-`, `@@`), detected timestamps, durations, and links to re-captures. Covered by route and UI unit tests in `watch-routes.test.ts`. |
 
-### Live Monitor Verification Results (`scripts/live-monitor-check.ts`)
-- **Target URL:** `https://example.com`
-- **Schedule:** Daily (`0 0 * * *`)
-- **Created Monitor ID:** `4625aec3-55e9-4135-91ca-1406957d073f`
-  - Name: `saakshi-check_1793902124818`
-  - Status: `active`
-  - HTTP Status: `201 Created` (Request ID: `fdd1b97a-5f48-483a-89c8-c8d4a5259da0`)
-  - Baseline Run ID: `57947c7b-d359-4d3e-8955-4cdadcf3bb9a` (`is_baseline: true`)
-  - Baseline Hash: `0a080719be9fbb82a86a45b80dc8c2a430fbe17dc93d23758debac092864d00f`
-  - Baseline Text Length: 156 characters
-- **Check #1 (runNow):**
-  - Run ID: `2dfad43c-b3fb-472c-85f4-18f1909cb57e` (`HTTP 201`, Request ID: `d822a663-d090-4e57-92e6-01335fc83a7e`)
-  - Results: 1 | Errors: 0
-  - Classification: `NO_CHANGE` (Reason: `Content hash strictly matches baseline (volatile counters/timestamps stripped)`)
-- **Check #2 (runNow):**
-  - Run ID: `ffbd0630-e228-4414-9fe3-acc9306e66a8` (`HTTP 201`, Request ID: `44ef9543-a86e-41d9-90ab-b64d0fdf46cf`)
-  - Results: 1 | Errors: 0
-  - Classification: `NO_CHANGE` (Reason: `Content hash strictly matches baseline (volatile counters/timestamps stripped)`)
-- **Consistent Hash Across Runs:** `true` (`0a080719be9fbb82a86a45b80dc8c2a430fbe17dc93d23758debac092864d00f`)
-- **Monitor Cleanup & Deletion:**
-  - `DELETE https://agent.tinyfish.ai/v1/monitors/4625aec3-55e9-4135-91ca-1406957d073f` (`HTTP 200`, Request ID: `0cfc1dad-129b-4091-9515-af7a61e090aa`)
-  - Response: `{ deleted: true, id: "4625aec3-55e9-4135-91ca-1406957d073f" }`
-  - Account Cleanup: `npm run monitor:cleanup` confirmed 0 active `saakshi-*` monitors remaining.
+### Shortest Monitor Schedule Supported by TinyFish
+We empirically tested various cron schedules against the TinyFish Monitor API:
+- `* * * * *` (Every 1 minute): **ACCEPTED** (`HTTP 201 Created`)
+- `*/5 * * * *` (Every 5 minutes): **ACCEPTED** (`HTTP 201 Created`)
+- `*/15 * * * *` (Every 15 minutes): **ACCEPTED** (`HTTP 201 Created`)
+- `*/30 * * * *` (Every 30 minutes): **ACCEPTED** (`HTTP 201 Created`)
+- `0 * * * *` (Hourly): **ACCEPTED** (`HTTP 201 Created`)
+
+**Finding:** The TinyFish Page Monitor API accepts standard 5-field cron syntax down to **1-minute intervals (`* * * * *`)**. Saakshi UI exposes user-friendly presets: Hourly (`0 * * * *`), Every 6 Hours (`0 */6 * * *`), and Daily (`0 0 * * *`). All temporary test monitors created during this test were deleted immediately.
+
+### TinyFish Upstream Error Handling for Deletions
+When a monitored target URL returns HTTP 404 (e.g. deleted post), calling `POST /v1/monitors/{id}/runs` returns HTTP 502 with message `{"error":{"code":"INTERNAL_ERROR","message":"Fetch failed: page_not_found"}}`. In `apps/web/lib/tinyfish/monitor.ts`, `runMonitorNow` catches `page_not_found` and maps it into a structured error `{ code: "page_not_found", status: 404 }`, allowing the classifier in `apps/web/lib/watch/classify.ts` to deterministically emit `DELETED`.
+
+### Live Monitor Verification Results (Part 2 Walkthrough on Deployed Sandbox Post)
+- **Target URL:** `https://conf-moon-exciting-saying.trycloudflare.com/sandbox/post/internship-scam-alert`
+- **Baseline Capture ID:** `cap_c5a4915cd3d392403b4107b96ea2096d` (Status: `READY`)
+- **Watch Activated:**
+  - Watch ID: `watch_mw59pkb4_pf80`
+  - Monitor ID: `0c36493c-a037-481c-98af-eeb26d50f8d8`
+  - Baseline Content Hash: `d2788fd5e60c641e19478bb640c67b34bd3520d1fd3116b7134262275d4bf4ee`
+- **Step 2: Check Now with No Change:**
+  - Duration: 2,129 ms
+  - Result Type: `NO_CHANGE`
+  - Reason: `Content hash strictly matches baseline (volatile counters/timestamps stripped)`
+  - Event ID: `wevent_1793988721540_j17v`
+- **Step 3: Check Now after Post Edit in Sandbox Admin:**
+  - Duration: 1,573 ms
+  - Result Type: `EDITED`
+  - Reason: `Content altered (1 lines added, 1 lines removed)`
+  - Re-Capture ID: `cap_re_a496702ed141d679917d11badb926e7f`
+  - Diff Excerpt:
+```diff
+Index: evidence_content.txt
+===================================================================
+--- evidence_content.txt	previous
++++ evidence_content.txt	current
+@@ -2,9 +2,9 @@
+  Admin Controls
+  ## CareerBridge Global
+  @careerbridge\_official
+  # Fast-Track Winter Internship Program (Registration Fee Required)
+-Exclusive 3-month remote engineering internship at Global AI Labs. Guaranteed stipend of ₹45,000/month. Mandatory one-time documentation and portal registration fee of ₹2,499 to be transferred to UPI id: recruit-verify@payu before 5 PM today. Limited to the first 25 applicants only! Apply immediately.
++Exclusive 3-month remote engineering internship at Global AI Labs. Stipend reduced to ₹15,000/month. Mandatory registration fee increased to ₹4,999 to be transferred to UPI id: altered-scam@payu before midnight. Limited to the first 5 applicants only!
+  142328
+  Chirp v2.4
+  ### Replies & Discussion (3)
+  Pooja Verma@pooja\_v
+```
+  - Alert Banner: Triggered in-app alert banner displaying edit reason and diff excerpt.
+- **Step 4: Check Now after Post Deletion in Sandbox Admin:**
+  - Detection Time: 6,414 ms (well under the 60-second limit)
+  - Result Type: `DELETED`
+  - Reason: `Page returned 404/410 or page_not_found deletion status`
+  - Re-Capture ID: `cap_re_18e49dea3f2b8060287cf5b050ee66fe`
+  - Alert Banner: Triggered critical deletion alert banner on capture view and dashboard.
+- **Step 5: Post Restored & Cleanup:**
+  - Sandbox post restored to original seed state.
+  - Monitor `0c36493c-a037-481c-98af-eeb26d50f8d8` deleted: `{"deleted": true}`.
+  - Account verified clean via `npm run monitor:cleanup` (0 active `saakshi-*` monitors).
 
 ### How to Record Live Fixtures (`scripts/record-fixture.ts`)
 ```bash
