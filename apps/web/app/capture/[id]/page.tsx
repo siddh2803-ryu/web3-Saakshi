@@ -43,8 +43,11 @@ export default function CaptureDetailPage() {
   const [copiedText, setCopiedText] = useState<string | null>(null);
   const [anchoringLoading, setAnchoringLoading] = useState(false);
   const [watchChecking, setWatchChecking] = useState(false);
+  const [watchToggling, setWatchToggling] = useState(false);
+  const [watchSchedule, setWatchSchedule] = useState("0 * * * *");
   const [watchEvents, setWatchEvents] = useState<any[]>([]);
   const [watchDetails, setWatchDetails] = useState<any>(null);
+  const [watchError, setWatchError] = useState<string | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
@@ -55,14 +58,19 @@ export default function CaptureDetailPage() {
       const data = await res.json();
       setCapture(data.capture);
 
-      // If watch active, fetch watch details
-      if (data.capture?.watchId) {
-        const wRes = await fetch(`/api/watches/${data.capture.watchId}`);
+      // Fetch watch details and timeline events
+      try {
+        const wRes = await fetch(`/api/captures/${captureId}/watch`);
         if (wRes.ok) {
           const wData = await wRes.json();
           setWatchDetails(wData.watch);
-          setWatchEvents(wData.watch?.events || []);
+          setWatchEvents(wData.events || []);
+          if (wData.watch?.scheduleCron) {
+            setWatchSchedule(wData.watch.scheduleCron);
+          }
         }
+      } catch (wErr) {
+        console.warn("Failed to fetch watch details:", wErr);
       }
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : String(err));
@@ -122,37 +130,81 @@ export default function CaptureDetailPage() {
     }
   };
 
-  const handleCreateWatch = async () => {
+  const handleToggleWatch = async () => {
+    setWatchToggling(true);
+    setWatchError(null);
     try {
+      const isCurrentlyActive = Boolean(capture?.isWatching && watchDetails?.state === "active");
       const res = await fetch(`/api/captures/${captureId}/watch`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scheduleCron: "0 * * * *" }),
+        body: JSON.stringify({
+          enabled: !isCurrentlyActive,
+          scheduleCron: watchSchedule,
+        }),
       });
-      if (res.ok) {
-        await fetchCapture();
-        setActiveTab("watch");
+      const data = await res.json();
+      if (!res.ok) {
+        setWatchError(data.error || "Failed to update watch status");
+        return;
       }
-    } catch (err) {
-      console.error(err);
+      await fetchCapture();
+      setActiveTab("watch");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setWatchError(msg || "Failed to toggle watch");
+    } finally {
+      setWatchToggling(false);
+    }
+  };
+
+  const handleScheduleChange = async (newSchedule: string) => {
+    setWatchSchedule(newSchedule);
+    setWatchError(null);
+    if (capture?.isWatching && watchDetails?.state === "active") {
+      try {
+        const res = await fetch(`/api/captures/${captureId}/watch`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            enabled: true,
+            scheduleCron: newSchedule,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setWatchError(data.error || "Failed to update schedule");
+        } else {
+          await fetchCapture();
+        }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setWatchError(msg || "Failed to update schedule");
+      }
     }
   };
 
   const handleCheckWatchNow = async () => {
-    if (!capture?.watchId) return;
+    const watchId = capture?.watchId || watchDetails?.id;
+    if (!watchId) {
+      setWatchError("No active watch configured for this capture.");
+      return;
+    }
     setWatchChecking(true);
+    setWatchError(null);
     try {
-      const res = await fetch(`/api/watches/${capture.watchId}/check`, {
+      const res = await fetch(`/api/watches/${watchId}/check`, {
         method: "POST",
       });
       const data = await res.json();
       if (res.ok) {
         await fetchCapture();
       } else {
-        alert(data.error || "Check now failed");
+        setWatchError(data.error || "Check now failed");
       }
-    } catch (err) {
-      console.error(err);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setWatchError(msg || "Check now failed");
     } finally {
       setWatchChecking(false);
     }
@@ -235,6 +287,84 @@ export default function CaptureDetailPage() {
 
   return (
     <div className="min-h-[calc(100vh-4rem)] py-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+      {/* Alert Banner for Watch Alteration / Deletion Detection */}
+      {capture.watchAlert && (
+        <div
+          className={`mb-6 p-4 rounded-xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm ${
+            capture.watchAlert.type === "DELETED"
+              ? "bg-rose-50 border-rose-300 text-rose-950"
+              : "bg-amber-50 border-amber-300 text-amber-950"
+          }`}
+        >
+          <div className="flex items-start space-x-3">
+            <AlertTriangle
+              className={`w-5 h-5 shrink-0 mt-0.5 ${
+                capture.watchAlert.type === "DELETED" ? "text-rose-600" : "text-amber-600"
+              }`}
+            />
+            <div>
+              <div className="flex items-center space-x-2">
+                <span
+                  className={`font-bold text-xs uppercase tracking-wider px-2 py-0.5 rounded border ${
+                    capture.watchAlert.type === "DELETED"
+                      ? "bg-rose-100 border-rose-300 text-rose-900"
+                      : "bg-amber-100 border-amber-300 text-amber-900"
+                  }`}
+                >
+                  {capture.watchAlert.type} ALERT
+                </span>
+                <span className="text-xs font-semibold">
+                  Detected {formatIST(capture.watchAlert.detectedAt)}
+                </span>
+              </div>
+              <p className="text-xs mt-1 leading-relaxed">
+                {capture.watchAlert.reason}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-2 shrink-0 self-end sm:self-center">
+            <button
+              onClick={() => setActiveTab("watch")}
+              className="px-3.5 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 rounded-lg text-xs font-semibold shadow-xs"
+            >
+              View Diff
+            </button>
+            {capture.watchAlert.recaptureId && (
+              <Link
+                href={`/capture/${capture.watchAlert.recaptureId}`}
+                className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold shadow-xs flex items-center space-x-1.5"
+              >
+                <span>View Re-Capture</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Linked Re-Capture Banner */}
+      {capture.previousCaptureId && (
+        <div className="mb-6 p-4 rounded-xl border border-blue-200 bg-blue-50 text-blue-900 flex items-center justify-between gap-4 shadow-sm">
+          <div className="flex items-center space-x-3">
+            <Activity className="w-5 h-5 text-blue-600 shrink-0" />
+            <div>
+              <span className="font-bold text-xs uppercase tracking-wider text-blue-800">
+                Automated Re-Capture Evidence
+              </span>
+              <p className="text-xs text-blue-700 mt-0.5">
+                This capture was triggered automatically to preserve the state after an edit or deletion was detected.
+              </p>
+            </div>
+          </div>
+          <Link
+            href={`/capture/${capture.previousCaptureId}`}
+            className="px-3 py-1.5 bg-white border border-blue-200 hover:bg-blue-100 text-blue-900 rounded-lg text-xs font-semibold shrink-0"
+          >
+            View Original Baseline &rarr;
+          </Link>
+        </div>
+      )}
+
       {/* Top Banner Header */}
       <div className="bg-white rounded-xl border border-slate-200/90 p-6 shadow-sm mb-6">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
@@ -776,82 +906,240 @@ export default function CaptureDetailPage() {
           {/* TAB 4: DELETION WATCH */}
           {activeTab === "watch" && (
             <div className="bg-white p-6 sm:p-8 rounded-xl border border-slate-200/90 shadow-sm space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              {/* Header and Controls */}
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 pb-6 border-b border-slate-200">
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900">TinyFish Monitor: Edit &amp; Deletion Watch</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Regularly re-fetches URL, normalizes content, and checks against baseline hash.
+                  <h3 className="text-lg font-bold text-slate-900 flex items-center space-x-2">
+                    <Eye className="w-5 h-5 text-slate-800" />
+                    <span>TinyFish Monitor: Edit &amp; Deletion Watch</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1 max-w-xl">
+                    Surveys target URL on schedule, detects edits or removal, triggers automatic re-capture,
+                    and generates court-ready unified line diffs.
                   </p>
                 </div>
-                {capture.isWatching ? (
+
+                <div className="flex flex-wrap items-center gap-3">
+                  {/* Schedule Picker */}
+                  <div className="flex items-center space-x-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs">
+                    <Clock className="w-3.5 h-3.5 text-slate-500" />
+                    <span className="font-semibold text-slate-700">Schedule:</span>
+                    <select
+                      value={watchSchedule}
+                      onChange={(e) => handleScheduleChange(e.target.value)}
+                      disabled={watchToggling}
+                      className="bg-transparent font-medium text-slate-800 focus:outline-none cursor-pointer"
+                    >
+                      <option value="0 * * * *">Hourly (0 * * * *)</option>
+                      <option value="0 */6 * * *">Every 6 Hours (0 */6 * * *)</option>
+                      <option value="0 0 * * *">Daily (0 0 * * *)</option>
+                    </select>
+                  </div>
+
+                  {/* Toggle Watch Button */}
+                  <button
+                    onClick={handleToggleWatch}
+                    disabled={watchToggling}
+                    className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center space-x-2 transition-all shadow-xs ${
+                      capture.isWatching && watchDetails?.state === "active"
+                        ? "bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300"
+                        : "bg-rose-700 hover:bg-rose-800 text-white"
+                    }`}
+                  >
+                    <span
+                      className={`w-2 h-2 rounded-full ${
+                        capture.isWatching && watchDetails?.state === "active"
+                          ? "bg-emerald-500 animate-pulse"
+                          : "bg-slate-400"
+                      }`}
+                    />
+                    <span>
+                      {watchToggling
+                        ? "Updating..."
+                        : capture.isWatching && watchDetails?.state === "active"
+                        ? "Turn Off Watch"
+                        : "Turn On Watch"}
+                    </span>
+                  </button>
+
+                  {/* Check Now Button */}
                   <button
                     onClick={handleCheckWatchNow}
-                    disabled={watchChecking}
-                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg flex items-center space-x-1.5 transition-colors disabled:opacity-50"
+                    disabled={watchChecking || !(capture.isWatching && watchDetails?.state === "active")}
+                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg flex items-center space-x-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-xs"
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${watchChecking ? "animate-spin" : ""}`} />
-                    <span>{watchChecking ? "Evaluating Live..." : "Check Now (Demo)"}</span>
+                    <span>{watchChecking ? "Evaluating Live..." : "Check Now"}</span>
                   </button>
-                ) : (
-                  <button
-                    onClick={handleCreateWatch}
-                    className="px-4 py-2 bg-rose-700 hover:bg-rose-800 text-white text-xs font-semibold rounded-lg flex items-center space-x-1.5 transition-colors"
-                  >
-                    <Eye className="w-3.5 h-3.5" />
-                    <span>Activate Deletion Watch</span>
-                  </button>
-                )}
+                </div>
               </div>
 
-              {/* Watch Check History */}
-              <div className="pt-4 border-t border-slate-100 space-y-4">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                  Watch Event Log ({watchEvents.length})
-                </h4>
+              {/* Error Notice if Watch limit or action failed */}
+              {watchError && (
+                <div className="p-4 rounded-lg bg-rose-50 border border-rose-200 text-rose-900 text-xs flex items-center space-x-2.5">
+                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span className="font-semibold">{watchError}</span>
+                </div>
+              )}
+
+              {/* Watch Details Metadata Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+                  <span className="text-slate-500 font-medium block">Watch Status</span>
+                  <div className="mt-1 flex items-center space-x-1.5 font-bold text-slate-800">
+                    <span
+                      className={`w-2 h-2 rounded-full ${
+                        capture.isWatching && watchDetails?.state === "active"
+                          ? "bg-emerald-500"
+                          : "bg-slate-400"
+                      }`}
+                    />
+                    <span>
+                      {capture.isWatching && watchDetails?.state === "active"
+                        ? "ACTIVE MONITORING"
+                        : "DISABLED"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+                  <span className="text-slate-500 font-medium block">Monitor ID</span>
+                  <span className="mt-1 block font-mono text-slate-800 truncate" title={watchDetails?.monitorId || "None"}>
+                    {watchDetails?.monitorId || "Not provisioned"}
+                  </span>
+                </div>
+
+                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+                  <span className="text-slate-500 font-medium block">Baseline Hash</span>
+                  <span
+                    className="mt-1 block font-mono text-slate-800 truncate"
+                    title={watchDetails?.baselineContentHash || capture.contentHash || "None"}
+                  >
+                    {truncateHash(watchDetails?.baselineContentHash || capture.contentHash || "N/A", 8, 6)}
+                  </span>
+                </div>
+
+                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+                  <span className="text-slate-500 font-medium block">Last Evaluated</span>
+                  <span className="mt-1 block text-slate-800 font-medium">
+                    {watchDetails?.lastCheckedAt ? formatIST(watchDetails.lastCheckedAt) : "Never"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Watch Check Timeline */}
+              <div className="pt-2 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center space-x-2">
+                    <Activity className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Check Timeline ({watchEvents.length})</span>
+                  </h4>
+                  <span className="text-[11px] text-slate-400 font-mono">
+                    All evaluations recorded immutably
+                  </span>
+                </div>
+
                 {watchEvents.length === 0 ? (
-                  <p className="text-xs text-slate-400 italic">
-                    No change checks recorded yet. Click &quot;Check Now&quot; to perform an instant evaluation.
-                  </p>
+                  <div className="p-8 text-center bg-slate-50/50 border border-dashed border-slate-200 rounded-lg space-y-2">
+                    <Eye className="w-8 h-8 text-slate-300 mx-auto" />
+                    <p className="text-xs text-slate-500 font-medium">
+                      No change checks recorded yet.
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      Click &quot;Check Now&quot; above to run an instant live evaluation against the baseline content hash.
+                    </p>
+                  </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     {watchEvents.map((wEvent: any) => (
                       <div
                         key={wEvent.id}
-                        className={`p-4 rounded-lg border ${
+                        className={`p-4 rounded-xl border transition-all ${
                           wEvent.type === "DELETED"
-                            ? "border-rose-200 bg-rose-50/40 text-rose-900"
+                            ? "border-rose-300 bg-rose-50/60 text-rose-950"
                             : wEvent.type === "EDITED"
-                            ? "border-amber-200 bg-amber-50/40 text-amber-900"
-                            : "border-slate-200 bg-slate-50 text-slate-800"
+                            ? "border-amber-300 bg-amber-50/60 text-amber-950"
+                            : wEvent.type === "BLOCKED"
+                            ? "border-purple-300 bg-purple-50/60 text-purple-950"
+                            : "border-slate-200 bg-slate-50/80 text-slate-800"
                         }`}
                       >
-                        <div className="flex items-center justify-between mb-1">
+                        {/* Event Header */}
+                        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                           <div className="flex items-center space-x-2">
-                            <span className="font-bold text-xs uppercase">{wEvent.type}</span>
-                            <span className="text-[10px] text-slate-500">
-                              via {wEvent.source || "monitor"}
+                            <span
+                              className={`px-2.5 py-0.5 rounded-md text-xs font-bold uppercase tracking-wide border ${
+                                wEvent.type === "DELETED"
+                                  ? "bg-rose-100 text-rose-800 border-rose-300"
+                                  : wEvent.type === "EDITED"
+                                  ? "bg-amber-100 text-amber-800 border-amber-300"
+                                  : wEvent.type === "BLOCKED"
+                                  ? "bg-purple-100 text-purple-800 border-purple-300"
+                                  : "bg-emerald-100 text-emerald-800 border-emerald-300"
+                              }`}
+                            >
+                              {wEvent.type}
+                            </span>
+                            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 px-2 py-0.5 rounded bg-white/70 border border-slate-200">
+                              {wEvent.source || "manual"}
                             </span>
                           </div>
-                          <span className="text-[11px] text-slate-500">
+                          <span className="text-xs text-slate-500 font-mono">
                             {formatIST(wEvent.detectedAt)}
                           </span>
                         </div>
-                        <p className="text-xs mt-1">{wEvent.reason}</p>
 
-                        {/* Diff Preview if present */}
-                        {wEvent.diff && (
-                          <div className="mt-3 p-3 bg-white border border-slate-200 rounded-lg font-mono text-[11px] overflow-x-auto whitespace-pre leading-relaxed text-slate-800">
-                            {wEvent.diff}
+                        {/* Event Reason */}
+                        <p className="text-xs font-medium mt-1 leading-relaxed">
+                          {wEvent.reason}
+                        </p>
+
+                        {/* Content Hash Tag */}
+                        {wEvent.contentHash && (
+                          <div className="mt-2 text-[10px] font-mono text-slate-500">
+                            Evaluated Hash: {truncateHash(wEvent.contentHash, 10, 8)}
                           </div>
                         )}
 
+                        {/* Unified Line Diff Preview */}
+                        {wEvent.diff && (
+                          <div className="mt-3 p-3.5 bg-slate-950 text-slate-100 rounded-lg font-mono text-xs overflow-x-auto whitespace-pre leading-relaxed border border-slate-800">
+                            {wEvent.diff.split("\n").map((line: string, lineIdx: number) => {
+                              const isAdded = line.startsWith("+") && !line.startsWith("+++");
+                              const isRemoved = line.startsWith("-") && !line.startsWith("---");
+                              const isHunk = line.startsWith("@@");
+                              return (
+                                <div
+                                  key={lineIdx}
+                                  className={
+                                    isAdded
+                                      ? "text-emerald-400 bg-emerald-950/40 px-1 rounded-xs"
+                                      : isRemoved
+                                      ? "text-rose-400 bg-rose-950/40 px-1 rounded-xs"
+                                      : isHunk
+                                      ? "text-cyan-400 font-semibold"
+                                      : "text-slate-300"
+                                  }
+                                >
+                                  {line}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* Linked Re-Capture Link */}
                         {wEvent.recaptureId && (
-                          <div className="mt-3">
+                          <div className="mt-3 pt-3 border-t border-current/10 flex items-center justify-between">
+                            <span className="text-xs font-semibold">
+                              Automatic re-capture triggered:
+                            </span>
                             <Link
                               href={`/capture/${wEvent.recaptureId}`}
-                              className="text-xs font-semibold text-blue-700 underline hover:text-blue-900"
+                              className="px-3 py-1 bg-white hover:bg-slate-100 border border-current rounded-md text-xs font-bold inline-flex items-center space-x-1.5 transition-colors shadow-2xs"
                             >
-                              View Linked Re-Capture &rarr;
+                              <span>View Re-Capture ({truncateHash(wEvent.recaptureId, 6, 4)})</span>
+                              <ArrowRight className="w-3 h-3" />
                             </Link>
                           </div>
                         )}

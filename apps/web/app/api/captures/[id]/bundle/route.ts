@@ -16,6 +16,7 @@ import { canonicalJson } from "@/lib/evidence/canonical";
 import QRCode from "qrcode";
 import { FIXTURE_BROWSER_CAPTURE, MOCK_JPEG_BASE64 } from "@/lib/tinyfish/fixtures";
 
+export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 export async function GET(

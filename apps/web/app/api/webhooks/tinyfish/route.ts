@@ -4,6 +4,8 @@ import { runFinalizePipeline } from "@/lib/pipeline/finalize";
 import { saveCaptureRecord } from "@/lib/firebase/admin";
 import { WebhookPayloadSchema } from "@/lib/tinyfish/schemas";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);

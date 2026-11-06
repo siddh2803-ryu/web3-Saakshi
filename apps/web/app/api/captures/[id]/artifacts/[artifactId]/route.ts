@@ -4,6 +4,8 @@ import { unwrapDek, decryptWithKey } from "@/lib/evidence/crypto";
 import { computeSha256 } from "@/lib/evidence/hash";
 import { FIXTURE_BROWSER_CAPTURE, MOCK_JPEG_BASE64 } from "@/lib/tinyfish/fixtures";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(
   req: NextRequest,
   { params }: { params: { id: string; artifactId: string } }

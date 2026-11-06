@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPublicProof } from "@/lib/firebase/admin";
 
+export const dynamic = "force-dynamic";
+
 // Simple in-memory sliding window rate limiter per IP: 60 req/min
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;

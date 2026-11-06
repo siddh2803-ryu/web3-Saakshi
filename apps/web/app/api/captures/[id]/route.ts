@@ -4,11 +4,15 @@ import {
   listArtifactRecords,
   saveCaptureRecord,
   logCustodyEvent,
+  getWatchRecord,
+  getWatchByCaptureId,
+  saveWatchRecord,
 } from "@/lib/firebase/admin";
 import { getAgentRun } from "@/lib/tinyfish/agent";
 import { runFinalizePipeline } from "@/lib/pipeline/finalize";
 import { unpinFromIpfs } from "@/lib/evidence/ipfs";
 import { computeSha256 } from "@/lib/evidence/hash";
+import { deleteMonitor } from "@/lib/tinyfish/monitor";
 
 export const dynamic = "force-dynamic";
 
@@ -92,6 +96,22 @@ export async function DELETE(
 
     if (!capture) {
       return NextResponse.json({ error: "Capture not found" }, { status: 404 });
+    }
+
+    // Deleting a capture deletes its monitor (PRD Section 17 Phase 6)
+    const watch = capture.watchId
+      ? await getWatchRecord(capture.watchId)
+      : await getWatchByCaptureId(captureId);
+    if (watch?.monitorId) {
+      try {
+        await deleteMonitor(watch.monitorId);
+      } catch (mErr) {
+        console.warn("Failed to delete monitor during capture delete:", mErr);
+      }
+      await saveWatchRecord(watch.id, {
+        state: "deleted",
+        updatedAt: new Date().toISOString(),
+      });
     }
 
     const artifacts = await listArtifactRecords(captureId);

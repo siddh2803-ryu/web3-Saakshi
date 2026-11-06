@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getWatchRecord, saveWatchRecord, listWatchEvents } from "@/lib/firebase/admin";
 import { updateMonitor } from "@/lib/tinyfish/monitor";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }

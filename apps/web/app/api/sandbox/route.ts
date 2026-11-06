@@ -8,6 +8,8 @@ import {
 } from "@/lib/sandbox/store";
 import { SandboxAdminRequestSchema } from "@/lib/tinyfish/schemas";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const posts = getAllChirpPosts();
   return NextResponse.json({ posts });

@@ -9,6 +9,7 @@ import { buildMerkleBatch } from "@/lib/evidence/merkle";
 import { uploadJsonToIpfs } from "@/lib/evidence/ipfs";
 import { anchorRootOnChain } from "@/lib/chain/registry";
 
+export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 export async function POST(

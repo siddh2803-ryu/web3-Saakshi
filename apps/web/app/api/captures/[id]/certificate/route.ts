@@ -3,6 +3,7 @@ import { getCaptureRecord } from "@/lib/firebase/admin";
 import { renderCertificatePdf } from "@/lib/pdf/certificate";
 import QRCode from "qrcode";
 
+export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 export async function GET(

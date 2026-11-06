@@ -4,6 +4,8 @@ import { computeSha256 } from "@/lib/evidence/hash";
 import { canonicalJson } from "@/lib/evidence/canonical";
 import { logCustodyOnChain } from "@/lib/chain/registry";
 
+export const dynamic = "force-dynamic";
+
 // In-memory / firestore shares store
 const globalShares = (global as any).__saakshiShares || new Map<string, any>();
 if (typeof global !== "undefined") {

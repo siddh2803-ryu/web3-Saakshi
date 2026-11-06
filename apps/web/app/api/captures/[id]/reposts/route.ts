@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCaptureRecord } from "@/lib/firebase/admin";
 import { searchReposts, SearchResultItem } from "@/lib/tinyfish/search";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }
