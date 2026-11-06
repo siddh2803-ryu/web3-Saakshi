@@ -202,15 +202,38 @@ export async function runMonitorNow(monitorId: string): Promise<MonitorRun> {
     };
   }
 
-  const raw = await tinyFishFetch<unknown>(
-    `https://agent.tinyfish.ai/v1/monitors/${monitorId}/runs`,
-    {
-      method: "POST",
-      timeoutMs: 45000,
-      retries: 1,
-      retryDelayMs: 2000,
+  let raw: unknown;
+  try {
+    raw = await tinyFishFetch<unknown>(
+      `https://agent.tinyfish.ai/v1/monitors/${monitorId}/runs`,
+      {
+        method: "POST",
+        timeoutMs: 45000,
+        retries: 1,
+        retryDelayMs: 2000,
+      }
+    );
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    // If upstream fetch failed because page is deleted/not found (HTTP 404/502 with page_not_found)
+    if (msg.includes("page_not_found") || msg.includes("404")) {
+      return {
+        id: `run_notfound_${Date.now()}`,
+        status: "FAILED",
+        results: [],
+        errors: [{ code: "page_not_found", status: 404, message: "Target page not found (HTTP 404)" }],
+      };
     }
-  );
+    if (msg.includes("bot_blocked")) {
+      return {
+        id: `run_blocked_${Date.now()}`,
+        status: "FAILED",
+        results: [],
+        errors: [{ code: "bot_blocked", message: "Bot blocked" }],
+      };
+    }
+    throw err;
+  }
 
   const parsed = MonitorRunNowResponseSchema.safeParse(raw);
   if (parsed.success) {

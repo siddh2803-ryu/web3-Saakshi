@@ -6,12 +6,14 @@ import {
   saveWatchEvent,
   getCaptureRecord,
   saveCaptureRecord,
+  listArtifactRecords,
 } from "@/lib/firebase/admin";
 import { runMonitorNow } from "@/lib/tinyfish/monitor";
-import { classifyWatchCheck } from "@/lib/watch/classify";
+import { classifyWatchRun } from "@/lib/watch/classify";
 import { fetchCleanText } from "@/lib/tinyfish/fetch";
 import { startAgentRun } from "@/lib/tinyfish/agent";
 
+export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 export async function POST(
@@ -26,42 +28,89 @@ export async function POST(
       return NextResponse.json({ error: "Watch not found" }, { status: 404 });
     }
 
-    const previousCapture = await getCaptureRecord(watch.captureId);
-    const previousText = previousCapture?.manifest?.artifacts?.find(
-      (a: any) => a.kind === "fetch_markdown"
-    )?.content || previousCapture?.observed?.title || "";
+    // 1. Resolve previous text for diffing
+    let previousText = watch.lastText || watch.baselineText || "";
+    if (!previousText && watch.captureId) {
+      const previousCapture = await getCaptureRecord(watch.captureId);
+      const manifestArt = previousCapture?.manifest?.artifacts?.find(
+        (a: any) => a.kind === "fetch_markdown"
+      );
+      if (manifestArt?.content) {
+        previousText = manifestArt.content;
+      } else {
+        const arts = await listArtifactRecords(watch.captureId);
+        const fArt = arts.find((a: any) => a.kind === "fetch_markdown");
+        if (fArt?.plaintextBuffer) {
+          previousText = Buffer.isBuffer(fArt.plaintextBuffer)
+            ? fArt.plaintextBuffer.toString("utf8")
+            : String(fArt.plaintextBuffer);
+        }
+      }
+    }
 
-    // 1. Run monitor now via TinyFish
-    const monitorRun = await runMonitorNow(watch.monitorId);
+    // 2. Run monitor now via TinyFish
+    let monitorRun;
+    try {
+      monitorRun = await runMonitorNow(watch.monitorId);
+    } catch (runErr: unknown) {
+      const msg = runErr instanceof Error ? runErr.message : String(runErr);
+      if (msg.includes("page_not_found") || msg.includes("404")) {
+        monitorRun = {
+          id: `run_notfound_${Date.now()}`,
+          results: [],
+          errors: [{ code: "page_not_found", status: 404, message: "Target page not found (HTTP 404)" }],
+        };
+      } else {
+        throw runErr;
+      }
+    }
 
-    // 2. Extract fresh text or fetch directly to ensure latest snapshot
+    // 3. Extract fresh text (fallback to fetch if run-now payload is empty and no errors)
     const rawRunText = monitorRun.results?.[0]?.text;
-    let freshText = typeof rawRunText === "string" ? rawRunText : (rawRunText ? JSON.stringify(rawRunText) : "");
+    let freshText =
+      typeof rawRunText === "string"
+        ? rawRunText
+        : rawRunText
+        ? JSON.stringify(rawRunText)
+        : "";
     let errors = monitorRun.errors || [];
 
     if (!freshText && errors.length === 0) {
-      const freshFetch = await fetchCleanText(watch.url);
-      freshText = freshFetch.text;
-      errors = freshFetch.errors || [];
+      try {
+        const freshFetch = await fetchCleanText(watch.url);
+        freshText = freshFetch.text;
+        errors = freshFetch.errors || [];
+      } catch (fetchErr) {
+        console.warn("Direct fetch fallback error:", fetchErr);
+      }
     }
 
-    // 3. Classify result
-    const classification = classifyWatchCheck(
+    // 4. Classify run result inline
+    const classification = classifyWatchRun({
+      results: monitorRun.results,
       errors,
-      freshText,
-      watch.lastContentHash,
-      previousText
-    );
+      newRawText: freshText,
+      lastKnownContentHash: watch.lastContentHash,
+      previousText,
+    });
 
     const eventId = `wevent_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     let recaptureId: string | null = null;
 
-    // 4. On EDITED or DELETED: initiate automatic re-capture (FR-8.4)
+    // 5. On EDITED or DELETED: initiate automatic re-capture and in-app alert banner
     if (classification.type === "EDITED" || classification.type === "DELETED") {
       recaptureId = `cap_re_${crypto.randomBytes(16).toString("hex")}`;
       const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
       const webhookSecret = process.env.WEBHOOK_SECRET || "dev_webhook_secret";
       const webhookUrl = `${appUrl}/api/webhooks/tinyfish?token=${webhookSecret}&captureId=${recaptureId}`;
+
+      const alertData = {
+        type: classification.type,
+        reason: classification.reason,
+        detectedAt: new Date().toISOString(),
+        recaptureId,
+        diffExcerpt: classification.diff?.unifiedDiff?.slice(0, 300) || null,
+      };
 
       const newCapRecord = {
         id: recaptureId,
@@ -85,6 +134,13 @@ export async function POST(
       };
       await saveCaptureRecord(recaptureId, newCapRecord);
 
+      // Save alert banner state on the original capture record
+      await saveCaptureRecord(watch.captureId, {
+        watchAlert: alertData,
+        watchState: classification.type === "DELETED" ? "deleted_detected" : "edited_detected",
+      });
+
+      // Launch TinyFish Web Agent for the re-capture
       startAgentRun({
         url: watch.url,
         userGoal: newCapRecord.goal,
@@ -92,7 +148,7 @@ export async function POST(
       }).catch((e) => console.error("Auto re-capture start error:", e));
     }
 
-    // 5. Store watch event
+    // 6. Store watch event
     const watchEvent = {
       id: eventId,
       watchId,
@@ -106,11 +162,18 @@ export async function POST(
     };
     await saveWatchEvent(watchId, watchEvent);
 
-    // 6. Update watch record
+    // 7. Update watch record with latest state and text
     await saveWatchRecord(watchId, {
       lastContentHash: classification.newContentHash,
       lastCheckedAt: new Date().toISOString(),
-      state: classification.type === "DELETED" ? "deleted_detected" : watch.state,
+      lastText: freshText || watch.lastText,
+      state:
+        classification.type === "DELETED"
+          ? "deleted_detected"
+          : classification.type === "EDITED"
+          ? "edited_detected"
+          : watch.state,
+      updatedAt: new Date().toISOString(),
     });
 
     return NextResponse.json({
