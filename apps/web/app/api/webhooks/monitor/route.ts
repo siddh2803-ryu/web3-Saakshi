@@ -10,6 +10,8 @@ import {
 import { classifyWatchCheck } from "@/lib/watch/classify";
 import { startAgentRun } from "@/lib/tinyfish/agent";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -56,6 +58,14 @@ export async function POST(req: NextRequest) {
       const webhookSecret = process.env.WEBHOOK_SECRET || "dev_webhook_secret";
       const webhookUrl = `${appUrl}/api/webhooks/tinyfish?token=${webhookSecret}&captureId=${recaptureId}`;
 
+      const alertData = {
+        type: classification.type,
+        reason: classification.reason,
+        detectedAt: new Date().toISOString(),
+        recaptureId,
+        diffExcerpt: classification.diff?.unifiedDiff?.slice(0, 300) || null,
+      };
+
       await saveCaptureRecord(recaptureId, {
         id: recaptureId,
         ownerUid: watch.ownerUid,
@@ -68,6 +78,11 @@ export async function POST(req: NextRequest) {
         status: "QUEUED",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+      });
+
+      await saveCaptureRecord(watch.captureId, {
+        watchAlert: alertData,
+        watchState: classification.type === "DELETED" ? "deleted_detected" : "edited_detected",
       });
 
       startAgentRun({

@@ -13,6 +13,7 @@ import {
   Search,
   Filter,
   Activity,
+  AlertTriangle,
 } from "lucide-react";
 import { formatIST } from "@/lib/utils";
 
@@ -48,6 +49,10 @@ export default function DashboardPage() {
     return text.includes(searchTerm.toLowerCase());
   });
 
+  const alertCaptures = captures.filter(
+    (c) => Boolean(c.watchAlert) || c.watchState === "deleted_detected" || c.watchState === "edited_detected"
+  );
+
   return (
     <div className="min-h-[calc(100vh-4rem)] py-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
       {/* Dashboard Top Header */}
@@ -75,6 +80,76 @@ export default function DashboardPage() {
           </Link>
         </div>
       </div>
+
+      {/* In-App Alert Banners for Active Watch Detections */}
+      {alertCaptures.length > 0 && (
+        <div className="mb-6 space-y-3">
+          {alertCaptures.map((ac) => {
+            const alertType = ac.watchAlert?.type || (ac.watchState === "deleted_detected" ? "DELETED" : "EDITED");
+            const isDel = alertType === "DELETED";
+            return (
+              <div
+                key={ac.id}
+                className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs ${
+                  isDel
+                    ? "bg-rose-50/90 border-rose-300 text-rose-950"
+                    : "bg-amber-50/90 border-amber-300 text-amber-950"
+                }`}
+              >
+                <div className="flex items-start space-x-3">
+                  <AlertTriangle
+                    className={`w-5 h-5 shrink-0 mt-0.5 ${
+                      isDel ? "text-rose-600" : "text-amber-600"
+                    }`}
+                  />
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={`font-bold text-xs uppercase px-2 py-0.5 rounded border ${
+                          isDel
+                            ? "bg-rose-100 border-rose-300 text-rose-900"
+                            : "bg-amber-100 border-amber-300 text-amber-900"
+                        }`}
+                      >
+                        {alertType} ALERT
+                      </span>
+                      <span className="text-xs font-bold text-slate-900 truncate max-w-md">
+                        {ac.manifest?.observed?.title || ac.url}
+                      </span>
+                    </div>
+                    <p className="text-xs mt-1 text-slate-700">
+                      {ac.watchAlert?.reason || "Target URL was altered or removed after capture."}
+                      {ac.watchAlert?.detectedAt && (
+                        <span className="text-slate-500 ml-1">
+                          (Detected {formatIST(ac.watchAlert.detectedAt)})
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-2 shrink-0 self-end sm:self-center">
+                  <Link
+                    href={`/capture/${ac.id}`}
+                    className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 rounded-lg text-xs font-semibold shadow-2xs"
+                  >
+                    View Diff &amp; Watch
+                  </Link>
+                  {ac.watchAlert?.recaptureId && (
+                    <Link
+                      href={`/capture/${ac.watchAlert.recaptureId}`}
+                      className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold shadow-2xs flex items-center space-x-1"
+                    >
+                      <span>Re-Capture</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Filter and Search */}
       <div className="mb-6 flex items-center justify-between gap-4">
