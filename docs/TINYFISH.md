@@ -80,16 +80,50 @@ This document records the integration details for TinyFish across Saakshi's arch
   - Target 1: `https://example.com` (Title: `Example Domain`, Length: 156 chars, Latency: 2,089 ms, Errors: 0, Request ID: `d9a0b680-9386-4c86-b4f4-e229ff48f2b9`)
   - Target 2: `https://en.wikipedia.org/wiki/Internet` (Title: `Internet - Wikipedia`, Length: 97,640 chars, Latency: 9,009 ms, Links: 2,384, Images: 88, Errors: 0, Request ID: `9991e6f7-6e56-42a4-8520-f17308032f16`)
 
-## Phase 6 Acceptance & Verification Status (Part 2 of 3)
+## Phase 6 Acceptance & Verification Status (COMPLETE)
 
 | Criterion (PRD Section 17) | Status | Verification Method | Live Evidence / Details |
 |---|---|---|---|
 | **(a) Create TinyFish Page Monitor with hourly cron & purpose** | **PASS** | `LIVE + UNIT` | Monitor creation verified live against OpenAPI 3.0 spec endpoint `POST https://agent.tinyfish.ai/v1/monitors`. Tested on `https://example.com` and live Chirp sandbox post. Validated with Zod schema. |
 | **(b) Store baseline contentHash from monitor creation run** | **PASS** | `LIVE + UNIT` | Baseline run parsed from creation response; baseline hash computed on normalized text (Unicode NFC, volatile tokens stripped) and retained for subsequent comparisons. |
 | **(c) "Check now" calls Monitor run-now and processes inline** | **PASS** | `LIVE + UNIT` | Verified live on live Chirp sandbox post: "Check now" called `runMonitorNow` returning inline in 2,129ms; classified as `NO_CHANGE` with identical content hash. |
-| **(d) Scheduled webhooks at `/api/webhooks/monitor?token=...`** | **PENDING** | `UNIT + LOCAL` | Webhook route handler `apps/web/app/api/webhooks/monitor/route.ts` validated with query token authentication, parsing scheduled run results/errors, and recording watch events with in-app alert triggers. Live end-to-end receipt from TinyFish recurring scheduler pending Part 3. |
-| **(e) On EDITED/DELETED: line diff, auto re-capture, in-app alert** | **PASS** | `LIVE + UNIT` | Verified live on live Chirp sandbox post: (1) Editing post detected in 1,573ms as `EDITED`, unified diff generated showing modified fee/stipend lines, auto re-capture `cap_re_a496702ed141d679917d11badb926e7f` initiated; (2) Deleting post detected in 6,414ms (< 60s) as `DELETED`, auto re-capture `cap_re_18e49dea3f2b8060287cf5b050ee66fe` initiated, and in-app alert banners displayed. |
+| **(d) Scheduled webhooks at `/api/webhooks/monitor?token=...`** | **PASS** | `LIVE + UNIT` | Verified live via public Cloudflare tunnel: scheduled webhook `38386c5f-ddad-427b-9c37-bcdbd4b325c7` arrived from TinyFish scheduler on 1-minute cron, authenticated via query token, deduplicated, and processed as `NO_CHANGE`. |
+| **(e) On EDITED/DELETED: line diff, auto re-capture, in-app alert** | **PASS** | `LIVE + UNIT` | Verified live on live Chirp sandbox post: (1) Post edit detected via scheduled webhook and confirmed via `runNow` (`4ef14de6-8ebd-4e29-b726-db89241ed95f`); unified diff generated; auto re-capture `cap_re_af942c705409feda9422c53c53f16061` initiated; (2) Post deletion detected in 6,414ms (< 60s) as `DELETED`, auto re-capture `cap_re_18e49dea3f2b8060287cf5b050ee66fe` initiated, and in-app alert banners displayed. |
 | **(f) Watch timeline with type, time, diff, and re-capture link** | **PASS** | `LIVE + UNIT` | Watch timeline UI component in `apps/web/app/capture/[id]/page.tsx` renders check events, colored diff view (`+`, `-`, `@@`), detected timestamps, durations, and links to re-captures. Covered by route and UI unit tests in `watch-routes.test.ts`. |
+
+### Live Scheduled Webhook & Confirm-Before-Acting Verification Results (Part 3 Walkthrough)
+- **Public Webhook URL:** `https://locations-variance-records-prev.trycloudflare.com/api/webhooks/monitor`
+- **Baseline Capture ID:** `cap_c5a4915cd3d392403b4107b96ea2096d`
+- **Watch Activated:**
+  - Watch ID: `watch_mw59pkb4_pf80`
+  - Monitor ID: `abe39067-663c-479d-a92d-c422b4a81377`
+  - Schedule: `* * * * *` (1 minute)
+  - Baseline Content Hash: `d2788fd5e60c641e19478bb640c67b34bd3520d1fd3116b7134262275d4bf4ee`
+- **1st Scheduled Webhook (No Change):**
+  - Arrival Time: ~16 seconds after activation
+  - Run ID: `38386c5f-ddad-427b-9c37-bcdbd4b325c7`
+  - Event ID: `wevent_sched_1794073803864_lbq5`
+  - Type: `NO_CHANGE`
+  - Reason: `Content hash strictly matches baseline (volatile counters/timestamps stripped)`
+- **2nd Scheduled Webhook (After Sandbox Post Edit):**
+  - Arrival Time: ~60 seconds after edit
+  - Run ID: `b982808b-ec7f-48f7-b43a-37d7060e4c07`
+  - Event ID: `wevent_sched_1794073863667_jcfo`
+  - Webhook Type: `EDITED`
+- **Confirm-Before-Acting via runNow:**
+  - Triggered automatically by webhook route handler: `runMonitorNow("abe39067-663c-479d-a92d-c422b4a81377")`
+  - Confirmation Run ID: `4ef14de6-8ebd-4e29-b726-db89241ed95f`
+  - Confirmation Event ID: `wevent_conf_1794073865293_fyce`
+  - Confirmation Type: `EDITED` (Agreed with incoming webhook)
+  - Linked Automatic Re-Capture: `cap_re_af942c705409feda9422c53c53f16061`
+  - Both runs stored in watch events timeline.
+  - In-app alert banner displayed on capture page and dashboard.
+- **Cleanup & Account Audit:**
+  - Sandbox post restored to seed state.
+  - Monitor `abe39067-663c-479d-a92d-c422b4a81377` disabled and deleted: `{ "deleted": true }`.
+  - `npm run monitor:cleanup` confirmed **0 / 50 active monitors** remaining.
+- **Email Alerts (P1 Note):**
+  - Email notification via Resend is a P1 feature; skipped because `RESEND_API_KEY` is not configured in the environment. In-app alert banners and automatic cryptographic re-captures are fully active.
 
 ### Shortest Monitor Schedule Supported by TinyFish
 We empirically tested various cron schedules against the TinyFish Monitor API:

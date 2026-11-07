@@ -32,8 +32,15 @@ Saakshi integrates all five core products across the TinyFish automation suite:
 | **Web Agent** (`/v1/automation/run-async`) | Autonomous goal-driven web browsing, popup bypass, comment expansion, and forensic action trace. | [`apps/web/lib/tinyfish/agent.ts`](apps/web/lib/tinyfish/agent.ts) |
 | **Browser API** (CDP sessions) | Managed cloud Chromium sessions capturing full-page PNG, PDF, DOM HTML, network response logs, and TLS security details. | [`apps/web/lib/tinyfish/browser.ts`](apps/web/lib/tinyfish/browser.ts) |
 | **Fetch API** (`api.fetch.tinyfish.ai`) | Token-efficient clean markdown extraction with HTTP status codes and metadata. | [`apps/web/lib/tinyfish/fetch.ts`](apps/web/lib/tinyfish/fetch.ts) |
-| **Monitor API** (`/v1/monitors`) | Scheduled Page Monitor detecting content alteration and HTTP 404 deletion, powering the live diff engine. | [`apps/web/lib/tinyfish/monitor.ts`](apps/web/lib/tinyfish/monitor.ts) |
+| **Monitor API** (`/v1/monitors`) | Scheduled Page Monitor detecting content alteration and HTTP 404 deletion, powering the live diff engine with confirm-before-acting, deduplication, and automated re-captures. | [`apps/web/lib/tinyfish/monitor.ts`](apps/web/lib/tinyfish/monitor.ts) |
 | **Search API** (`api.search.tinyfish.ai`) | Reverse mirror and repost finder using exact-phrase quoted web queries. | [`apps/web/lib/tinyfish/search.ts`](apps/web/lib/tinyfish/search.ts) |
+
+### TinyFish Monitor & Automated Re-Capture Architecture
+- **Scheduled Monitoring (`/v1/monitors`)**: Configures recurrent crons down to 1-minute intervals to observe volatile target URLs.
+- **Intelligent Diff Classifier**: Strips transient counter updates (likes, shares, views), timestamps, and relative times ("2 hours ago") before hashing, preventing false alerts.
+- **Confirm-Before-Acting Protocol**: Because monitor webhooks cannot be signature-checked or re-read from the API, any webhook notification of `EDITED` or `DELETED` triggers an immediate `runNow` check to independently confirm the change before alerting or re-capturing.
+- **Unified Diff & Word-Level Highlighting**: Generates a 20 KB capped unified diff with granular word-level change tokens for UI side-by-side inspection.
+- **Automatic Re-Capture Trail**: Confirmed edits or deletions automatically launch an autonomous agent re-capture linked via `previousCaptureId`, chaining digital custody across the evidence lifecycle.
 
 ---
 
