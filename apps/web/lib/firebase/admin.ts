@@ -257,6 +257,23 @@ export async function getWatchByCaptureId(captureId: string): Promise<any | null
   return null;
 }
 
+export async function getWatchByMonitorId(monitorId: string): Promise<any | null> {
+  const fs = getAdminFirestore();
+  if (fs) {
+    const snap = await fs
+      .collection("watches")
+      .where("monitorId", "==", monitorId)
+      .limit(1)
+      .get();
+    return snap.empty ? null : { id: snap.docs[0].id, ...snap.docs[0].data() };
+  }
+  loadDevStoreFromDisk();
+  for (const [id, w] of inMemoryStore.watches.entries()) {
+    if (w.monitorId === monitorId) return { id, ...w };
+  }
+  return null;
+}
+
 export async function saveWatchEvent(watchId: string, event: any): Promise<void> {
   const fs = getAdminFirestore();
   if (fs) {
