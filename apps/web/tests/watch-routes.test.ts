@@ -12,6 +12,7 @@ import * as agentModule from "../lib/tinyfish/agent";
 import { POST as watchPostHandler, DELETE as watchDeleteHandler, GET as watchGetHandler } from "../app/api/captures/[id]/watch/route";
 import { POST as checkPostHandler } from "../app/api/watches/[id]/check/route";
 import { DELETE as captureDeleteHandler } from "../app/api/captures/[id]/route";
+import { POST as monitorWebhookHandler } from "../app/api/webhooks/monitor/route";
 
 describe("Phase 6 Part 2: Watch Routes, Limits, and Check Now", () => {
   const mockCaptureId = "cap_test_watch_001";
@@ -434,6 +435,303 @@ Exclusive 3-month remote engineering internship at Global AI Labs. Stipend reduc
       expect(event.type).toBe("BLOCKED");
       expect(event.contentHash).toBe("hash_baseline_abc123");
       expect(event.recaptureId).toBeNull();
+    });
+  });
+
+  describe("Phase 6 Part 3: Monitor Webhooks, Deduplication, and Confirm-before-acting", () => {
+    const webhookWatchId = "watch_hook_001";
+    const webhookMonitorId = "mon_tinyfish_hook_456";
+    const validToken = process.env.WEBHOOK_SECRET || "dev_webhook_secret";
+
+    beforeEach(async () => {
+      vi.restoreAllMocks();
+
+      // Seed watch record linked to webhookMonitorId
+      await saveWatchRecord(webhookWatchId, {
+        id: webhookWatchId,
+        ownerUid: "test_user_alice",
+        captureId: mockCaptureId,
+        monitorId: webhookMonitorId,
+        url: testUrl,
+        scheduleCron: "0 * * * *",
+        baselineContentHash: "d2788fd5e60c641e19478bb640c67b34bd3520d1fd3116b7134262275d4bf4ee",
+        lastContentHash: "d2788fd5e60c641e19478bb640c67b34bd3520d1fd3116b7134262275d4bf4ee",
+        baselineText,
+        lastText: baselineText,
+        state: "active",
+        consecutiveBlockedCount: 0,
+        isBlockedWarning: false,
+        processedRunIds: [],
+      });
+    });
+
+    it("rejects webhook request when token is missing or wrong (HTTP 401)", async () => {
+      // Missing token
+      const reqMissing = new NextRequest("http://localhost:3000/api/webhooks/monitor", {
+        method: "POST",
+        body: JSON.stringify({ fetch_monitor_id: webhookMonitorId, id: "run_01" }),
+      });
+      const resMissing = await monitorWebhookHandler(reqMissing);
+      expect(resMissing.status).toBe(401);
+      const jsonMissing = await resMissing.json();
+      expect(jsonMissing.error).toContain("Invalid or missing monitor webhook token");
+
+      // Wrong token
+      const reqWrong = new NextRequest("http://localhost:3000/api/webhooks/monitor?token=invalid_token", {
+        method: "POST",
+        body: JSON.stringify({ fetch_monitor_id: webhookMonitorId, id: "run_01" }),
+      });
+      const resWrong = await monitorWebhookHandler(reqWrong);
+      expect(resWrong.status).toBe(401);
+    });
+
+    it("rejects malformed payload missing required fields (HTTP 400)", async () => {
+      const req = new NextRequest(`http://localhost:3000/api/webhooks/monitor?token=${validToken}`, {
+        method: "POST",
+        body: JSON.stringify({ unexpected: "bad_format" }),
+      });
+      const res = await monitorWebhookHandler(req);
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.error).toContain("Invalid webhook payload structure");
+    });
+
+    it("ignores unknown monitor ID safely (HTTP 200)", async () => {
+      const req = new NextRequest(`http://localhost:3000/api/webhooks/monitor?token=${validToken}`, {
+        method: "POST",
+        body: JSON.stringify({
+          fetch_monitor_id: "mon_completely_unknown_999",
+          id: "run_unknown_01",
+          is_baseline: false,
+          results: [{ url: testUrl, text: baselineText }],
+          errors: [],
+        }),
+      });
+      const res = await monitorWebhookHandler(req);
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.ignored).toBe(true);
+      expect(json.reason).toBe("unknown_monitor");
+    });
+
+    it("ignores baseline runs without recording scheduled events (HTTP 200)", async () => {
+      const req = new NextRequest(`http://localhost:3000/api/webhooks/monitor?token=${validToken}`, {
+        method: "POST",
+        body: JSON.stringify({
+          fetch_monitor_id: webhookMonitorId,
+          id: "run_baseline_123",
+          is_baseline: true,
+          results: [{ url: testUrl, text: baselineText }],
+          errors: [],
+        }),
+      });
+      const res = await monitorWebhookHandler(req);
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.ignored).toBe(true);
+      expect(json.reason).toBe("baseline");
+    });
+
+    it("deduplicates retried webhook deliveries by run ID (HTTP 200)", async () => {
+      const runId = "run_dedup_test_001";
+      const payload = {
+        fetch_monitor_id: webhookMonitorId,
+        id: runId,
+        is_baseline: false,
+        results: [{ url: testUrl, text: baselineText }],
+        errors: [],
+      };
+
+      // First delivery: processed
+      const req1 = new NextRequest(`http://localhost:3000/api/webhooks/monitor?token=${validToken}`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      const res1 = await monitorWebhookHandler(req1);
+      expect(res1.status).toBe(200);
+      const json1 = await res1.json();
+      expect(json1.received).toBe(true);
+      expect(json1.classification).toBe("NO_CHANGE");
+
+      // Second delivery with same runId: deduplicated
+      const req2 = new NextRequest(`http://localhost:3000/api/webhooks/monitor?token=${validToken}`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      const res2 = await monitorWebhookHandler(req2);
+      expect(res2.status).toBe(200);
+      const json2 = await res2.json();
+      expect(json2.ignored).toBe(true);
+      expect(json2.reason).toBe("duplicate_run");
+    });
+
+    it("confirms EDITED with runNow before alerting and starting re-capture", async () => {
+      const editedContent = baselineText.replace("₹45,000/month", "₹10,000/month (Mandatory fee ₹5,000)");
+
+      // Mock confirming runNow returning the same edited text
+      const runNowSpy = vi.spyOn(monitorModule, "runMonitorNow").mockResolvedValueOnce({
+        id: "run_confirm_edit_001",
+        results: [{ url: testUrl, text: editedContent }],
+        errors: [],
+      });
+
+      const startAgentSpy = vi.spyOn(agentModule, "startAgentRun").mockResolvedValueOnce({
+        run_id: "agent_run_recapt_001",
+      });
+
+      const req = new NextRequest(`http://localhost:3000/api/webhooks/monitor?token=${validToken}`, {
+        method: "POST",
+        body: JSON.stringify({
+          fetch_monitor_id: webhookMonitorId,
+          id: "run_webhook_edit_001",
+          is_baseline: false,
+          results: [{ url: testUrl, text: editedContent }],
+          errors: [],
+        }),
+      });
+
+      const res = await monitorWebhookHandler(req);
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.webhookType).toBe("EDITED");
+      expect(json.confirmed).toBe(true);
+      expect(json.confirmType).toBe("EDITED");
+      expect(json.recaptureId).toMatch(/^cap_re_/);
+
+      expect(runNowSpy).toHaveBeenCalledWith(webhookMonitorId);
+      expect(startAgentSpy).toHaveBeenCalled();
+
+      // Check that original capture record has alert banner data and state
+      const cap = await getCaptureRecord(mockCaptureId);
+      expect(cap.watchState).toBe("edited_detected");
+      expect(cap.watchAlert?.type).toBe("EDITED");
+      expect(cap.watchAlert?.recaptureId).toBe(json.recaptureId);
+
+      // Verify that BOTH runs (scheduled and confirmation) are stored in watch events
+      const events = await listWatchEvents(webhookWatchId);
+      const scheduledEvent = events.find((e: any) => e.source === "scheduled");
+      const confirmEvent = events.find((e: any) => e.source === "confirmation");
+      expect(scheduledEvent).toBeDefined();
+      expect(confirmEvent).toBeDefined();
+      expect(confirmEvent.recaptureId).toBe(json.recaptureId);
+    });
+
+    it("ignores EDITED if confirming runNow does not agree (prevents false alerts)", async () => {
+      await saveCaptureRecord(mockCaptureId, { watchAlert: undefined, watchState: "active" });
+      const editedContent = baselineText.replace("₹45,000/month", "₹10,000/month");
+
+      // Mock confirming runNow returning the original baseline text (transient glitch upstream)
+      const runNowSpy = vi.spyOn(monitorModule, "runMonitorNow").mockResolvedValueOnce({
+        id: "run_confirm_discrepancy_001",
+        results: [{ url: testUrl, text: baselineText }],
+        errors: [],
+      });
+
+      const startAgentSpy = vi.spyOn(agentModule, "startAgentRun");
+
+      const req = new NextRequest(`http://localhost:3000/api/webhooks/monitor?token=${validToken}`, {
+        method: "POST",
+        body: JSON.stringify({
+          fetch_monitor_id: webhookMonitorId,
+          id: "run_webhook_glitch_001",
+          is_baseline: false,
+          results: [{ url: testUrl, text: editedContent }],
+          errors: [],
+        }),
+      });
+
+      const res = await monitorWebhookHandler(req);
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.webhookType).toBe("EDITED");
+      expect(json.confirmed).toBe(false);
+      expect(json.confirmType).toBe("NO_CHANGE");
+      expect(json.recaptureId).toBeNull();
+
+      // Re-capture must NOT be triggered
+      expect(startAgentSpy).not.toHaveBeenCalled();
+
+      // Original capture must not have alert banner set
+      const cap = await getCaptureRecord(mockCaptureId);
+      expect(cap.watchAlert).toBeUndefined();
+    });
+
+    it("shows 'We couldn't check this page recently' after 3 BLOCKED results in a row", async () => {
+      // 1st BLOCKED run
+      const req1 = new NextRequest(`http://localhost:3000/api/webhooks/monitor?token=${validToken}`, {
+        method: "POST",
+        body: JSON.stringify({
+          fetch_monitor_id: webhookMonitorId,
+          id: "run_blocked_1",
+          is_baseline: false,
+          results: [],
+          errors: [{ code: "bot_blocked", message: "Bot challenge detected" }],
+        }),
+      });
+      const res1 = await monitorWebhookHandler(req1);
+      const json1 = await res1.json();
+      expect(json1.consecutiveBlockedCount).toBe(1);
+      expect(json1.isBlockedWarning).toBe(false);
+
+      let watch = await getWatchRecord(webhookWatchId);
+      expect(watch.consecutiveBlockedCount).toBe(1);
+      expect(watch.isBlockedWarning).toBe(false);
+
+      // 2nd BLOCKED run
+      const req2 = new NextRequest(`http://localhost:3000/api/webhooks/monitor?token=${validToken}`, {
+        method: "POST",
+        body: JSON.stringify({
+          fetch_monitor_id: webhookMonitorId,
+          id: "run_blocked_2",
+          is_baseline: false,
+          results: [],
+          errors: [{ code: "login_required", message: "Sign in required" }],
+        }),
+      });
+      const res2 = await monitorWebhookHandler(req2);
+      const json2 = await res2.json();
+      expect(json2.consecutiveBlockedCount).toBe(2);
+      expect(json2.isBlockedWarning).toBe(false);
+
+      // 3rd BLOCKED run
+      const req3 = new NextRequest(`http://localhost:3000/api/webhooks/monitor?token=${validToken}`, {
+        method: "POST",
+        body: JSON.stringify({
+          fetch_monitor_id: webhookMonitorId,
+          id: "run_blocked_3",
+          is_baseline: false,
+          results: [],
+          errors: [{ code: "timeout", message: "Network timed out" }],
+        }),
+      });
+      const res3 = await monitorWebhookHandler(req3);
+      const json3 = await res3.json();
+      expect(json3.consecutiveBlockedCount).toBe(3);
+      expect(json3.isBlockedWarning).toBe(true);
+
+      watch = await getWatchRecord(webhookWatchId);
+      expect(watch.consecutiveBlockedCount).toBe(3);
+      expect(watch.isBlockedWarning).toBe(true);
+      expect(watch.blockedWarning).toBe("We couldn't check this page recently");
+
+      // Verify that a subsequent NO_CHANGE run resets the blocked count
+      const req4 = new NextRequest(`http://localhost:3000/api/webhooks/monitor?token=${validToken}`, {
+        method: "POST",
+        body: JSON.stringify({
+          fetch_monitor_id: webhookMonitorId,
+          id: "run_recovery_4",
+          is_baseline: false,
+          results: [{ url: testUrl, text: baselineText }],
+          errors: [],
+        }),
+      });
+      const res4 = await monitorWebhookHandler(req4);
+      const json4 = await res4.json();
+      expect(json4.classification).toBe("NO_CHANGE");
+
+      watch = await getWatchRecord(webhookWatchId);
+      expect(watch.consecutiveBlockedCount).toBe(0);
+      expect(watch.isBlockedWarning).toBe(false);
     });
   });
 });
