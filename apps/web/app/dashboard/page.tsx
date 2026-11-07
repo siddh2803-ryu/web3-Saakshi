@@ -208,12 +208,22 @@ export default function DashboardPage() {
                     >
                       {cap.status}
                     </span>
-                    {cap.isWatching && (
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-300 flex items-center space-x-1">
-                        <Activity className="w-3 h-3 text-slate-600" />
+                    {cap.watchState === "deleted_detected" || cap.watchAlert?.type === "DELETED" ? (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-50 text-rose-800 border border-rose-300 flex items-center space-x-1">
+                        <AlertTriangle className="w-3 h-3 text-rose-600" />
+                        <span>DELETED</span>
+                      </span>
+                    ) : cap.watchState === "edited_detected" || cap.watchAlert?.type === "EDITED" ? (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-300 flex items-center space-x-1">
+                        <AlertTriangle className="w-3 h-3 text-amber-600" />
+                        <span>EDITED</span>
+                      </span>
+                    ) : cap.isWatching ? (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-300 flex items-center space-x-1">
+                        <Activity className="w-3 h-3 text-emerald-600" />
                         <span>WATCHING</span>
                       </span>
-                    )}
+                    ) : null}
                   </div>
                   <h3 className="text-sm font-bold text-slate-900 leading-snug">
                     {cap.manifest?.observed?.title || cap.url}

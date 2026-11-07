@@ -974,6 +974,21 @@ export default function CaptureDetailPage() {
                 </div>
               </div>
 
+              {/* Blocked page warning if >= 3 consecutive checks failed */}
+              {(watchDetails?.isBlockedWarning || (watchDetails?.consecutiveBlockedCount && watchDetails.consecutiveBlockedCount >= 3)) && (
+                <div className="p-4 rounded-xl bg-amber-50/90 border border-amber-300 text-amber-950 text-xs flex items-start space-x-3 shadow-xs">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold text-amber-900 block text-sm">
+                      We couldn&apos;t check this page recently
+                    </span>
+                    <p className="text-amber-800 mt-0.5">
+                      The target page has blocked or challenged access {watchDetails.consecutiveBlockedCount} consecutive times (bot detection, login barrier, or network timeout). Baseline evidence hash is preserved; monitoring will continue retrying on schedule.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Error Notice if Watch limit or action failed */}
               {watchError && (
                 <div className="p-4 rounded-lg bg-rose-50 border border-rose-200 text-rose-900 text-xs flex items-center space-x-2.5">
