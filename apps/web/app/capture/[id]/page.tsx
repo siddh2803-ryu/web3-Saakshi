@@ -28,6 +28,7 @@ import {
   Cpu,
 } from "lucide-react";
 import { formatIST, truncateHash } from "@/lib/utils";
+import { OFFICIAL_REPORTING_CHANNELS } from "@/lib/ai/channels";
 
 export default function CaptureDetailPage() {
   const params = useParams();
@@ -1268,47 +1269,89 @@ export default function CaptureDetailPage() {
                 </div>
               </div>
 
-              {/* Official Reporting Portals */}
+              {/* Official Reporting Portals (PRD 12.3) */}
               <div className="md:col-span-2 bg-white p-6 rounded-xl border border-slate-200/90 shadow-sm">
-                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4">
-                  Official Reporting Channels in India
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <a
-                    href="https://cybercrime.gov.in"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="p-4 rounded-lg border border-slate-200 hover:border-slate-900 hover:shadow-sm transition-all"
-                  >
-                    <span className="text-xs font-bold text-slate-900 block">NCRP Cyber Portal</span>
-                    <span className="text-[11px] text-slate-500 mt-1 block">
-                      Helpline 1930 &bull; cybercrime.gov.in
-                    </span>
-                  </a>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                    Official Reporting Channels in India
+                  </h3>
+                  {capture.aiAnalysis?.suggested_channel_ids &&
+                    capture.aiAnalysis.suggested_channel_ids.length > 0 && (
+                      <span className="text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-full">
+                        {capture.aiAnalysis.suggested_channel_ids.length} Recommended
+                      </span>
+                    )}
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {OFFICIAL_REPORTING_CHANNELS.map((ch) => {
+                    const isSuggested =
+                      Array.isArray(capture.aiAnalysis?.suggested_channel_ids) &&
+                      capture.aiAnalysis.suggested_channel_ids.includes(ch.id);
 
-                  <a
-                    href="https://consumerhelpline.gov.in"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="p-4 rounded-lg border border-slate-200 hover:border-slate-900 hover:shadow-sm transition-all"
-                  >
-                    <span className="text-xs font-bold text-slate-900 block">Consumer Helpline</span>
-                    <span className="text-[11px] text-slate-500 mt-1 block">
-                      Helpline 1915 &bull; consumerhelpline.gov.in
-                    </span>
-                  </a>
+                    if (ch.url) {
+                      return (
+                        <a
+                          key={ch.id}
+                          href={ch.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className={`p-4 rounded-lg border transition-all ${
+                            isSuggested
+                              ? "border-blue-500 bg-blue-50/50 shadow-xs ring-1 ring-blue-500/20"
+                              : "border-slate-200 hover:border-slate-900 hover:shadow-xs"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-slate-900 block">
+                              {ch.name}
+                            </span>
+                            {isSuggested && (
+                              <span className="text-[10px] uppercase font-bold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded">
+                                Recommended
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[11px] text-slate-500 mt-1 block">
+                            {ch.helpline ? `Helpline ${ch.helpline} • ` : ""}
+                            {ch.url.replace(/^https?:\/\//, "")}
+                          </span>
+                          <span className="text-[10px] text-slate-400 mt-1 block line-clamp-2">
+                            {ch.description}
+                          </span>
+                        </a>
+                      );
+                    }
 
-                  <a
-                    href="https://e-jagriti.gov.in"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="p-4 rounded-lg border border-slate-200 hover:border-slate-900 hover:shadow-sm transition-all"
-                  >
-                    <span className="text-xs font-bold text-slate-900 block">e-Jagriti Commission</span>
-                    <span className="text-[11px] text-slate-500 mt-1 block">
-                      Online Consumer Disputes Filing
-                    </span>
-                  </a>
+                    // Text-only channel: no link (PRD 12.3)
+                    return (
+                      <div
+                        key={ch.id}
+                        className={`p-4 rounded-lg border ${
+                          isSuggested
+                            ? "border-blue-500 bg-blue-50/50 shadow-xs ring-1 ring-blue-500/20"
+                            : "border-slate-200 bg-slate-50/60"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-900 block">
+                            {ch.name}
+                          </span>
+                          {isSuggested && (
+                            <span className="text-[10px] uppercase font-bold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded">
+                              Recommended
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[11px] text-slate-500 mt-1 block">
+                          {ch.helpline ? `Helpline ${ch.helpline} • ` : ""}
+                          Direct / Offline (No Portal Link)
+                        </span>
+                        <span className="text-[10px] text-slate-400 mt-1 block line-clamp-2">
+                          {ch.description}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
