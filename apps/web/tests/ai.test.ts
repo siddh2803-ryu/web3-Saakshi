@@ -1,6 +1,61 @@
 import { describe, it, expect } from "vitest";
 import { AiAnalysisSchema } from "../lib/ai/schema";
 import { isRunBlockedOrPartial } from "../lib/tinyfish/agent";
+import {
+  OFFICIAL_REPORTING_CHANNELS,
+  REPORTING_CHANNEL_IDS,
+  isValidChannelId,
+  getChannelById,
+  getChannelsWithUrls,
+} from "../lib/ai/channels";
+
+describe("Reporting Channels Constants (PRD 12.3)", () => {
+  it("defines exact 5 stable channel IDs", () => {
+    expect(REPORTING_CHANNEL_IDS).toEqual([
+      "ncrp",
+      "nch",
+      "ejagriti",
+      "platform_go",
+      "police",
+    ]);
+    expect(OFFICIAL_REPORTING_CHANNELS.length).toBe(5);
+  });
+
+  it("ensures text-only entries (platform_go, police) have NO url link", () => {
+    const platformGo = getChannelById("platform_go");
+    expect(platformGo).toBeDefined();
+    expect(platformGo?.url).toBeUndefined();
+
+    const police = getChannelById("police");
+    expect(police).toBeDefined();
+    expect(police?.url).toBeUndefined();
+  });
+
+  it("ensures web entries (ncrp, nch, ejagriti) have valid https URLs", () => {
+    const urls = getChannelsWithUrls();
+    expect(urls.length).toBe(3);
+    for (const channel of urls) {
+      expect(channel.url.startsWith("https://")).toBe(true);
+    }
+
+    const ncrp = getChannelById("ncrp");
+    expect(ncrp?.url).toBe("https://cybercrime.gov.in");
+
+    const nch = getChannelById("nch");
+    expect(nch?.url).toBe("https://consumerhelpline.gov.in");
+
+    const ejagriti = getChannelById("ejagriti");
+    expect(ejagriti?.url).toBe("https://e-jagriti.gov.in");
+  });
+
+  it("validates channel IDs with type guard", () => {
+    expect(isValidChannelId("ncrp")).toBe(true);
+    expect(isValidChannelId("police")).toBe(true);
+    expect(isValidChannelId("unknown_channel")).toBe(false);
+    expect(isValidChannelId("https://cybercrime.gov.in")).toBe(false);
+    expect(isValidChannelId("")).toBe(false);
+  });
+});
 
 describe("AI Schema & Agent Soft-Failure Inspection", () => {
   it("validates compliant AI analysis JSON schema", () => {
