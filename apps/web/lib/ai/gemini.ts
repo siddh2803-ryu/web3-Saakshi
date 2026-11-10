@@ -255,6 +255,73 @@ export async function executeGeminiWithTimeout<T>(
 }
 
 /**
+ * Checks whether a Gemini response was safety-blocked or empty.
+ */
+export function isResponseSafetyBlockedOrEmpty(response: any): {
+  isBlocked: boolean;
+  blockReason?: string;
+} {
+  if (!response) {
+    return { isBlocked: true, blockReason: "EMPTY_RESPONSE" };
+  }
+
+  const promptBlock = response.promptFeedback?.blockReason;
+  if (promptBlock) {
+    return { isBlocked: true, blockReason: `PROMPT_BLOCKED_${promptBlock}` };
+  }
+
+  const candidates = response.candidates;
+  if (!candidates || candidates.length === 0) {
+    return { isBlocked: true, blockReason: "NO_CANDIDATES" };
+  }
+
+  const firstCandidate = candidates[0];
+  const finishReason = firstCandidate?.finishReason;
+  if (
+    finishReason &&
+    ["SAFETY", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII", "MALICIOUS"].includes(
+      String(finishReason).toUpperCase()
+    )
+  ) {
+    return { isBlocked: true, blockReason: `FINISH_REASON_${finishReason}` };
+  }
+
+  const text = typeof response.text === "string" ? response.text : "";
+  if (!text.trim()) {
+    return { isBlocked: true, blockReason: "EMPTY_TEXT" };
+  }
+
+  return { isBlocked: false };
+}
+
+/**
+ * Constructs an analysis result marked UNAVAILABLE when content is safety-blocked or empty.
+ */
+export function createUnavailableAnalysis(
+  friendlyMessage = "AI summary unavailable for this content",
+  blockReason?: string
+): AiAnalysisOutput {
+  return {
+    status: "UNAVAILABLE",
+    summary_en: friendlyMessage,
+    summary_hi: "इस सामग्री के लिए एआई सारांश उपलब्ध नहीं है।",
+    content_type: "other",
+    parties: [],
+    key_claims: [],
+    timestamps_found: [],
+    possible_issue_categories: [],
+    suggested_channel_ids: [],
+    complaint_draft_en: "[AI summary unavailable for this content]",
+    complaint_draft_hi: "[इस सामग्री के लिए एआई सारांश उपलब्ध नहीं है]",
+    repost_phrases: [],
+    caveats: [
+      "AI summary is unavailable for this content due to automated safety filter policies. All original web evidence and cryptographic hashes remain preserved and verifiable.",
+    ],
+    error: blockReason || "SAFETY_BLOCKED",
+  };
+}
+
+/**
  * Constructs a fallback analysis result marked as FAILED with a friendly message.
  * Ensures the capture pipeline never halts or fails due to AI analysis errors.
  */
@@ -464,6 +531,15 @@ export async function analyzeEvidenceWithGemini(
         },
       });
 
+      const safetyCheck = isResponseSafetyBlockedOrEmpty(response);
+      if (safetyCheck.isBlocked) {
+        console.warn(`[Gemini] First attempt blocked or empty: ${safetyCheck.blockReason}`);
+        return createUnavailableAnalysis(
+          "AI summary unavailable for this content",
+          safetyCheck.blockReason
+        );
+      }
+
       const firstText = response.text || "";
 
       return await validateWithOneRetry(firstText, async (validationError) => {
@@ -481,14 +557,31 @@ export async function analyzeEvidenceWithGemini(
             responseSchema: GEMINI_RESPONSE_SCHEMA,
           },
         });
+
+        const retrySafety = isResponseSafetyBlockedOrEmpty(retryResponse);
+        if (retrySafety.isBlocked) {
+          console.warn(`[Gemini] Retry response blocked or empty: ${retrySafety.blockReason}`);
+          throw new Error(`SAFETY_BLOCKED:${retrySafety.blockReason}`);
+        }
+
         return retryResponse.text || "";
       });
     });
   } catch (err: unknown) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    if (
+      errMsg.includes("SAFETY_BLOCKED") ||
+      errMsg.toUpperCase().includes("SAFETY") ||
+      errMsg.toUpperCase().includes("BLOCKLIST") ||
+      errMsg.toUpperCase().includes("PROHIBITED_CONTENT")
+    ) {
+      console.warn(`[Gemini] Analysis blocked by safety filters: ${errMsg}`);
+      return createUnavailableAnalysis("AI summary unavailable for this content", errMsg);
+    }
     console.error("Gemini analysis error:", err);
     return createFailedAnalysis(
       "AI analysis encountered an error. The original capture remains fully intact.",
-      err instanceof Error ? err.message : String(err)
+      errMsg
     );
   }
 }

@@ -638,6 +638,19 @@ export default function CaptureDetailPage() {
           {activeTab === "overview" && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2 space-y-6">
+                {/* Safety-Blocked Notice if status is UNAVAILABLE */}
+                {capture.aiAnalysis?.status === "UNAVAILABLE" && (
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-start space-x-2.5 shadow-xs">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold block">AI summary unavailable for this content</span>
+                      <p className="mt-0.5 text-amber-800">
+                        Content safety policies restricted automated AI summarization. All preserved web artifacts, forensic screenshots, and cryptographic hashes remain intact.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {/* AI Factual Summary Card */}
                 <div className="bg-white p-6 rounded-xl border border-slate-200/90 shadow-sm">
                   <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-2">

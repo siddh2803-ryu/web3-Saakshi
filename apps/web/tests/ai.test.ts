@@ -23,6 +23,8 @@ import {
   executeGeminiWithTimeout,
   validateWithOneRetry,
   createFailedAnalysis,
+  createUnavailableAnalysis,
+  isResponseSafetyBlockedOrEmpty,
   GEMINI_RESPONSE_SCHEMA,
 } from "../lib/ai/gemini";
 
@@ -532,6 +534,72 @@ describe("Structured JSON Output & One Validation Retry (PRD 12)", () => {
     expect(parsed.status).toBe("FAILED");
   });
 });
+
+describe("Safety-Blocked & Empty Response Handling (PRD 12)", () => {
+  it("detects null or empty responses", () => {
+    expect(isResponseSafetyBlockedOrEmpty(null).isBlocked).toBe(true);
+    expect(isResponseSafetyBlockedOrEmpty({ text: "" }).isBlocked).toBe(true);
+    expect(isResponseSafetyBlockedOrEmpty({ text: "   " }).isBlocked).toBe(true);
+  });
+
+  it("detects empty candidates array", () => {
+    expect(isResponseSafetyBlockedOrEmpty({ candidates: [] }).isBlocked).toBe(true);
+    expect(isResponseSafetyBlockedOrEmpty({ candidates: [] }).blockReason).toBe("NO_CANDIDATES");
+  });
+
+  it("detects safety finish reason in candidate", () => {
+    const safetyResp = {
+      candidates: [{ finishReason: "SAFETY" }],
+      text: "",
+    };
+    const check = isResponseSafetyBlockedOrEmpty(safetyResp);
+    expect(check.isBlocked).toBe(true);
+    expect(check.blockReason).toBe("FINISH_REASON_SAFETY");
+  });
+
+  it("detects blocklist or prohibited content finish reasons", () => {
+    const blocklistResp = {
+      candidates: [{ finishReason: "BLOCKLIST" }],
+      text: "",
+    };
+    expect(isResponseSafetyBlockedOrEmpty(blocklistResp).isBlocked).toBe(true);
+    expect(isResponseSafetyBlockedOrEmpty(blocklistResp).blockReason).toBe("FINISH_REASON_BLOCKLIST");
+  });
+
+  it("detects prompt feedback block reasons", () => {
+    const promptBlockedResp = {
+      promptFeedback: { blockReason: "PROHIBITED_CONTENT" },
+      candidates: [],
+    };
+    const check = isResponseSafetyBlockedOrEmpty(promptBlockedResp);
+    expect(check.isBlocked).toBe(true);
+    expect(check.blockReason).toBe("PROMPT_BLOCKED_PROHIBITED_CONTENT");
+  });
+
+  it("accepts valid non-blocked candidate responses", () => {
+    const normalResp = {
+      candidates: [{ finishReason: "STOP" }],
+      text: '{"summary_en": "ok"}',
+    };
+    const check = isResponseSafetyBlockedOrEmpty(normalResp);
+    expect(check.isBlocked).toBe(false);
+  });
+
+  it("createUnavailableAnalysis produces compliant AiAnalysisOutput schema", () => {
+    const unavail = createUnavailableAnalysis(
+      "AI summary unavailable for this content",
+      "FINISH_REASON_SAFETY"
+    );
+    expect(unavail.status).toBe("UNAVAILABLE");
+    expect(unavail.summary_en).toBe("AI summary unavailable for this content");
+    expect(unavail.error).toBe("FINISH_REASON_SAFETY");
+    expect(unavail.caveats.length).toBeGreaterThan(0);
+
+    const parsed = AiAnalysisSchema.parse(unavail);
+    expect(parsed.status).toBe("UNAVAILABLE");
+  });
+});
+
 
 
 
