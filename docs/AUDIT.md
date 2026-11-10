@@ -10,8 +10,8 @@
 
 ## 1. Executive Summary & Phase Scorecard
 
-**Phases complete: 5 of 11 | Partial: 5 | Not started: 0 | Human tasks: 1**  
-**Progress:** `[██████████░░░░░░░░░░] 45.5% Phases (72.7% Acceptance Criteria: 48/66)`
+**Phases complete: 4 of 11 | Partial: 6 | Not started: 0 | Human tasks: 1**  
+**Progress:** `[████████░░░░░░░░░░░░] 40.9% Phases (43/66 Criteria Verified Live/Local)`
 
 | Phase | Name | Status | Criteria Passed | % Done | Commits | Remaining Work |
 |---|---|---|---|---|---|---|
@@ -22,7 +22,7 @@
 | **Phase 4** | Smart Contract & Merkle Anchoring | **PARTIAL** | 4/5 | 80% | `ef3e90f`, `a92d60d` | Deploy `EvidenceRegistry.sol` to Polygon Amoy testnet, fund deployer wallet, record address in `NEXT_PUBLIC_REGISTRY_ADDRESS`. |
 | **Phase 5** | Public Trustless Verification | **COMPLETE** | 6/6 | 100% | `08c1a68` | None (Client-side WebCrypto SHA-256 hashing, public proofs lookup, ethers.js RPC query, `/v/[id]` certificate, `scripts/verify.ts`). |
 | **Phase 6** | Watch with TinyFish Monitor | **PARTIAL** | 3/6 Core Criteria Live Verified / 3 Pending Live Webhook | 50% | `c9cf24d`, `feat(watch)` | **Part 1 of 3 Complete**: OpenAPI-aligned monitor client, Zod validation, volatile-stripped classifier (counters/timestamps ignored), 20 KB capped unified diff with word-level changes, monitor cleanup script, and live example.com monitor/runNow/delete verified. Remaining for Part 2/3: Live webhook delivery over public tunnel/Vercel URL, auto re-capture end-to-end on edited/deleted Chirp post, and watch timeline UI drilldown. |
-| **Phase 7** | Gemini AI Analysis & s.63(4) Certificate | **COMPLETE** | 6/6 | 100% | `fb66339` | None (Zod validation, English/Hindi summaries & complaints, channel suggestions, s.63(4) Part A PDF drafting). |
+| **Phase 7** | Gemini AI Analysis & s.63(4) Certificate | **PARTIAL** | 0/3 Live Criteria Verified (Mock Fallback Re-graded to PENDING) | 35% | `fb66339`, `feat(ai)` | Part 1 AI engine hardening underway; live verification pending `GEMINI_API_KEY`. Parts 2 & 3 (court certificate PDF generator & live evaluation) pending. |
 | **Phase 8** | Reposts, Cases, Custody & Share Links (P1) | **PARTIAL** | 3/5 | 60% | `60971c0` | Implement explicit `/s/[token]` route handler; refine case grouping UI in dashboard; emit live on-chain custody events once contract deployed. |
 | **Phase 9** | Hardening, Tests & Documentation | **PARTIAL** | 3/6 | 50% | `dcfb049`, `b988893` | Enforce production build failure on `TINYFISH_MODE=fixture`; add `firestore.rules`; fix `scripts/smoke.ts` module resolution alias. |
 | **Phase 10** | Demo Video, Social Post & Venue Readiness | **HUMAN TASK** | 1/6 | 17% | None | Record 2-3 min video; deploy to Vercel; fund Amoy faucet; publish social post; capture venue fallback recordings. |
@@ -359,6 +359,44 @@ Index: evidence_content.txt
 5. **Zod Validation & Timeouts/Retries**: All requests and responses validated via strict Zod schemas (`MonitorSchema`, `MonitorRunSchema`, `MonitorCreateResponseSchema`, `MonitorRunNowResponseSchema`, etc.). Configured with 45s run/create timeouts and 1-retry backoff per PRD 7.7.
 6. **Token Redaction in Logging**: Implemented `sanitizeUrl` across `apps/web/lib/tinyfish/client.ts` and `apps/web/lib/tinyfish/monitor.ts`. Query tokens (`?token=...`) are systematically replaced with `[REDACTED]` in all console outputs and error strings.
 7. **Monitor Cleanup Script**: Added `scripts/monitor-cleanup.ts` and root script `npm run monitor:cleanup` to safely list and delete development monitors with `--confirm` against the 50 monitor account limit.
+
+---
+
+### 1.8 Phase 7 Honest Verification Scorecard & Gap Analysis (Gemini AI Analysis & s.63(4) Certificate)
+
+**Status:** **PARTIAL** (Part 1 AI Engine Hardening in progress; Live Gemini calls re-graded to PENDING)  
+**Rule:** *Anything not verified with live Gemini output is PENDING.*
+
+#### Honest Re-Grade & API Key Audit
+- **Audit Finding**: Phase 7 was previously recorded as COMPLETE in commit `fb66339`, but audit inspection revealed `GEMINI_API_KEY` was unset. The system was unconditionally returning a hardcoded, canned JSON response (`FALLBACK_ANALYSIS_DEFAULT`) simulating an internship scam. This masked missing runtime integration with live Google Gemini models.
+- **API Key Status Confirmation**: Confirmed `GEMINI_API_KEY` is currently **NOT SET** (empty string in `.env.local` and absent from process environment; no secret keys printed). In accordance with the honest verification rule, all criteria requiring live model execution are re-graded from PASS to **PENDING**.
+- **Phase Scope**: Phase 7 is divided into three parts:
+  - **Part 1**: AI Engine & Prompt Hardening (current focus: Zod schemas, injection-safe prompts, model availability check, validation retry, safety handling, opt-in consent).
+  - **Part 2**: s.63(4) Part A Court Certificate PDF generator & styling.
+  - **Part 3**: Live evaluation and verification on real captures.
+  - *Phase 7 is explicitly NOT complete until all 3 parts and live verification pass.*
+
+#### Acceptance Criteria (PRD Section 17 Phase 7)
+| Criterion | Status | Verified With | Notes / Action to Turn PASS |
+|---|---|---|---|
+| **(a) Gemini returns structured JSON matching Section 12.2 schema (summaries, categories, reporting channels, complaint drafts)** | **PENDING** | `LOCAL (MOCKED)` | Schema validation and mock flows pass locally. Live verification against live Gemini model pending valid `GEMINI_API_KEY`. |
+| **(b) Prompt builder is injection-safe, truncates at 20k chars, and includes up to 3 step screenshots** | **PASS** | `LOCAL` | Delimited boundary tags (`<<<UNTRUSTED_CONTENT>>>`), adversarial instruction override defenses, 20k character truncation, and 3-step screenshot selection verified with unit tests. |
+| **(c) Channels use stable IDs and links are validated by checker script** | **PASS** | `LOCAL` | Stable IDs (`ncrp`, `nch`, `ejagriti`, `platform_go`, `police`) defined; text-only entries have no URL; automated link checker script (`npm run check:channels`) implemented. |
+| **(d) Canned analysis refused in production and marked with visible demo badge in dev** | **PASS** | `LOCAL` | Synthetic data restricted strictly to `NODE_ENV !== "production"` and `AI_FALLBACK=dev`. Displayed with prominent "Demo data: not real AI output" badge. |
+| **(e) User opt-in checkbox (default OFF) and privacy disclosures enforced** | **PASS** | `LOCAL` | Checkbox on `/capture/new` defaults to OFF; notice on capture form and `/privacy` page discloses transmission to Google Gemini API. |
+| **(f) Safety-blocked responses and validation retries handled gracefully** | **PASS** | `LOCAL` | Safety finish reasons marked "AI summary unavailable for this content"; 1-retry on schema failure with graceful `FAILED` status on secondary failure. |
+
+#### Detailed Gap Analysis: Codebase vs. PRD Sections 6 (F9) & 12
+1. **API Key & Live Verification Gap**: Previous code silently returned static internship scam text whenever `apiKey` was missing. Re-graded to PENDING. Real calls require live API key; unit tests must mock HTTP.
+2. **Reporting Channels Gap (PRD 12.3)**: `suggested_channel_ids` in `schema.ts` was `z.array(z.string())`, allowing arbitrary string injections or URLs. Must be strictly constrained to `z.array(z.enum(["ncrp", "nch", "ejagriti", "platform_go", "police"]))`. Text-only entries (`platform_go`, `police`) must have no URL. Missing automated channel link check script (`npm run check:channels`).
+3. **Schema Strictness Gap (PRD 12.2)**: Model must only return channel IDs, never URLs. Links must always be built from trusted constants.
+4. **Prompt Injection & Untrusted Data Boundary Gap (PRD 12.1)**: Raw page text, agent result JSON, and comments were injected without delimiters, vulnerable to adversarial prompt injection. Missing clear delimiter tags (`<<<UNTRUSTED_...>>>`), adversarial override defense instructions, and up to 3 step screenshots (first, middle, last).
+5. **Dynamic Model Resolution & Availability Check Gap**: Model name was hardcoded with fallback to `gemini-2.5-flash` instead of strictly resolving `GEMINI_MODEL` from environment. Startup model availability check (`ai.models.list()`) was missing. 60-second timeout was missing.
+6. **Structured Output & Validation Retry Gap**: Structured JSON output must pass explicit schema config. On validation failure, system must retry once with validation errors included; on secondary failure, analysis must be marked `FAILED` with a user-friendly message without failing the capture itself.
+7. **Safety-Blocked & Empty Response Gap**: Harassment or sensitive content can trigger safety filters or return empty responses. Must catch safety finish reasons, log block reason, mark analysis "AI summary unavailable for this content", and preserve all capture artifacts.
+8. **Canned Fallback Protection Gap**: Fallback mock data was returned unconditionally. Must be strictly disallowed in production; development requires explicit `AI_FALLBACK=dev` with visible demo badge.
+9. **Privacy & Opt-In Gap**: Missing opt-in checkbox on `/capture/new` ("Analyse with AI (Google Gemini)", default OFF), missing transmission disclosure notice, and missing privacy policy updates.
+10. **Rendering Safety Gap**: Model output must be rendered strictly as plain text, never interpreted as raw HTML, and never used to construct hyperlinks.
 
 ---
 
