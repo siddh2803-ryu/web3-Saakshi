@@ -3,6 +3,7 @@ import { AI_SYSTEM_PROMPT, buildAnalysisUserPrompt } from "./prompts";
 import { formatIST } from "@/lib/utils";
 
 const FALLBACK_ANALYSIS_DEFAULT: AiAnalysisOutput = {
+  status: "SUCCESS",
   summary_en:
     "The preserved post advertises an urgent remote engineering internship promising a ₹45,000 monthly stipend while mandating an upfront payment of ₹2,499 via UPI to register. Public comments express distress regarding lack of confirmation after transfer and alert others that legitimate employers do not request upfront documentation fees.",
   summary_hi:

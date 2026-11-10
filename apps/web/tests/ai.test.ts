@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { AiAnalysisSchema } from "../lib/ai/schema";
+import { AiAnalysisSchema, dropUrlsFromText } from "../lib/ai/schema";
 import { isRunBlockedOrPartial } from "../lib/tinyfish/agent";
 import {
   OFFICIAL_REPORTING_CHANNELS,
@@ -114,6 +114,73 @@ describe("AI Schema & Agent Soft-Failure Inspection", () => {
     };
 
     expect(() => AiAnalysisSchema.parse(invalidData)).toThrow();
+  });
+
+  it("drops any URLs injected into suggested_channel_ids (PRD 12.2)", () => {
+    const dataWithUrlsInChannels = {
+      summary_en: "A valid summary.",
+      summary_hi: "मान्य सारांश।",
+      content_type: "social_post" as const,
+      parties: [],
+      key_claims: ["Claim 1"],
+      timestamps_found: [],
+      possible_issue_categories: [
+        {
+          category: "harassment" as const,
+          confidence: "medium" as const,
+          rationale: "Targeted insults.",
+        },
+      ],
+      suggested_channel_ids: [
+        "ncrp",
+        "http://evil.example/steal-credentials",
+        "https://phishing.site/report",
+        "police",
+      ],
+      complaint_draft_en: "Complaint draft.",
+      complaint_draft_hi: "शिकायत प्रारूप।",
+      repost_phrases: [],
+      caveats: ["Standard disclaimer."],
+    };
+
+    const parsed = AiAnalysisSchema.parse(dataWithUrlsInChannels);
+    // Injected URLs must be dropped; valid IDs preserved
+    expect(parsed.suggested_channel_ids).toEqual(["ncrp", "police"]);
+    expect(parsed.suggested_channel_ids).not.toContain("http://evil.example/steal-credentials");
+    expect(parsed.suggested_channel_ids).not.toContain("https://phishing.site/report");
+  });
+
+  it("fails schema validation on unknown channel IDs", () => {
+    const dataWithInvalidId = {
+      summary_en: "Summary.",
+      summary_hi: "सारांश।",
+      content_type: "social_post" as const,
+      parties: [],
+      key_claims: [],
+      timestamps_found: [],
+      possible_issue_categories: [
+        {
+          category: "defamation" as const,
+          confidence: "low" as const,
+          rationale: "Unverified claims.",
+        },
+      ],
+      suggested_channel_ids: ["unsupported_channel_xyz"],
+      complaint_draft_en: "Draft.",
+      complaint_draft_hi: "प्रारूप।",
+      repost_phrases: [],
+      caveats: ["Disclaimer."],
+    };
+
+    expect(() => AiAnalysisSchema.parse(dataWithInvalidId)).toThrow();
+  });
+
+  it("drops URLs from text via dropUrlsFromText utility", () => {
+    const dirtyText =
+      "Check out http://evil.example/payload and https://safe.bank.in/login for verification.";
+    const cleanText = dropUrlsFromText(dirtyText);
+    expect(cleanText).toBe("Check out [link dropped] and [link dropped] for verification.");
+    expect(cleanText).not.toContain("http://evil.example");
   });
 
   it("detects soft failures in agent result (captcha, access denied, login required)", () => {
