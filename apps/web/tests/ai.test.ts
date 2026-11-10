@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { AiAnalysisSchema, dropUrlsFromText } from "../lib/ai/schema";
 import { isRunBlockedOrPartial } from "../lib/tinyfish/agent";
 import {
@@ -16,6 +16,12 @@ import {
   buildMultimodalPrompt,
   StepScreenshotInput,
 } from "../lib/ai/prompts";
+import {
+  getGeminiConfig,
+  verifyModelAvailability,
+  resetModelVerificationCache,
+  executeGeminiWithTimeout,
+} from "../lib/ai/gemini";
 
 describe("Reporting Channels Constants (PRD 12.3)", () => {
   it("defines exact 5 stable channel IDs", () => {
@@ -322,4 +328,86 @@ describe("Prompt Builder & Injection Defense (PRD 12.1)", () => {
     });
   });
 });
+
+describe("Gemini Client & Availability Check (PRD 12)", () => {
+  const origEnv = { ...process.env };
+
+  beforeEach(() => {
+    resetModelVerificationCache();
+  });
+
+  afterEach(() => {
+    process.env = { ...origEnv };
+    resetModelVerificationCache();
+  });
+
+  it("throws clear error when GEMINI_API_KEY is not set", () => {
+    delete process.env.GEMINI_API_KEY;
+    process.env.GEMINI_MODEL = "gemini-2.5-flash";
+    expect(() => getGeminiConfig()).toThrow("GEMINI_API_KEY environment variable is not configured");
+  });
+
+  it("throws clear error when GEMINI_MODEL is not set (never hardcode model name)", () => {
+    process.env.GEMINI_API_KEY = "test-api-key";
+    delete process.env.GEMINI_MODEL;
+    expect(() => getGeminiConfig()).toThrow("GEMINI_MODEL environment variable is not configured");
+  });
+
+  it("returns trimmed apiKey and modelName when properly set", () => {
+    process.env.GEMINI_API_KEY = "  test-api-key  ";
+    process.env.GEMINI_MODEL = "  gemini-2.5-flash  ";
+    const config = getGeminiConfig();
+    expect(config.apiKey).toBe("test-api-key");
+    expect(config.modelName).toBe("gemini-2.5-flash");
+  });
+
+  it("fails availability check when model is not available to the key", async () => {
+    const mockAi = {
+      models: {
+        list: async () => [
+          { name: "models/gemini-1.5-flash" },
+          { name: "models/gemini-1.5-pro" },
+        ],
+      },
+    };
+
+    await expect(
+      verifyModelAvailability(mockAi, "gemini-2.5-pro-exp")
+    ).rejects.toThrow('Configured model "gemini-2.5-pro-exp" is not available to the provided API key');
+  });
+
+  it("passes availability check and caches result when model is present", async () => {
+    let listCalls = 0;
+    const mockAi = {
+      models: {
+        list: async () => {
+          listCalls++;
+          return [
+            { name: "models/gemini-2.5-flash" },
+            { name: "models/gemini-1.5-flash" },
+          ];
+        },
+      },
+    };
+
+    const isAvailable = await verifyModelAvailability(mockAi, "gemini-2.5-flash");
+    expect(isAvailable).toBe(true);
+    expect(listCalls).toBe(1);
+
+    // Second call should use cache
+    const secondCall = await verifyModelAvailability(mockAi, "gemini-2.5-flash");
+    expect(secondCall).toBe(true);
+    expect(listCalls).toBe(1);
+  });
+
+  it("enforces timeout on execution", async () => {
+    await expect(
+      executeGeminiWithTimeout(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        return "done";
+      }, 20) // 20ms timeout
+    ).rejects.toThrow("Gemini API request timed out after 0.02 seconds");
+  });
+});
+
 
