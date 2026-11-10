@@ -102,9 +102,9 @@ export default function PrivacyPolicyPage() {
               </p>
             </div>
             <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-1.5">
-              <span className="font-bold text-slate-900 block">Google Gemini API</span>
+              <span className="font-bold text-slate-900 block">Google Gemini API (Strictly Opt-In)</span>
               <p className="text-slate-600">
-                Text extracts from preserved artifacts are processed by Gemini to generate bilingual factual summaries (English and Hindi), identify parties, and draft Part A certificates under Section 63(4) of the BSA, 2023.
+                AI analysis is strictly opt-in and is OFF by default for every evidence capture. When &ldquo;Analyse with AI (Google Gemini)&rdquo; is explicitly checked by the user, page content, extracted text, and step screenshots are transmitted to Google&apos;s Gemini API for summarization, claim extraction, and complaint drafting. AI output does not constitute certified legal advice. When opt-in is disabled, no evidence data or screenshots are transmitted to external AI providers.
               </p>
             </div>
             <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-1.5">

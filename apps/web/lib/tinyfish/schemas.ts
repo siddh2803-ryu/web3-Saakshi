@@ -116,6 +116,7 @@ export const NewCaptureRequestSchema = z.object({
   consent: z.literal(true, {
     errorMap: () => ({ message: "Preservation consent must be acknowledged." }),
   }),
+  aiOptIn: z.boolean().default(false),
   uid: z.string().default("demo-user"),
   caseId: z.string().optional(),
 });

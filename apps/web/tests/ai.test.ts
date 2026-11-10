@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { AiAnalysisSchema, dropUrlsFromText } from "../lib/ai/schema";
 import { isRunBlockedOrPartial } from "../lib/tinyfish/agent";
+import { NewCaptureRequestSchema } from "../lib/tinyfish/schemas";
 import {
   OFFICIAL_REPORTING_CHANNELS,
   REPORTING_CHANNEL_IDS,
@@ -658,6 +659,50 @@ describe("Canned Fallback Analysis Restrictions (PRD 12)", () => {
     expect(result.fallbackBadge).toBe("Demo data: not real AI output");
   });
 });
+
+describe("AI Analysis Opt-In & Privacy (PRD 12)", () => {
+  it("defaults aiOptIn to false in NewCaptureRequestSchema", () => {
+    const parsed = NewCaptureRequestSchema.parse({
+      url: "https://example.com/post",
+      consent: true,
+    });
+    expect(parsed.aiOptIn).toBe(false);
+  });
+
+  it("accepts aiOptIn: true when user checks the box", () => {
+    const parsed = NewCaptureRequestSchema.parse({
+      url: "https://example.com/post",
+      consent: true,
+      aiOptIn: true,
+    });
+    expect(parsed.aiOptIn).toBe(true);
+  });
+
+  it("validates SKIPPED status analysis when user opts out", () => {
+    const skippedAnalysis = {
+      status: "SKIPPED" as const,
+      summary_en: "AI analysis was disabled for this capture.",
+      summary_hi: "इस साक्ष्य के लिए एआई विश्लेषण अक्षम किया गया था।",
+      content_type: "other" as const,
+      parties: [],
+      key_claims: [],
+      timestamps_found: [],
+      possible_issue_categories: [],
+      suggested_channel_ids: [],
+      complaint_draft_en: "[AI analysis disabled by user choice]",
+      complaint_draft_hi: "[उपयोगकर्ता विकल्प द्वारा एआई विश्लेषण अक्षम]",
+      repost_phrases: [],
+      caveats: [
+        "AI analysis disabled by user choice. Original evidence remains fingerprinted and sealed on-chain without third-party AI processing.",
+      ],
+    };
+
+    const parsed = AiAnalysisSchema.parse(skippedAnalysis);
+    expect(parsed.status).toBe("SKIPPED");
+    expect(parsed.summary_en).toContain("disabled");
+  });
+});
+
 
 
 

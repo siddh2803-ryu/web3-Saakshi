@@ -367,13 +367,57 @@ export async function runFinalizePipeline(captureId: string): Promise<boolean> {
       publicManifestCid = publicUpload.cid;
     }
 
-    // 6. AI Analysis
-    await logStage("ANALYZING", "Running Gemini analysis for factual claims, issue categories and complaint drafts...");
-    const aiAnalysis = await analyzeEvidenceWithGemini(
-      fetchResult.text,
-      agentRun?.result,
-      manifest.time.serverFinishedAt
-    );
+    // 6. AI Analysis (Strict Opt-In Enforcement per PRD 12)
+    let aiAnalysis = null;
+    if (capture.aiOptIn) {
+      await logStage(
+        "ANALYZING",
+        "Running Gemini analysis for factual claims, issue categories and complaint drafts..."
+      );
+      const stepScreenshots = rawArtifacts
+        .filter(
+          (a) =>
+            a.kind === "agent_step_screenshot" &&
+            typeof a.stepIndex === "number" &&
+            a.plaintextBuffer
+        )
+        .map((a) => ({
+          stepIndex: a.stepIndex!,
+          action: a.action,
+          mimeType: a.mime,
+          base64Data: a.plaintextBuffer.toString("base64"),
+        }));
+
+      aiAnalysis = await analyzeEvidenceWithGemini(
+        fetchResult.text,
+        agentRun?.result,
+        manifest.time.serverFinishedAt,
+        stepScreenshots
+      );
+    } else {
+      await logStage(
+        "ANALYZING",
+        "AI analysis skipped: user did not opt in to Google Gemini processing."
+      );
+      aiAnalysis = {
+        status: "SKIPPED" as const,
+        summary_en:
+          "AI analysis was disabled for this capture. Page content and screenshots were not transmitted to external AI providers.",
+        summary_hi: "इस साक्ष्य के लिए एआई विश्लेषण अक्षम किया गया था।",
+        content_type: "other" as const,
+        parties: [],
+        key_claims: [],
+        timestamps_found: [],
+        possible_issue_categories: [],
+        suggested_channel_ids: [],
+        complaint_draft_en: "[AI analysis disabled by user choice]",
+        complaint_draft_hi: "[उपयोगकर्ता विकल्प द्वारा एआई विश्लेषण अक्षम]",
+        repost_phrases: [],
+        caveats: [
+          "AI analysis disabled by user choice. Original evidence remains fingerprinted and sealed on-chain without third-party AI processing.",
+        ],
+      };
+    }
 
     // Final state: READY or PARTIAL
     const finalStatus: CaptureStatus = isPartial ? "PARTIAL" : "READY";

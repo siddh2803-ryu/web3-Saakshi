@@ -11,6 +11,7 @@ export default function NewCapturePage() {
   const [goal, setGoal] = useState("");
   const [mode, setMode] = useState<"standard" | "deep">("standard");
   const [consent, setConsent] = useState(false);
+  const [aiOptIn, setAiOptIn] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [quotaInfo, setQuotaInfo] = useState<{ remaining: number; total: number } | null>(null);
@@ -56,6 +57,7 @@ export default function NewCapturePage() {
           goal: goal.trim() || undefined,
           mode,
           consent,
+          aiOptIn,
         }),
       });
 
@@ -226,6 +228,26 @@ export default function NewCapturePage() {
               <span className="text-xs text-slate-600 leading-relaxed">
                 I am preserving content that concerns me or that I have a legitimate reason to preserve. I will not use Saakshi to stalk or harass anyone.
               </span>
+            </label>
+          </div>
+
+          {/* AI Analysis Opt-In Checkbox (PRD 12) */}
+          <div className="pt-2 border-t border-slate-100">
+            <label className="flex items-start space-x-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={aiOptIn}
+                onChange={(e) => setAiOptIn(e.target.checked)}
+                className="mt-1 w-4 h-4 text-slate-900 rounded border-slate-300 focus:ring-slate-900"
+              />
+              <div className="text-xs text-slate-700 leading-relaxed">
+                <span className="font-bold text-slate-900 block">
+                  Analyse with AI (Google Gemini)
+                </span>
+                <span className="text-[11px] text-slate-500 mt-0.5 block">
+                  Page content, extracted text, and step screenshots will be transmitted to Google&apos;s Gemini API for summarization, claim extraction, and complaint drafting. AI output does not constitute certified legal advice.
+                </span>
+              </div>
             </label>
           </div>
 

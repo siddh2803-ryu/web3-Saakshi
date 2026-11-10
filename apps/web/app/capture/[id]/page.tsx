@@ -25,6 +25,7 @@ import {
   Activity,
   ArrowRight,
   Trash2,
+  Cpu,
 } from "lucide-react";
 import { formatIST, truncateHash } from "@/lib/utils";
 
@@ -646,6 +647,19 @@ export default function CaptureDetailPage() {
                       <span className="font-bold block">AI summary unavailable for this content</span>
                       <p className="mt-0.5 text-amber-800">
                         Content safety policies restricted automated AI summarization. All preserved web artifacts, forensic screenshots, and cryptographic hashes remain intact.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Skipped / Opted-Out Notice if status is SKIPPED */}
+                {capture.aiAnalysis?.status === "SKIPPED" && (
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 flex items-start space-x-2.5 shadow-xs">
+                    <Cpu className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold text-slate-900 block">AI Analysis Disabled</span>
+                      <p className="mt-0.5 text-slate-600">
+                        AI analysis was disabled for this capture (opt-in was OFF). Original web artifacts, screenshots, and cryptographic hashes remain preserved and sealed without third-party AI processing.
                       </p>
                     </div>
                   </div>

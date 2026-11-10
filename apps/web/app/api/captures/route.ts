@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: firstError, details: parsed.error.issues }, { status: 400 });
     }
 
-    const { url, goal, mode, consent, uid, caseId } = parsed.data;
+    const { url, goal, mode, consent, aiOptIn, uid, caseId } = parsed.data;
 
     // FR-2.2 Statutory Consent Check
     if (!consent) {
@@ -106,6 +106,7 @@ export async function POST(req: NextRequest) {
       finalUrl: absoluteUrl,
       goal: goal || "Capture the full post, author details, and comments.",
       mode,
+      aiOptIn: Boolean(aiOptIn),
       status: "QUEUED",
       events: [
         {
