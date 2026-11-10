@@ -351,6 +351,8 @@ export function createFailedAnalysis(
 
 export const FALLBACK_ANALYSIS_DEFAULT: AiAnalysisOutput = {
   status: "SUCCESS",
+  isFallback: true,
+  fallbackBadge: "Demo data: not real AI output",
   summary_en:
     "The preserved post advertises an urgent remote engineering internship promising a ₹45,000 monthly stipend while mandating an upfront payment of ₹2,499 via UPI to register. Public comments express distress regarding lack of confirmation after transfer and alert others that legitimate employers do not request upfront documentation fees.",
   summary_hi:
@@ -476,6 +478,34 @@ export async function validateWithOneRetry(
 }
 
 /**
+ * Checks whether canned/mock fallback analysis is permitted.
+ * Strictly disallowed in production. Allowed only in development when AI_FALLBACK=dev.
+ */
+export function isFallbackAllowed(): boolean {
+  if (process.env.NODE_ENV === "production") {
+    return false;
+  }
+  return process.env.AI_FALLBACK === "dev";
+}
+
+/**
+ * Returns canned fallback analysis for development testing, stamped with visible demo badge.
+ * Throws in production.
+ */
+export function getCannedFallbackAnalysis(): AiAnalysisOutput {
+  if (!isFallbackAllowed()) {
+    throw new Error(
+      "Canned fallback analysis is strictly prohibited in production or when AI_FALLBACK !== 'dev'."
+    );
+  }
+  return {
+    ...FALLBACK_ANALYSIS_DEFAULT,
+    isFallback: true,
+    fallbackBadge: "Demo data: not real AI output",
+  };
+}
+
+/**
  * Analyzes captured evidence using Google Gemini model with structured JSON enforcement and 1 validation retry.
  */
 export async function analyzeEvidenceWithGemini(
@@ -486,9 +516,19 @@ export async function analyzeEvidenceWithGemini(
 ): Promise<AiAnalysisOutput> {
   const apiKey = process.env.GEMINI_API_KEY;
 
-  // Canned fallback handling (restricted in Commit 9)
+  // Canned fallback handling (PRD 12: dev only behind AI_FALLBACK=dev, refused in production)
   if (!apiKey || process.env.TINYFISH_MODE === "fixture") {
-    return FALLBACK_ANALYSIS_DEFAULT;
+    if (isFallbackAllowed()) {
+      return getCannedFallbackAnalysis();
+    }
+    if (process.env.NODE_ENV === "production") {
+      return createFailedAnalysis(
+        "AI analysis unavailable: live Gemini credentials are not configured in production. Canned mock analysis is refused in production."
+      );
+    }
+    return createFailedAnalysis(
+      "AI analysis unavailable: GEMINI_API_KEY is not configured. (To enable mock demo data for local testing, set AI_FALLBACK=dev)."
+    );
   }
 
   let validKey: string;

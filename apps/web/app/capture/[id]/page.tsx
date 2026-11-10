@@ -653,6 +653,14 @@ export default function CaptureDetailPage() {
 
                 {/* AI Factual Summary Card */}
                 <div className="bg-white p-6 rounded-xl border border-slate-200/90 shadow-sm">
+                  {/* Fallback Demo Data Badge (PRD 12) */}
+                  {(capture.aiAnalysis?.isFallback || capture.aiAnalysis?.fallbackBadge) && (
+                    <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-md bg-amber-100 text-amber-900 border border-amber-300 text-xs font-semibold mb-4 shadow-xs">
+                      <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                      <span>{capture.aiAnalysis.fallbackBadge || "Demo data: not real AI output"}</span>
+                    </div>
+                  )}
+
                   <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-2">
                     Executive Summary (English)
                   </h3>
@@ -1181,7 +1189,19 @@ export default function CaptureDetailPage() {
 
           {/* TAB 5: COMPLAINT DRAFTS */}
           {activeTab === "report" && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-6">
+              {/* Fallback Demo Data Badge (PRD 12) */}
+              {(capture.aiAnalysis?.isFallback || capture.aiAnalysis?.fallbackBadge) && (
+                <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl text-xs font-semibold text-amber-900 flex items-center space-x-2 shadow-xs">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                  <span>{capture.aiAnalysis.fallbackBadge || "Demo data: not real AI output"}</span>
+                  <span className="text-[11px] font-normal text-amber-700 ml-1">
+                    &bull; Pre-written demonstration text. Real AI analysis disabled or unconfigured.
+                  </span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* English Complaint Draft */}
               <div className="bg-white p-6 rounded-xl border border-slate-200/90 shadow-sm flex flex-col justify-between">
                 <div>
@@ -1277,6 +1297,7 @@ export default function CaptureDetailPage() {
                   </a>
                 </div>
               </div>
+            </div>
             </div>
           )}
 

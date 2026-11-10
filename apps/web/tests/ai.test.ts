@@ -25,6 +25,9 @@ import {
   createFailedAnalysis,
   createUnavailableAnalysis,
   isResponseSafetyBlockedOrEmpty,
+  isFallbackAllowed,
+  getCannedFallbackAnalysis,
+  analyzeEvidenceWithGemini,
   GEMINI_RESPONSE_SCHEMA,
 } from "../lib/ai/gemini";
 
@@ -599,6 +602,63 @@ describe("Safety-Blocked & Empty Response Handling (PRD 12)", () => {
     expect(parsed.status).toBe("UNAVAILABLE");
   });
 });
+
+describe("Canned Fallback Analysis Restrictions (PRD 12)", () => {
+  const originalEnv = { ...process.env };
+
+  afterEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  it("strictly refuses fallback in production even if AI_FALLBACK=dev", () => {
+    (process.env as any).NODE_ENV = "production";
+    process.env.AI_FALLBACK = "dev";
+    expect(isFallbackAllowed()).toBe(false);
+    expect(() => getCannedFallbackAnalysis()).toThrow("Canned fallback analysis is strictly prohibited in production");
+  });
+
+  it("disallows fallback in development when AI_FALLBACK is unset or not 'dev'", () => {
+    (process.env as any).NODE_ENV = "development";
+    delete process.env.AI_FALLBACK;
+    expect(isFallbackAllowed()).toBe(false);
+
+    process.env.AI_FALLBACK = "true";
+    expect(isFallbackAllowed()).toBe(false);
+  });
+
+  it("allows fallback in development only when AI_FALLBACK === 'dev'", () => {
+    (process.env as any).NODE_ENV = "development";
+    process.env.AI_FALLBACK = "dev";
+    expect(isFallbackAllowed()).toBe(true);
+
+    const fallback = getCannedFallbackAnalysis();
+    expect(fallback.isFallback).toBe(true);
+    expect(fallback.fallbackBadge).toBe("Demo data: not real AI output");
+  });
+
+  it("analyzeEvidenceWithGemini refuses canned analysis in production and marks FAILED", async () => {
+    (process.env as any).NODE_ENV = "production";
+    delete process.env.GEMINI_API_KEY;
+    process.env.AI_FALLBACK = "dev"; // should be ignored in production
+
+    const result = await analyzeEvidenceWithGemini("Some text", {});
+    expect(result.status).toBe("FAILED");
+    expect(result.summary_en).toContain("Canned mock analysis is refused in production");
+    expect(result.isFallback).toBeUndefined();
+  });
+
+  it("analyzeEvidenceWithGemini returns canned fallback when AI_FALLBACK=dev in development", async () => {
+    (process.env as any).NODE_ENV = "development";
+    delete process.env.GEMINI_API_KEY;
+    process.env.AI_FALLBACK = "dev";
+
+    const result = await analyzeEvidenceWithGemini("Some text", {});
+    expect(result.status).toBe("SUCCESS");
+    expect(result.isFallback).toBe(true);
+    expect(result.fallbackBadge).toBe("Demo data: not real AI output");
+  });
+});
+
 
 
 
