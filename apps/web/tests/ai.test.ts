@@ -21,6 +21,9 @@ import {
   verifyModelAvailability,
   resetModelVerificationCache,
   executeGeminiWithTimeout,
+  validateWithOneRetry,
+  createFailedAnalysis,
+  GEMINI_RESPONSE_SCHEMA,
 } from "../lib/ai/gemini";
 
 describe("Reporting Channels Constants (PRD 12.3)", () => {
@@ -409,5 +412,126 @@ describe("Gemini Client & Availability Check (PRD 12)", () => {
     ).rejects.toThrow("Gemini API request timed out after 0.02 seconds");
   });
 });
+
+describe("Structured JSON Output & One Validation Retry (PRD 12)", () => {
+  const validOutputObj = {
+    summary_en: "Valid plain summary.",
+    summary_hi: "मान्य सारांश।",
+    content_type: "social_post" as const,
+    parties: [],
+    key_claims: ["Claim A"],
+    timestamps_found: [],
+    possible_issue_categories: [
+      {
+        category: "fake_job" as const,
+        confidence: "high" as const,
+        rationale: "Rationale text",
+      },
+    ],
+    suggested_channel_ids: ["ncrp"],
+    complaint_draft_en: "Complaint draft.",
+    complaint_draft_hi: "शिकायत प्रारूप।",
+    repost_phrases: [],
+    caveats: ["Standard disclaimer."],
+  };
+
+  it("exposes GEMINI_RESPONSE_SCHEMA conforming to required fields", () => {
+    expect(GEMINI_RESPONSE_SCHEMA.type).toBe("object");
+    expect(GEMINI_RESPONSE_SCHEMA.required).toContain("summary_en");
+    expect(GEMINI_RESPONSE_SCHEMA.required).toContain("summary_hi");
+    expect(GEMINI_RESPONSE_SCHEMA.required).toContain("suggested_channel_ids");
+    expect(GEMINI_RESPONSE_SCHEMA.required).toContain("caveats");
+  });
+
+  it("succeeds on first attempt when valid JSON matches schema", async () => {
+    let retried = false;
+    const result = await validateWithOneRetry(
+      JSON.stringify(validOutputObj),
+      async () => {
+        retried = true;
+        return "";
+      }
+    );
+
+    expect(result.status).toBe("SUCCESS");
+    expect(result.summary_en).toBe("Valid plain summary.");
+    expect(retried).toBe(false);
+  });
+
+  it("retries once when schema validation fails and succeeds on second attempt", async () => {
+    const invalidObj = { ...validOutputObj, caveats: [] }; // Empty caveats violates min(1)
+    let retryAttempted = false;
+
+    const result = await validateWithOneRetry(
+      JSON.stringify(invalidObj),
+      async (errNotice) => {
+        retryAttempted = true;
+        expect(errNotice).toContain("caveats");
+        // Return valid data on retry
+        return JSON.stringify(validOutputObj);
+      }
+    );
+
+    expect(retryAttempted).toBe(true);
+    expect(result.status).toBe("SUCCESS");
+    expect(result.summary_en).toBe("Valid plain summary.");
+  });
+
+  it("marks analysis FAILED on second validation failure without crashing", async () => {
+    const invalidObj = { ...validOutputObj, caveats: [] };
+    let retryCount = 0;
+
+    const result = await validateWithOneRetry(
+      JSON.stringify(invalidObj),
+      async () => {
+        retryCount++;
+        // Return invalid data again on second attempt
+        return JSON.stringify(invalidObj);
+      }
+    );
+
+    expect(retryCount).toBe(1);
+    expect(result.status).toBe("FAILED");
+    expect(result.summary_en).toContain("AI analysis could not be completed");
+    expect(result.caveats.length).toBeGreaterThan(0);
+    expect(result.error).toBeDefined();
+  });
+
+  it("retries once on bad JSON syntax and recovers", async () => {
+    let retryCount = 0;
+    const malformedJson = "{ broken json here ";
+
+    const result = await validateWithOneRetry(malformedJson, async (errNotice) => {
+      retryCount++;
+      expect(errNotice).toContain("Invalid JSON syntax");
+      return JSON.stringify(validOutputObj);
+    });
+
+    expect(retryCount).toBe(1);
+    expect(result.status).toBe("SUCCESS");
+  });
+
+  it("marks analysis FAILED on persistent JSON syntax error", async () => {
+    const malformedJson = "invalid completely";
+
+    const result = await validateWithOneRetry(malformedJson, async () => {
+      return "still broken json";
+    });
+
+    expect(result.status).toBe("FAILED");
+    expect(result.summary_en).toContain("AI analysis could not be completed");
+  });
+
+  it("createFailedAnalysis produces compliant AiAnalysisOutput schema", () => {
+    const failed = createFailedAnalysis("Custom friendly error", "SyntaxError at line 1");
+    expect(failed.status).toBe("FAILED");
+    expect(failed.summary_en).toBe("Custom friendly error");
+    expect(failed.error).toBe("SyntaxError at line 1");
+    // Verify it passes AiAnalysisSchema validation
+    const parsed = AiAnalysisSchema.parse(failed);
+    expect(parsed.status).toBe("FAILED");
+  });
+});
+
 
 

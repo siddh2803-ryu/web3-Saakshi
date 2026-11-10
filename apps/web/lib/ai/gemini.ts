@@ -9,6 +9,135 @@ import { formatIST } from "@/lib/utils";
 
 export const GEMINI_TIMEOUT_MS = 60000;
 
+/**
+ * OpenAPI-compatible JSON Schema for Gemini structured output per PRD 12.2.
+ */
+export const GEMINI_RESPONSE_SCHEMA = {
+  type: "object",
+  properties: {
+    summary_en: {
+      type: "string",
+      description: "Factual summary in plain English (max 120 words)",
+    },
+    summary_hi: {
+      type: "string",
+      description: "Factual summary in simple Devanagari Hindi",
+    },
+    content_type: {
+      type: "string",
+      enum: [
+        "social_post",
+        "profile",
+        "listing",
+        "job_offer",
+        "article",
+        "message",
+        "other",
+      ],
+    },
+    parties: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string", nullable: true },
+          handle: { type: "string", nullable: true },
+          role: {
+            type: "string",
+            enum: ["author", "mentioned", "commenter", "organisation"],
+          },
+        },
+        required: ["role"],
+      },
+    },
+    key_claims: {
+      type: "array",
+      items: { type: "string" },
+    },
+    timestamps_found: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          text: { type: "string" },
+          context: { type: "string" },
+        },
+        required: ["text", "context"],
+      },
+    },
+    possible_issue_categories: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          category: {
+            type: "string",
+            enum: [
+              "harassment",
+              "impersonation",
+              "morphed_image",
+              "financial_fraud",
+              "fake_job",
+              "defamation",
+              "consumer_dispute",
+              "ip_infringement",
+              "hate_speech",
+              "other",
+            ],
+          },
+          confidence: {
+            type: "string",
+            enum: ["low", "medium", "high"],
+          },
+          rationale: { type: "string" },
+        },
+        required: ["category", "confidence", "rationale"],
+      },
+    },
+    suggested_channel_ids: {
+      type: "array",
+      items: {
+        type: "string",
+        enum: ["ncrp", "nch", "ejagriti", "platform_go", "police"],
+      },
+      description:
+        "Official Indian reporting channel IDs only. Never return URLs.",
+    },
+    complaint_draft_en: {
+      type: "string",
+      description: "Polite, objective draft complaint in English with placeholders",
+    },
+    complaint_draft_hi: {
+      type: "string",
+      description: "Polite, objective draft complaint in Hindi with placeholders",
+    },
+    repost_phrases: {
+      type: "array",
+      items: { type: "string" },
+      description: "Max 2 distinctive phrases (<= 12 words) to locate reposts/mirrors",
+    },
+    caveats: {
+      type: "array",
+      items: { type: "string" },
+      description: "Legal disclaimer caveats",
+    },
+  },
+  required: [
+    "summary_en",
+    "summary_hi",
+    "content_type",
+    "parties",
+    "key_claims",
+    "timestamps_found",
+    "possible_issue_categories",
+    "suggested_channel_ids",
+    "complaint_draft_en",
+    "complaint_draft_hi",
+    "repost_phrases",
+    "caveats",
+  ],
+};
+
 const verifiedModelCache = new Set<string>();
 
 /**
@@ -97,7 +226,6 @@ export async function verifyModelAvailability(
     if (msg.includes("not available to the provided API key")) {
       throw err;
     }
-    // If list() fails due to quota or specific network error, log and let inference proceed or throw
     console.warn(`[Gemini] Model availability check warning: ${msg}`);
     return false;
   }
@@ -124,6 +252,34 @@ export async function executeGeminiWithTimeout<T>(
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * Constructs a fallback analysis result marked as FAILED with a friendly message.
+ * Ensures the capture pipeline never halts or fails due to AI analysis errors.
+ */
+export function createFailedAnalysis(
+  friendlyMessage = "AI analysis could not be completed for this capture. The model output could not be validated.",
+  errorDetail?: string
+): AiAnalysisOutput {
+  return {
+    status: "FAILED",
+    summary_en: friendlyMessage,
+    summary_hi: "इस साक्ष्य के लिए एआई सारांश उपलब्ध नहीं हो सका।",
+    content_type: "other",
+    parties: [],
+    key_claims: [],
+    timestamps_found: [],
+    possible_issue_categories: [],
+    suggested_channel_ids: [],
+    complaint_draft_en: "[AI summary unavailable for complaint drafting]",
+    complaint_draft_hi: "[शिकायत प्रारूप के लिए एआई विश्लेषण अनुपलब्ध]",
+    repost_phrases: [],
+    caveats: [
+      "AI analysis failed schema validation. The original web evidence remains securely fingerprinted and unaltered.",
+    ],
+    error: errorDetail,
+  };
 }
 
 export const FALLBACK_ANALYSIS_DEFAULT: AiAnalysisOutput = {
@@ -189,7 +345,71 @@ export const FALLBACK_ANALYSIS_DEFAULT: AiAnalysisOutput = {
 };
 
 /**
- * Analyzes captured evidence using Google Gemini model with structured JSON enforcement.
+ * Parses and validates raw model text with Zod.
+ * On first failure, invokes retryFn once with error details.
+ * On second failure, returns a friendly FAILED analysis without crashing.
+ */
+export async function validateWithOneRetry(
+  firstRawText: string,
+  retryFn: (validationError: string) => Promise<string>
+): Promise<AiAnalysisOutput> {
+  let firstParsed: unknown;
+  try {
+    firstParsed = JSON.parse(firstRawText);
+  } catch (parseErr: unknown) {
+    const parseMsg = parseErr instanceof Error ? parseErr.message : String(parseErr);
+    console.warn(`[Gemini] First attempt returned invalid JSON syntax: ${parseMsg}`);
+    try {
+      const retryText = await retryFn(`Invalid JSON syntax: ${parseMsg}. Return strictly valid JSON.`);
+      const retryParsed = JSON.parse(retryText);
+      const validated = AiAnalysisSchema.safeParse(retryParsed);
+      if (validated.success) return validated.data;
+      return createFailedAnalysis(
+        "AI analysis could not be completed for this capture. The model output could not be validated after retry.",
+        JSON.stringify(validated.error.issues)
+      );
+    } catch (secondErr: unknown) {
+      return createFailedAnalysis(
+        "AI analysis could not be completed for this capture. The model output could not be parsed.",
+        secondErr instanceof Error ? secondErr.message : String(secondErr)
+      );
+    }
+  }
+
+  const firstValidated = AiAnalysisSchema.safeParse(firstParsed);
+  if (firstValidated.success) {
+    return firstValidated.data;
+  }
+
+  const validationErrors = JSON.stringify(firstValidated.error.issues);
+  console.warn(`[Gemini] First attempt failed Zod schema validation: ${validationErrors}`);
+
+  try {
+    const retryText = await retryFn(
+      `Your previous JSON output failed schema validation with errors: ${validationErrors}. Please correct the output to strictly conform to the required JSON schema.`
+    );
+    const retryParsed = JSON.parse(retryText);
+    const secondValidated = AiAnalysisSchema.safeParse(retryParsed);
+    if (secondValidated.success) {
+      return secondValidated.data;
+    }
+    console.warn(`[Gemini] Second attempt also failed schema validation: ${JSON.stringify(secondValidated.error.issues)}`);
+    return createFailedAnalysis(
+      "AI analysis could not be completed for this capture. The model output could not be validated after retry.",
+      JSON.stringify(secondValidated.error.issues)
+    );
+  } catch (secondErr: unknown) {
+    const secondMsg = secondErr instanceof Error ? secondErr.message : String(secondErr);
+    console.warn(`[Gemini] Second attempt failed to execute or parse: ${secondMsg}`);
+    return createFailedAnalysis(
+      "AI analysis could not be completed for this capture. The model output could not be parsed.",
+      secondMsg
+    );
+  }
+}
+
+/**
+ * Analyzes captured evidence using Google Gemini model with structured JSON enforcement and 1 validation retry.
  */
 export async function analyzeEvidenceWithGemini(
   observedText: string,
@@ -198,14 +418,25 @@ export async function analyzeEvidenceWithGemini(
   screenshots?: StepScreenshotInput[]
 ): Promise<AiAnalysisOutput> {
   const apiKey = process.env.GEMINI_API_KEY;
-  const modelFromEnv = process.env.GEMINI_MODEL;
 
-  // Canned fallback handling (tightened in Commit 9)
+  // Canned fallback handling (restricted in Commit 9)
   if (!apiKey || process.env.TINYFISH_MODE === "fixture") {
     return FALLBACK_ANALYSIS_DEFAULT;
   }
 
-  const { apiKey: validKey, modelName } = getGeminiConfig();
+  let validKey: string;
+  let modelName: string;
+  try {
+    const config = getGeminiConfig();
+    validKey = config.apiKey;
+    modelName = config.modelName;
+  } catch (cfgErr) {
+    console.error("Gemini configuration error:", cfgErr);
+    return createFailedAnalysis(
+      "AI analysis unavailable: Gemini model configuration is incomplete.",
+      cfgErr instanceof Error ? cfgErr.message : String(cfgErr)
+    );
+  }
 
   const multimodal = buildMultimodalPrompt({
     observedText,
@@ -214,51 +445,50 @@ export async function analyzeEvidenceWithGemini(
     screenshots,
   });
 
-  const { GoogleGenAI } = await import("@google/genai");
-  const ai = new GoogleGenAI({ apiKey: validKey });
+  try {
+    const { GoogleGenAI } = await import("@google/genai");
+    const ai = new GoogleGenAI({ apiKey: validKey });
 
-  // Startup model availability verification
-  await verifyModelAvailability(ai, modelName);
+    // Startup model availability verification
+    await verifyModelAvailability(ai, modelName);
 
-  return executeGeminiWithTimeout(async () => {
-    // Generate content with 60s timeout
-    const response = await ai.models.generateContent({
-      model: modelName,
-      contents: multimodal.parts,
-      config: {
-        systemInstruction: AI_SYSTEM_PROMPT,
-        responseMimeType: "application/json",
-      },
-    });
-
-    const text = response.text || "";
-    const parsed = JSON.parse(text);
-    const validated = AiAnalysisSchema.safeParse(parsed);
-
-    if (validated.success) {
-      return validated.data;
-    }
-
-    // Single retry with validation feedback
-    console.warn("Gemini output failed schema validation, retrying once:", validated.error);
-    const retryResponse = await ai.models.generateContent({
-      model: modelName,
-      contents: [
-        ...multimodal.parts,
-        {
-          text: `ATTENTION: Your previous output failed schema validation with: ${JSON.stringify(
-            validated.error.errors
-          )}. Please correct the JSON output to strictly match the schema.`,
+    return await executeGeminiWithTimeout(async () => {
+      // First attempt with structured schema
+      const response = await ai.models.generateContent({
+        model: modelName,
+        contents: multimodal.parts,
+        config: {
+          systemInstruction: AI_SYSTEM_PROMPT,
+          responseMimeType: "application/json",
+          responseSchema: GEMINI_RESPONSE_SCHEMA,
         },
-      ],
-      config: {
-        systemInstruction: AI_SYSTEM_PROMPT,
-        responseMimeType: "application/json",
-      },
-    });
+      });
 
-    const retryText = retryResponse.text || "";
-    const retryParsed = JSON.parse(retryText);
-    return AiAnalysisSchema.parse(retryParsed);
-  });
+      const firstText = response.text || "";
+
+      return await validateWithOneRetry(firstText, async (validationError) => {
+        const retryResponse = await ai.models.generateContent({
+          model: modelName,
+          contents: [
+            ...multimodal.parts,
+            {
+              text: `ATTENTION: ${validationError}`,
+            },
+          ],
+          config: {
+            systemInstruction: AI_SYSTEM_PROMPT,
+            responseMimeType: "application/json",
+            responseSchema: GEMINI_RESPONSE_SCHEMA,
+          },
+        });
+        return retryResponse.text || "";
+      });
+    });
+  } catch (err: unknown) {
+    console.error("Gemini analysis error:", err);
+    return createFailedAnalysis(
+      "AI analysis encountered an error. The original capture remains fully intact.",
+      err instanceof Error ? err.message : String(err)
+    );
+  }
 }
