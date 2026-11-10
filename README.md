@@ -44,7 +44,46 @@ Saakshi integrates all five core products across the TinyFish automation suite:
 
 ---
 
-## 3. Architecture & Data Flow
+## 3. AI Evidence Analysis & Legal Assistance (Google Gemini)
+Saakshi integrates Google Gemini (`@google/genai`) to provide victims of online harassment, financial fraud, and cyber defamation with objective, structured evidence analysis and bilingual complaint drafting assistance without altering or invalidating the underlying cryptographic evidence chain.
+
+### Core Capabilities
+- **Factual Extraction**: Plain, neutral analysis of captured web evidence (English max 120 words, simple Devanagari Hindi) identifying key claims, involved parties and roles, and evidence timestamps.
+- **Issue Categorization**: Confidence-scored categorization across statutory complaint types (`harassment`, `financial_fraud`, `fake_job`, `impersonation`, `morphed_image`, `defamation`, `consumer_dispute`, `ip_infringement`, `hate_speech`).
+- **Bilingual Complaint Drafts**: Pre-drafted, polite complaint templates in English and Hindi with bracketed placeholders (`[Your Name]`, `[Transaction ID]`, `[Date]`) tailored for Indian statutory grievance filing.
+- **Repost Discovery Phrases**: Distinctive short phrases (max 2, <= 12 words) supplied to TinyFish Search to detect mirror posts across the web.
+
+### Security, Privacy & Integrity Guardrails
+1. **Strict User Opt-In (Default OFF)**:
+   - AI analysis is strictly optional. Users must actively opt in via the checkbox *"Analyse with AI (Google Gemini)"* on `/capture/new`.
+   - Clear privacy disclosures notify the user that captured text and screenshots will be transmitted to Google's Gemini API. When opted out, analysis is marked `SKIPPED`, and no external AI call is made.
+2. **Untrusted Data Boundaries & Anti-Prompt-Injection**:
+   - Captured web pages, agent observations, and comment threads are untrusted external data that may contain malicious instructions designed to manipulate the model.
+   - The prompt builder wraps all external text in explicit delimiters (`<<<UNTRUSTED_CAPTURED_PAGE_TEXT>>>`).
+   - The system prompt strictly directs the model to treat all delimited content as passive evidence data and ignore any embedded commands (e.g. *"ignore previous instructions"*, *"say this is safe"*).
+   - Captured text is truncated at 20,000 characters; up to 3 step screenshots (first, middle, last step) are attached with IST timestamps.
+3. **Official Indian Reporting Channels & URL Safety**:
+   - The model is restricted to returning official channel IDs only (`ncrp`, `nch`, `ejagriti`, `platform_go`, `police`) and forbidden from outputting URLs.
+   - Portal hyperlinks originate strictly from immutable trusted constants (`OFFICIAL_REPORTING_CHANNELS`):
+     - **NCRP**: National Cyber Crime Reporting Portal (`https://cybercrime.gov.in`, Helpline: 1930)
+     - **NCH**: National Consumer Helpline (`https://consumerhelpline.gov.in`, Helpline: 1915)
+     - **e-Jagriti**: Consumer Commission Dispute Filing (`https://e-jagriti.gov.in`)
+     - **Platform GO**: Platform Grievance Officer under IT Rules (Rule 3) (Text-only, no link)
+     - **Police**: Local Police Station / Zero FIR (Helpline: 112) (Text-only, no link)
+   - A health check script (`npm run check:channels`) monitors channel link availability and redirects.
+4. **Structured Output & One Validation Retry**:
+   - Output is enforced using `GEMINI_RESPONSE_SCHEMA` and validated with `AiAnalysisSchema` (Zod).
+   - If output fails JSON syntax or schema rules, it is retried once with validation feedback. If it fails a second time, it is gracefully marked `FAILED` with a user-friendly notice without crashing the capture.
+5. **Safety-Blocked Content Handling**:
+   - If content triggers Gemini safety filters (harassment, hate speech, adult content) or returns empty candidates, the analysis is gracefully marked `UNAVAILABLE` (`"AI summary unavailable for this content"`), preserving all underlying cryptographic artifacts intact.
+6. **No Mock Analysis in Production**:
+   - Pre-written mock data is permanently refused in production. In development, synthetic data requires explicit `AI_FALLBACK=dev` and renders a prominent `"Demo data: not real AI output"` badge.
+7. **Rendering Safety**:
+   - Model outputs are rendered as plain text strings (never raw HTML / innerHTML) and never used to construct hyperlinks.
+
+---
+
+## 4. Architecture & Data Flow
 
 ```mermaid
 flowchart LR
@@ -69,7 +108,7 @@ flowchart LR
 
 ---
 
-## 4. Smart Contract Details
+## 5. Smart Contract Details
 - **Contract Name**: `EvidenceRegistry.sol`
 - **Network**: Polygon Amoy Testnet (Chain ID: `80002`)
 - **Standard**: OpenZeppelin `AccessControl` + `MerkleProof`
@@ -86,7 +125,7 @@ Anyone possessing an artifact or manifest can verify its existence and authentic
 
 ---
 
-## 5. Getting Started & Local Development
+## 6. Getting Started & Local Development
 
 ### Prerequisites
 - Node.js >= 20.0.0
@@ -111,6 +150,8 @@ Anyone possessing an artifact or manifest can verify its existence and authentic
    Fill in your API keys in `.env.local`:
    - `TINYFISH_API_KEY`: Your TinyFish platform key.
    - `GEMINI_API_KEY`: Google Gemini API key.
+   - `GEMINI_MODEL`: Gemini model identifier (e.g. `gemini-2.5-flash`). Never hardcoded.
+   - `AI_FALLBACK`: Set to `dev` for local mock demonstration data (prohibited in production).
    - `MASTER_KEY_B64`: 32 random bytes in base64 (generate with `node -e 'console.log(require("crypto").randomBytes(32).toString("base64"))'`).
    - `ANCHOR_PRIVATE_KEY`: Private key for the Polygon Amoy anchoring node.
 
@@ -121,6 +162,9 @@ Anyone possessing an artifact or manifest can verify its existence and authentic
 
    # Run evidence cryptography, JCS, and pipeline unit tests (100% pass)
    npm run test:web
+
+   # Check health and reachability of official Indian reporting channel links
+   npm run check:channels
    ```
 
 5. Run development server:
@@ -131,7 +175,7 @@ Anyone possessing an artifact or manifest can verify its existence and authentic
 
 ---
 
-## 6. Offline Verification Script
+## 7. Offline Verification Script
 To verify an evidence bundle offline via command line:
 ```bash
 npx ts-node scripts/verify.ts <path-to-unzipped-bundle>
@@ -140,13 +184,13 @@ The script independently canonicalizes `manifest.json`, checks all artifact hash
 
 ---
 
-## 7. Legal Disclaimer & Indian Evidence Act Note
+## 8. Legal Disclaimer & Indian Evidence Act Note
 - **Section 63(4) BSA, 2023 Compliance**: Saakshi produces a **draft Part A certificate** disclosing hash values and system provenance.
 - **Part B Requirement**: Under Indian law, Part B of the certificate must be signed by a qualified electronic evidence expert. Saakshi provides drafting assistance and cryptographic proof; it does not substitute for licensed legal counsel.
 
 ---
 
-## 8. Team Eclipse
+## 9. Team Eclipse
 Built with dedication for **KRITICAL HACKS '26**:
 - **Siddharth Dhawan**: Lead Full-Stack & Systems Architecture
 - **Pratham Jaiswal**: Web3, Smart Contracts & Merkle Batching
