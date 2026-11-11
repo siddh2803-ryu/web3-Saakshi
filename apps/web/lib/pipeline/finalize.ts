@@ -430,6 +430,49 @@ export async function runFinalizePipeline(captureId: string): Promise<boolean> {
       };
     }
 
+    // 7. Store ai_analysis.json encrypted & hashed as derivative artifact (PRD Section 12, FR-9.3)
+    // Kept strictly OUT of manifest.artifacts and the anchored Merkle root.
+    let aiAnalysisArtifact = null;
+    if (aiAnalysis) {
+      const aiAnalysisBuffer = Buffer.from(JSON.stringify(aiAnalysis, null, 2), "utf8");
+      const aiAnalysisSha256 = computeSha256(aiAnalysisBuffer);
+      const aiAad = `${captureId}:art_ai_analysis`;
+      const encryptedAi = encryptWithKey(aiAnalysisBuffer, dek, aiAad);
+
+      const aiUpload = await uploadBufferToIpfs(
+        encryptedAi.ciphertext,
+        {
+          name: `saakshi_${captureId}_ai_analysis.enc`,
+          captureId,
+          kind: "ai_analysis" as any,
+        }
+      );
+
+      const aiArtifactRecord = {
+        id: "art_ai_analysis",
+        kind: "ai_analysis",
+        mime: "application/json",
+        bytes: aiAnalysisBuffer.length,
+        sha256: aiAnalysisSha256,
+        cid: aiUpload.cid,
+        pinataFileId: aiUpload.pinataFileId || null,
+        iv: encryptedAi.ivHex,
+        authTag: encryptedAi.authTagHex,
+        isDerivative: true,
+        capturedAt: new Date().toISOString(),
+      };
+      await saveArtifactRecord(captureId, aiArtifactRecord);
+
+      aiAnalysisArtifact = {
+        id: "art_ai_analysis",
+        sha256: aiAnalysisSha256,
+        cid: aiUpload.cid,
+        isDerivative: true,
+        iv: encryptedAi.ivHex,
+        authTag: encryptedAi.authTagHex,
+      };
+    }
+
     // Final state: READY or PARTIAL
     const finalStatus: CaptureStatus = isPartial ? "PARTIAL" : "READY";
     await logStage(
@@ -455,6 +498,7 @@ export async function runFinalizePipeline(captureId: string): Promise<boolean> {
       wrappedDek,
       artifactCount: manifestArtifacts.length,
       aiAnalysis,
+      aiAnalysisArtifact,
       isPartial,
       partialReason: partialReason || null,
       updatedAt: new Date().toISOString(),

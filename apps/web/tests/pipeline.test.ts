@@ -118,5 +118,22 @@ describe("Capture Pipeline Integration (Fixture Mode)", () => {
     expect(record.aiAnalysis.status).toBe("SUCCESS");
     expect(record.aiAnalysis.summary_en).toBeDefined();
     expect(record.aiAnalysis.caveats.length).toBeGreaterThan(0);
+
+    // FR-9.3: ai_analysis.json is stored encrypted and hashed, but strictly kept OUT of anchored manifest
+    expect(record.manifest.artifacts.some((a: any) => a.id === "art_ai_analysis" || a.kind === "ai_analysis")).toBe(false);
+
+    expect(record.aiAnalysisArtifact).toBeDefined();
+    expect(record.aiAnalysisArtifact.id).toBe("art_ai_analysis");
+    expect(record.aiAnalysisArtifact.isDerivative).toBe(true);
+    expect(record.aiAnalysisArtifact.sha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(record.aiAnalysisArtifact.cid).toBeDefined();
+    expect(record.aiAnalysisArtifact.iv).toBeDefined();
+    expect(record.aiAnalysisArtifact.authTag).toBeDefined();
+
+    const artifacts = await listArtifactRecords(optedInId);
+    const aiArt = artifacts.find((a) => a.id === "art_ai_analysis");
+    expect(aiArt).toBeDefined();
+    expect(aiArt.isDerivative).toBe(true);
+    expect(aiArt.kind).toBe("ai_analysis");
   });
 });
