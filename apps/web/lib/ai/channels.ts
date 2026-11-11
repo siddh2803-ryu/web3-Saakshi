@@ -61,6 +61,7 @@ export const OFFICIAL_REPORTING_CHANNELS: readonly ReportingChannel[] = [
     id: "police",
     name: "Local Police Cyber Cell / Police Station",
     category: "law_enforcement",
+    helpline: "112",
     description:
       "Jurisdictional cyber police station or local station for registering an FIR (First Information Report) or formal complaint.",
   },

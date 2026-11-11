@@ -13,7 +13,7 @@ import { uploadBufferToIpfs } from "@/lib/evidence/ipfs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
-export const MAX_REGENERATIONS_PER_DAY = 3;
+const MAX_REGENERATIONS_PER_DAY = 3;
 
 export async function POST(
   req: NextRequest,
