@@ -22,7 +22,7 @@ import {
   computeManifestSha256,
   hashUid,
 } from "@/lib/evidence/manifest";
-import { analyzeEvidenceWithGemini } from "@/lib/ai/gemini";
+import { analyzeEvidenceWithGemini, createFailedAnalysis } from "@/lib/ai/gemini";
 import { CaptureStatus, PipelineStageEvent } from "./stages";
 
 interface RawArtifact {
@@ -368,8 +368,10 @@ export async function runFinalizePipeline(captureId: string): Promise<boolean> {
     }
 
     // 6. AI Analysis (Strict Opt-In Enforcement per PRD 12)
+    // Runs after the manifest is built and hashed so AI output remains outside the anchored manifest.
     let aiAnalysis = null;
-    if (capture.aiOptIn) {
+    const isAiOptedIn = Boolean(capture.aiOptIn);
+    if (isAiOptedIn) {
       await logStage(
         "ANALYZING",
         "Running Gemini analysis for factual claims, issue categories and complaint drafts..."
@@ -388,12 +390,21 @@ export async function runFinalizePipeline(captureId: string): Promise<boolean> {
           base64Data: a.plaintextBuffer.toString("base64"),
         }));
 
-      aiAnalysis = await analyzeEvidenceWithGemini(
-        fetchResult.text,
-        agentRun?.result,
-        manifest.time.serverFinishedAt,
-        stepScreenshots
-      );
+      try {
+        aiAnalysis = await analyzeEvidenceWithGemini(
+          fetchResult.text,
+          agentRun?.result,
+          manifest.time.serverFinishedAt,
+          stepScreenshots
+        );
+      } catch (aiErr: unknown) {
+        const aiMsg = aiErr instanceof Error ? aiErr.message : String(aiErr);
+        console.warn(`[AI Finalize] Gemini analysis encountered an error, falling back safely: ${aiMsg}`);
+        aiAnalysis = createFailedAnalysis(
+          "AI analysis could not be completed for this capture. The original evidence remains fully preserved.",
+          aiMsg
+        );
+      }
     } else {
       await logStage(
         "ANALYZING",

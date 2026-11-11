@@ -81,5 +81,42 @@ describe("Capture Pipeline Integration (Fixture Mode)", () => {
 
     expect(zipBuffer).toBeDefined();
     expect(zipBuffer.length).toBeGreaterThan(500);
+
+    // Default without aiOptIn sets status SKIPPED
+    expect(record.aiAnalysis).toBeDefined();
+    expect(record.aiAnalysis.status).toBe("SKIPPED");
+    expect(record.aiAnalysis.summary_en).toContain("disabled");
+  });
+
+  it("runs AI analysis in finalize pipeline when aiOptIn is true", async () => {
+    process.env.AI_FALLBACK = "dev";
+    const optedInId = "cap_test_pipeline_opted_in";
+
+    await saveCaptureRecord(optedInId, {
+      id: optedInId,
+      ownerUid: "test-user-123",
+      url: "https://chirp.local/sandbox/post/internship-scam-alert",
+      finalUrl: "https://chirp.local/sandbox/post/internship-scam-alert",
+      goal: "Capture the full post and comments.",
+      mode: "standard",
+      status: "AGENT_DONE",
+      aiOptIn: true,
+      tinyfish: {
+        runId: "run_fixture_tinyfish_002",
+        startedAt: new Date().toISOString(),
+      },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    const success = await runFinalizePipeline(optedInId);
+    expect(success).toBe(true);
+
+    const record = await getCaptureRecord(optedInId);
+    expect(record.status).toBe("READY");
+    expect(record.aiAnalysis).toBeDefined();
+    expect(record.aiAnalysis.status).toBe("SUCCESS");
+    expect(record.aiAnalysis.summary_en).toBeDefined();
+    expect(record.aiAnalysis.caveats.length).toBeGreaterThan(0);
   });
 });
