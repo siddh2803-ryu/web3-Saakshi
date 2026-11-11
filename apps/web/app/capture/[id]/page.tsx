@@ -1322,6 +1322,96 @@ export default function CaptureDetailPage() {
                 )}
               </div>
 
+              {/* Section 2: Parties, Key Claims & Timestamps Found (PRD Section 12) */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Identified Parties */}
+                <div className="bg-white p-6 rounded-xl border border-slate-200/90 shadow-sm flex flex-col justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">
+                      Identified Parties
+                    </h3>
+                    {capture.aiAnalysis?.parties && capture.aiAnalysis.parties.length > 0 ? (
+                      <div className="space-y-2.5">
+                        {capture.aiAnalysis.parties.map((party: any, idx: number) => (
+                          <div
+                            key={idx}
+                            className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs flex items-center justify-between"
+                          >
+                            <div className="min-w-0 pr-2">
+                              <span className="font-bold text-slate-900 block truncate">
+                                {party.name || party.handle || "Anonymous"}
+                              </span>
+                              {party.handle && (
+                                <span className="text-[11px] text-slate-500 font-mono block">
+                                  {party.handle}
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-200/70 text-slate-800 shrink-0">
+                              {party.role}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-500 italic p-3 bg-slate-50 rounded-lg">
+                        No specific parties or handles identified in captured text.
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Key Claims & Assertions */}
+                <div className="bg-white p-6 rounded-xl border border-slate-200/90 shadow-sm">
+                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">
+                    Key Claims &amp; Assertions
+                  </h3>
+                  {capture.aiAnalysis?.key_claims && capture.aiAnalysis.key_claims.length > 0 ? (
+                    <ul className="space-y-2">
+                      {capture.aiAnalysis.key_claims.map((claim: string, idx: number) => (
+                        <li key={idx} className="text-xs text-slate-700 flex items-start space-x-2">
+                          <span className="w-1.5 h-1.5 rounded-sm bg-blue-600 mt-1.5 shrink-0" />
+                          <span className="leading-relaxed">{claim}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-xs text-slate-500 italic p-3 bg-slate-50 rounded-lg">
+                      No distinct factual claims extracted.
+                    </p>
+                  )}
+                </div>
+
+                {/* Timestamps Found */}
+                <div className="bg-white p-6 rounded-xl border border-slate-200/90 shadow-sm">
+                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">
+                    Timestamps &amp; Dates Found
+                  </h3>
+                  {capture.aiAnalysis?.timestamps_found &&
+                  capture.aiAnalysis.timestamps_found.length > 0 ? (
+                    <div className="space-y-2.5">
+                      {capture.aiAnalysis.timestamps_found.map((ts: any, idx: number) => (
+                        <div
+                          key={idx}
+                          className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs"
+                        >
+                          <span className="font-semibold text-slate-900 font-mono block">
+                            {ts.text}
+                          </span>
+                          <span className="text-[11px] text-slate-500 mt-0.5 block">
+                            {ts.context}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-500 italic p-3 bg-slate-50 rounded-lg">
+                      No relative or explicit dates noted in text.
+                    </p>
+                  )}
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* English Complaint Draft */}
               <div className="bg-white p-6 rounded-xl border border-slate-200/90 shadow-sm flex flex-col justify-between">
