@@ -1248,7 +1248,7 @@ export default function CaptureDetailPage() {
             </div>
           )}
 
-          {/* TAB 5: COMPLAINT DRAFTS */}
+          {/* TAB 5: COMPLAINT DRAFTS & REPORT */}
           {activeTab === "report" && (
             <div className="space-y-6">
               {/* Fallback Demo Data Badge (PRD 12) */}
@@ -1261,6 +1261,66 @@ export default function CaptureDetailPage() {
                   </span>
                 </div>
               )}
+
+              {/* Section 1: Possible Legal / Policy Issue Categories (PRD Section 12) */}
+              <div className="bg-white p-6 rounded-xl border border-slate-200/90 shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                      Possible Legal &amp; Policy Issue Categories
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Statutory and policy issues identified in preserved evidence with confidence rating and rationale.
+                    </p>
+                  </div>
+                  {capture.aiAnalysis?.content_type && (
+                    <span className="text-[11px] font-semibold font-mono text-slate-600 bg-slate-100 border border-slate-200 px-2.5 py-0.5 rounded self-start sm:self-auto">
+                      Content Type: {capture.aiAnalysis.content_type}
+                    </span>
+                  )}
+                </div>
+
+                {capture.aiAnalysis?.possible_issue_categories &&
+                capture.aiAnalysis.possible_issue_categories.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {capture.aiAnalysis.possible_issue_categories.map((cat: any, idx: number) => {
+                      const confidenceStyle =
+                        cat.confidence === "high"
+                          ? "bg-rose-100 text-rose-800 border-rose-200"
+                          : cat.confidence === "medium"
+                          ? "bg-amber-100 text-amber-800 border-amber-200"
+                          : "bg-blue-100 text-blue-800 border-blue-200";
+
+                      return (
+                        <div
+                          key={idx}
+                          className="p-4 bg-slate-50/70 rounded-lg border border-slate-200 flex flex-col justify-between"
+                        >
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-xs font-bold text-slate-900 capitalize">
+                                {cat.category.replace(/_/g, " ")}
+                              </span>
+                              <span
+                                className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${confidenceStyle}`}
+                              >
+                                {cat.confidence} confidence
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-700 leading-relaxed">
+                              {cat.rationale}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="p-4 text-center bg-slate-50 rounded-lg border border-dashed border-slate-200 text-xs text-slate-500">
+                    No specific statutory violations or high-risk issues flagged for this content.
+                  </div>
+                )}
+              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* English Complaint Draft */}
