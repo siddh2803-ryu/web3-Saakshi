@@ -26,6 +26,7 @@
     "new:wallet": "npx ts-node -r tsconfig-paths/register scripts/new-wallet.ts",
     "verify:bundle": "npx ts-node -r tsconfig-paths/register scripts/verify.ts",
     "check:channels": "npx ts-node -r tsconfig-paths/register scripts/check-channels.ts",
+    "validate:ai": "npx ts-node -r tsconfig-paths/register scripts/validate-ai-captures.ts",
     "chain:local": "bash scripts/chain-local.sh"
   },
   "devDependencies": {

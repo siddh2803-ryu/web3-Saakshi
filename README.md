@@ -80,6 +80,10 @@ Saakshi integrates Google Gemini (`@google/genai`) to provide victims of online 
    - Pre-written mock data is permanently refused in production. In development, synthetic data requires explicit `AI_FALLBACK=dev` and renders a prominent `"Demo data: not real AI output"` badge.
 7. **Rendering Safety**:
    - Model outputs are rendered as plain text strings (never raw HTML / innerHTML) and never used to construct hyperlinks.
+8. **Derivative Storage (FR-9.3) & Report Interface**:
+   - `ai_analysis.json` is encrypted with the capture DEK and pinned to IPFS as a derivative artifact (`isDerivative: true`), kept strictly outside the anchored evidence manifest and Merkle root.
+   - The Report tab renders issue categories with confidence chips, extracted parties/claims/timestamps, official reporting channels with plain-text helplines, bilingual English and Hindi complaint drafts (with Copy and `.txt` download), and an interactive 3-per-day regeneration rate limit.
+   - Beautiful Devanagari typography powered by Google Noto Sans Devanagari.
 
 ---
 
