@@ -1465,16 +1465,21 @@ export default function CaptureDetailPage() {
                 </div>
               </div>
 
-              {/* Official Reporting Portals (PRD 12.3) */}
-              <div className="md:col-span-2 bg-white p-6 rounded-xl border border-slate-200/90 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-                    Official Reporting Channels in India
-                  </h3>
+              {/* Section 4: Official Reporting Channels in India (PRD Section 12.3) */}
+              <div className="bg-white p-6 rounded-xl border border-slate-200/90 shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                      Official Statutory &amp; Grievance Reporting Channels
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Government portals and law enforcement mechanisms. Links originate strictly from immutable verified constants.
+                    </p>
+                  </div>
                   {capture.aiAnalysis?.suggested_channel_ids &&
                     capture.aiAnalysis.suggested_channel_ids.length > 0 && (
-                      <span className="text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-full">
-                        {capture.aiAnalysis.suggested_channel_ids.length} Recommended
+                      <span className="text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-full self-start sm:self-auto">
+                        {capture.aiAnalysis.suggested_channel_ids.length} Recommended by AI
                       </span>
                     )}
                 </div>
@@ -1491,29 +1496,39 @@ export default function CaptureDetailPage() {
                           href={ch.url}
                           target="_blank"
                           rel="noreferrer"
-                          className={`p-4 rounded-lg border transition-all ${
+                          className={`p-4 rounded-lg border transition-all flex flex-col justify-between ${
                             isSuggested
                               ? "border-blue-500 bg-blue-50/50 shadow-xs ring-1 ring-blue-500/20"
                               : "border-slate-200 hover:border-slate-900 hover:shadow-xs"
                           }`}
                         >
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-bold text-slate-900 block">
-                              {ch.name}
-                            </span>
-                            {isSuggested && (
-                              <span className="text-[10px] uppercase font-bold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded">
-                                Recommended
+                          <div>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className="text-xs font-bold text-slate-900 block">
+                                {ch.name}
                               </span>
-                            )}
+                              {isSuggested && (
+                                <span className="text-[10px] uppercase font-bold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded shrink-0">
+                                  Recommended
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-slate-500 mb-2 leading-relaxed">
+                              {ch.description}
+                            </p>
                           </div>
-                          <span className="text-[11px] text-slate-500 mt-1 block">
-                            {ch.helpline ? `Helpline ${ch.helpline} • ` : ""}
-                            {ch.url.replace(/^https?:\/\//, "")}
-                          </span>
-                          <span className="text-[10px] text-slate-400 mt-1 block line-clamp-2">
-                            {ch.description}
-                          </span>
+                          <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2 mt-auto">
+                            {ch.helpline ? (
+                              <span className="text-[11px] font-mono font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
+                                Helpline: {ch.helpline}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-slate-400 font-mono">Web Portal</span>
+                            )}
+                            <span className="text-[11px] text-blue-700 font-medium truncate">
+                              {ch.url.replace(/^https?:\/\//, "")} &rarr;
+                            </span>
+                          </div>
                         </a>
                       );
                     }
@@ -1522,29 +1537,39 @@ export default function CaptureDetailPage() {
                     return (
                       <div
                         key={ch.id}
-                        className={`p-4 rounded-lg border ${
+                        className={`p-4 rounded-lg border flex flex-col justify-between ${
                           isSuggested
                             ? "border-blue-500 bg-blue-50/50 shadow-xs ring-1 ring-blue-500/20"
                             : "border-slate-200 bg-slate-50/60"
                         }`}
                       >
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-slate-900 block">
-                            {ch.name}
-                          </span>
-                          {isSuggested && (
-                            <span className="text-[10px] uppercase font-bold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded">
-                              Recommended
+                        <div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-xs font-bold text-slate-900 block">
+                              {ch.name}
                             </span>
-                          )}
+                            {isSuggested && (
+                              <span className="text-[10px] uppercase font-bold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded shrink-0">
+                                Recommended
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-slate-500 mb-2 leading-relaxed">
+                            {ch.description}
+                          </p>
                         </div>
-                        <span className="text-[11px] text-slate-500 mt-1 block">
-                          {ch.helpline ? `Helpline ${ch.helpline} • ` : ""}
-                          Direct / Offline (No Portal Link)
-                        </span>
-                        <span className="text-[10px] text-slate-400 mt-1 block line-clamp-2">
-                          {ch.description}
-                        </span>
+                        <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between gap-2 mt-auto">
+                          {ch.helpline ? (
+                            <span className="text-[11px] font-mono font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
+                              Helpline: {ch.helpline}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 font-mono">Offline / Direct</span>
+                          )}
+                          <span className="text-[10px] text-slate-400 font-medium italic">
+                            No web link required
+                          </span>
+                        </div>
                       </div>
                     );
                   })}
