@@ -52,6 +52,7 @@ export default function CaptureDetailPage() {
   const [watchError, setWatchError] = useState<string | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [overviewLang, setOverviewLang] = useState<"en" | "hi">("en");
 
   const fetchCapture = useCallback(async () => {
     try {
@@ -666,8 +667,47 @@ export default function CaptureDetailPage() {
                   </div>
                 )}
 
-                {/* AI Factual Summary Card */}
+                {/* AI Factual Summary Card (PRD Section 12, FR-9.3) */}
                 <div className="bg-white p-6 rounded-xl border border-slate-200/90 shadow-sm">
+                  {/* Top Notice Bar & Language Toggle */}
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-3 mb-4">
+                    <div className="flex items-center space-x-2 text-xs text-slate-500 font-medium">
+                      <Cpu className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                      <span>AI-generated, not part of the original evidence. Not legal advice.</span>
+                    </div>
+
+                    <div
+                      className="inline-flex rounded-lg border border-slate-200 p-0.5 bg-slate-50 shrink-0 self-start sm:self-auto"
+                      role="group"
+                      aria-label="Summary language toggle"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setOverviewLang("en")}
+                        className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+                          overviewLang === "en"
+                            ? "bg-white text-slate-900 shadow-2xs"
+                            : "text-slate-600 hover:text-slate-900"
+                        }`}
+                        aria-pressed={overviewLang === "en"}
+                      >
+                        English
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setOverviewLang("hi")}
+                        className={`px-3 py-1 text-xs font-semibold rounded-md transition-all font-hindi ${
+                          overviewLang === "hi"
+                            ? "bg-white text-slate-900 shadow-2xs"
+                            : "text-slate-600 hover:text-slate-900"
+                        }`}
+                        aria-pressed={overviewLang === "hi"}
+                      >
+                        हिंदी
+                      </button>
+                    </div>
+                  </div>
+
                   {/* Fallback Demo Data Badge (PRD 12) */}
                   {(capture.aiAnalysis?.isFallback || capture.aiAnalysis?.fallbackBadge) && (
                     <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-md bg-amber-100 text-amber-900 border border-amber-300 text-xs font-semibold mb-4 shadow-xs">
@@ -676,20 +716,26 @@ export default function CaptureDetailPage() {
                     </div>
                   )}
 
-                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-2">
-                    Executive Summary (English)
-                  </h3>
-                  <p className="text-sm text-slate-700 leading-relaxed">
-                    {capture.aiAnalysis?.summary_en ||
-                      "Factual summary generated from verified observations."}
-                  </p>
-
-                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mt-6 mb-2">
-                    तथ्यात्मक सारांश (Hindi)
-                  </h3>
-                  <p className="text-sm text-slate-700 leading-relaxed font-hindi">
-                    {capture.aiAnalysis?.summary_hi || "तथ्यात्मक सारांश उपलब्ध है।"}
-                  </p>
+                  {overviewLang === "en" ? (
+                    <div>
+                      <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                        Factual Summary (English)
+                      </h3>
+                      <p className="text-sm text-slate-800 leading-relaxed">
+                        {capture.aiAnalysis?.summary_en ||
+                          "Factual summary generated from verified observations."}
+                      </p>
+                    </div>
+                  ) : (
+                    <div>
+                      <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 font-hindi">
+                        तथ्यात्मक सारांश (Hindi)
+                      </h3>
+                      <p className="text-sm text-slate-800 leading-relaxed font-hindi">
+                        {capture.aiAnalysis?.summary_hi || "तथ्यात्मक सारांश उपलब्ध है।"}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Key Claims */}
