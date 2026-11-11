@@ -1364,14 +1364,135 @@ export default function CaptureDetailPage() {
                       ? "bg-rose-50 border-rose-200 text-rose-800"
                       : "bg-emerald-50 border-emerald-200 text-emerald-800"
                   }`}
+                  role="status"
+                  aria-live="polite"
                 >
                   <span>{regenerateMsg}</span>
                   <button
                     type="button"
                     onClick={() => setRegenerateMsg(null)}
-                    className="text-[10px] font-bold uppercase underline ml-2"
+                    className="text-[10px] font-bold uppercase underline ml-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current rounded"
+                    aria-label="Dismiss message"
                   >
                     Dismiss
+                  </button>
+                </div>
+              )}
+
+              {/* State 1: Active Loading / Regeneration Banner */}
+              {regeneratingAnalysis && (
+                <div
+                  className="p-6 bg-blue-50 border border-blue-200 rounded-xl flex items-center space-x-4 shadow-xs"
+                  role="status"
+                  aria-live="polite"
+                >
+                  <div className="w-7 h-7 border-3 border-blue-600 border-t-transparent rounded-full animate-spin shrink-0" />
+                  <div>
+                    <span className="text-sm font-bold text-blue-950 block">
+                      Analyzing Preserved Evidence with Google Gemini...
+                    </span>
+                    <p className="text-xs text-blue-800 mt-0.5">
+                      Extracting factual assertions, identifying involved parties, scoring statutory complaint categories, and drafting bilingual complaint templates.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* State 2: Safety-Blocked / Unavailable Banner */}
+              {capture.aiAnalysis?.status === "UNAVAILABLE" && (
+                <div
+                  className="p-5 bg-amber-50 border border-amber-200 rounded-xl text-amber-950 flex items-start space-x-3 shadow-xs"
+                  role="alert"
+                >
+                  <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <span className="text-sm font-bold block">AI summary unavailable for this content</span>
+                    <p className="text-xs text-amber-800 leading-relaxed">
+                      The observed web content was restricted by Google Gemini safety policies (harassment, hate speech, or prohibited content) or returned empty candidate responses.
+                    </p>
+                    <p className="text-[11px] text-amber-700">
+                      <strong>Cryptographic Evidence Intact:</strong> All underlying evidence artifacts (full-page screenshot, PDF, DOM HTML, network logs, and TLS certificates) remain cryptographically sealed and anchored on Polygon without modification.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* State 3: Skipped (Opt-In OFF) State Banner */}
+              {capture.aiAnalysis?.status === "SKIPPED" && (
+                <div
+                  className="p-5 bg-slate-100 border border-slate-200 rounded-xl text-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-xs"
+                  role="region"
+                  aria-label="AI analysis skipped notice"
+                >
+                  <div className="flex items-start space-x-3">
+                    <Cpu className="w-5 h-5 text-slate-500 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="text-sm font-bold text-slate-900 block">AI Analysis Disabled for this Capture</span>
+                      <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
+                        During capture creation, &ldquo;Analyse with AI (Google Gemini)&rdquo; was unselected. No text or screenshots were transmitted to external AI providers.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRegenerateAnalysis}
+                    disabled={regeneratingAnalysis}
+                    className="px-4 py-2 text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-white rounded-lg shrink-0 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 shadow-2xs"
+                    aria-label="Run Gemini AI analysis now"
+                  >
+                    Run Analysis Now
+                  </button>
+                </div>
+              )}
+
+              {/* State 4: Failed State Banner */}
+              {capture.aiAnalysis?.status === "FAILED" && (
+                <div
+                  className="p-5 bg-rose-50 border border-rose-200 rounded-xl text-rose-950 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-xs"
+                  role="alert"
+                >
+                  <div className="flex items-start space-x-3">
+                    <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="text-sm font-bold text-rose-900 block">AI Analysis Incomplete</span>
+                      <p className="text-xs text-rose-800 mt-0.5 leading-relaxed">
+                        {capture.aiAnalysis?.summary_en || "Model response could not be validated against required schema. The capture itself remains completely valid."}
+                      </p>
+                      {capture.aiAnalysis?.error && (
+                        <p className="text-[10px] text-rose-600 font-mono mt-1">
+                          Detail: {capture.aiAnalysis.error}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRegenerateAnalysis}
+                    disabled={regeneratingAnalysis}
+                    className="px-4 py-2 text-xs font-semibold bg-rose-700 hover:bg-rose-800 text-white rounded-lg shrink-0 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-700 shadow-2xs"
+                    aria-label="Retry AI analysis"
+                  >
+                    Retry Analysis
+                  </button>
+                </div>
+              )}
+
+              {/* State 5: Empty State (When no aiAnalysis is present at all) */}
+              {!capture.aiAnalysis && (
+                <div className="p-8 bg-white border border-slate-200 rounded-xl text-center space-y-3 shadow-xs">
+                  <Cpu className="w-8 h-8 text-slate-400 mx-auto" />
+                  <h4 className="text-sm font-bold text-slate-800">No AI Analysis Recorded</h4>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto">
+                    Generate a structured analysis to extract claims, identify statutory violation categories, and produce bilingual complaint drafts.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleRegenerateAnalysis}
+                    disabled={regeneratingAnalysis}
+                    className="px-4 py-2 text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-white rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 shadow-2xs"
+                    aria-label="Generate AI analysis"
+                  >
+                    Generate Analysis
                   </button>
                 </div>
               )}
