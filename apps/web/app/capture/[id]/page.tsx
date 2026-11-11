@@ -54,6 +54,19 @@ export default function CaptureDetailPage() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [overviewLang, setOverviewLang] = useState<"en" | "hi">("en");
 
+  const downloadTextFile = (content: string, filename: string) => {
+    if (!content) return;
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const fetchCapture = useCallback(async () => {
     try {
       const res = await fetch(`/api/captures/${captureId}`);
@@ -1412,56 +1425,122 @@ export default function CaptureDetailPage() {
                 </div>
               </div>
 
+              {/* Section 3: Complaint Drafts (English & Hindi) */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* English Complaint Draft */}
-              <div className="bg-white p-6 rounded-xl border border-slate-200/90 shadow-sm flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-                      Complaint Draft (English)
-                    </h3>
-                    <button
-                      onClick={() =>
-                        copyToClipboard(capture.aiAnalysis?.complaint_draft_en || "", "text")
-                      }
-                      className="px-2.5 py-1 text-xs bg-slate-100 hover:bg-slate-200 rounded-md flex items-center space-x-1"
-                    >
-                      <Copy className="w-3.5 h-3.5" />
-                      <span>Copy Draft</span>
-                    </button>
+                {/* English Complaint Draft */}
+                <div className="bg-white p-6 rounded-xl border border-slate-200/90 shadow-sm flex flex-col justify-between">
+                  <div>
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                      <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                        Complaint Draft (English)
+                      </h3>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            copyToClipboard(capture.aiAnalysis?.complaint_draft_en || "", "text")
+                          }
+                          className="px-2.5 py-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-md flex items-center space-x-1 transition-colors"
+                          aria-label="Copy English complaint draft to clipboard"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Copy</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            downloadTextFile(
+                              capture.aiAnalysis?.complaint_draft_en || "",
+                              `saakshi_complaint_draft_en_${captureId}.txt`
+                            )
+                          }
+                          className="px-2.5 py-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-md flex items-center space-x-1 transition-colors"
+                          aria-label="Download English complaint draft as text file"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          <span>Download (.txt)</span>
+                        </button>
+                      </div>
+                    </div>
+                    <textarea
+                      readOnly
+                      rows={12}
+                      value={capture.aiAnalysis?.complaint_draft_en || ""}
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono text-slate-800 focus:outline-none"
+                      aria-label="English complaint draft content"
+                    />
                   </div>
-                  <textarea
-                    readOnly
-                    rows={12}
-                    value={capture.aiAnalysis?.complaint_draft_en || ""}
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono text-slate-800 focus:outline-none"
-                  />
+                </div>
+
+                {/* Hindi Complaint Draft */}
+                <div className="bg-white p-6 rounded-xl border border-slate-200/90 shadow-sm flex flex-col justify-between">
+                  <div>
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                      <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider font-hindi">
+                        शिकायत प्रारूप (Hindi)
+                      </h3>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            copyToClipboard(capture.aiAnalysis?.complaint_draft_hi || "", "text")
+                          }
+                          className="px-2.5 py-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-md flex items-center space-x-1 transition-colors"
+                          aria-label="Copy Hindi complaint draft to clipboard"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Copy</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            downloadTextFile(
+                              capture.aiAnalysis?.complaint_draft_hi || "",
+                              `saakshi_complaint_draft_hi_${captureId}.txt`
+                            )
+                          }
+                          className="px-2.5 py-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-md flex items-center space-x-1 transition-colors"
+                          aria-label="Download Hindi complaint draft as text file"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          <span>Download (.txt)</span>
+                        </button>
+                      </div>
+                    </div>
+                    <textarea
+                      readOnly
+                      rows={12}
+                      value={capture.aiAnalysis?.complaint_draft_hi || ""}
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-hindi text-slate-800 focus:outline-none"
+                      aria-label="Hindi complaint draft content"
+                    />
+                  </div>
                 </div>
               </div>
 
-              {/* Hindi Complaint Draft */}
-              <div className="bg-white p-6 rounded-xl border border-slate-200/90 shadow-sm flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-                      शिकायत प्रारूप (Hindi)
-                    </h3>
-                    <button
-                      onClick={() =>
-                        copyToClipboard(capture.aiAnalysis?.complaint_draft_hi || "", "text")
-                      }
-                      className="px-2.5 py-1 text-xs bg-slate-100 hover:bg-slate-200 rounded-md flex items-center space-x-1"
-                    >
-                      <Copy className="w-3.5 h-3.5" />
-                      <span>Copy Draft</span>
-                    </button>
+              {/* Mandatory Statutory Caveats List (PRD Section 12) */}
+              <div className="bg-amber-50/70 border border-amber-200/80 rounded-xl p-5 shadow-xs">
+                <div className="flex items-start space-x-3">
+                  <AlertTriangle className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
+                  <div className="space-y-2 flex-1">
+                    <h4 className="text-xs font-bold text-amber-950 uppercase tracking-wider">
+                      Important Legal Caveats &amp; Filing Instructions
+                    </h4>
+                    <p className="text-xs text-amber-900 leading-relaxed">
+                      Before submitting these drafts to any official authority, replace all bracketed placeholders (such as <code className="font-mono bg-amber-100 px-1 py-0.5 rounded text-[11px]">[Your Name]</code>, <code className="font-mono bg-amber-100 px-1 py-0.5 rounded text-[11px]">[Date]</code>, and <code className="font-mono bg-amber-100 px-1 py-0.5 rounded text-[11px]">[Transaction Reference / Link]</code>) with accurate personal details.
+                    </p>
+                    <ul className="space-y-1.5 pt-1">
+                      {(capture.aiAnalysis?.caveats || [
+                        "AI-generated drafting assistance, not certified legal advice.",
+                        "All statements must be independently verified by the complainant before submission to any court or authority.",
+                      ]).map((caveat: string, idx: number) => (
+                        <li key={idx} className="text-xs text-amber-900 flex items-start space-x-2">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-600 mt-1.5 shrink-0" />
+                          <span>{caveat}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                  <textarea
-                    readOnly
-                    rows={12}
-                    value={capture.aiAnalysis?.complaint_draft_hi || ""}
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-hindi text-slate-800 focus:outline-none"
-                  />
                 </div>
               </div>
 
@@ -1575,7 +1654,6 @@ export default function CaptureDetailPage() {
                   })}
                 </div>
               </div>
-            </div>
             </div>
           )}
 
