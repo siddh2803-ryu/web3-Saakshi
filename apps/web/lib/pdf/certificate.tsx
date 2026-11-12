@@ -107,13 +107,13 @@ const styles = StyleSheet.create({
     fontFamily: "Helvetica-Bold",
     fontSize: 8,
   },
-  col1: { width: "20%" },
-  col2: { width: "20%" },
-  col3: { width: "12%" },
-  col4: { width: "48%" },
+  col1: { width: "18%" },
+  col2: { width: "18%" },
+  col3: { width: "10%" },
+  col4: { width: "54%" },
   hashText: {
     fontFamily: "Courier",
-    fontSize: 6.5,
+    fontSize: 6,
     color: "#334155",
   },
   annexBox: {
