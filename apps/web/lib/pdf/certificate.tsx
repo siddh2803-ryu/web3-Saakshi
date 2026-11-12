@@ -15,6 +15,7 @@ import {
   STATUTORY_HEADER,
   MANDATORY_PAGE_DISCLAIMER,
   STATUTORY_SCHEDULE_ADVISORY,
+  LAWFUL_CONTROL_STATEMENT,
 } from "./certificate-text";
 
 const styles = StyleSheet.create({
@@ -201,9 +202,12 @@ export const CertificateDocument: React.FC<CertificateProps> = ({
 
         {/* 1. Declarant */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>1. Particulars of Declarant</Text>
+          <Text style={styles.sectionTitle}>1. Particulars of Declarant (Party Producing Electronic Record)</Text>
+          <Text style={{ fontSize: 7, color: "#475569", marginBottom: 4, fontStyle: "italic" }}>
+            To be completed and signed by the party producing the electronic record:
+          </Text>
           <View style={styles.fieldRow}>
-            <Text style={styles.fieldLabel}>Full Name:</Text>
+            <Text style={styles.fieldLabel}>Full Name of Declarant:</Text>
             <View style={styles.blankLine} />
           </View>
           <View style={styles.fieldRow}>
@@ -211,11 +215,11 @@ export const CertificateDocument: React.FC<CertificateProps> = ({
             <View style={styles.blankLine} />
           </View>
           <View style={styles.fieldRow}>
-            <Text style={styles.fieldLabel}>Residential Address:</Text>
+            <Text style={styles.fieldLabel}>Residential / Official Address:</Text>
             <View style={styles.blankLine} />
           </View>
           <View style={styles.fieldRow}>
-            <Text style={styles.fieldLabel}>Mobile / Email:</Text>
+            <Text style={styles.fieldLabel}>Contact (Mobile / Email):</Text>
             <View style={styles.blankLine} />
           </View>
         </View>
@@ -265,8 +269,8 @@ export const CertificateDocument: React.FC<CertificateProps> = ({
         {/* 4. Lawful Control Statement */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>4. Lawful Custody & Operation Statement</Text>
-          <Text style={{ fontSize: 8, fontStyle: "italic", color: "#334155" }}>
-            [I state that the electronic records detailed herein were obtained by accessing the public World Wide Web in the ordinary course of gathering information. The device and cloud automated browser used were operating properly at the material time without unauthorized interference.]
+          <Text style={{ fontSize: 7.5, fontStyle: "italic", color: "#334155", lineHeight: 1.35 }}>
+            {LAWFUL_CONTROL_STATEMENT}
           </Text>
         </View>
 
