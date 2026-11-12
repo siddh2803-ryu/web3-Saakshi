@@ -258,11 +258,11 @@ export const CertificateDocument: React.FC<CertificateProps> = ({
 
         {/* 2. Source of the Records */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>2. Source and Capture Environment</Text>
+          <Text style={styles.sectionTitle}>2. Source and Capture Environment Identifiers</Text>
           <View style={styles.fieldRow}>
             <Text style={styles.fieldLabel}>Generating System:</Text>
             <Text style={styles.fieldValue}>
-              Cloud-hosted browser session operated by TinyFish on behalf of Saakshi
+              Cloud-hosted automated browser session operated by TinyFish on behalf of Saakshi
             </Text>
           </View>
           <View style={styles.fieldRow}>
@@ -276,11 +276,17 @@ export const CertificateDocument: React.FC<CertificateProps> = ({
             </Text>
           </View>
           <View style={styles.fieldRow}>
-            <Text style={styles.fieldLabel}>Target URL:</Text>
+            <Text style={styles.fieldLabel}>TinyFish Browser Session ID:</Text>
+            <Text style={[styles.fieldValue, { fontFamily: "Courier" }]}>
+              {manifest.tools.tinyfish.browserSessionId || "N/A (Agent run)"}
+            </Text>
+          </View>
+          <View style={styles.fieldRow}>
+            <Text style={styles.fieldLabel}>Target URL Requested:</Text>
             <Text style={styles.fieldValue}>{manifest.target.url}</Text>
           </View>
           <View style={styles.fieldRow}>
-            <Text style={styles.fieldLabel}>Final Resolved URL:</Text>
+            <Text style={styles.fieldLabel}>Final Resolved Target URL:</Text>
             <Text style={styles.fieldValue}>{manifest.target.finalUrl}</Text>
           </View>
         </View>
@@ -289,7 +295,7 @@ export const CertificateDocument: React.FC<CertificateProps> = ({
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>3. Timestamp of Electronic Record</Text>
           <View style={styles.fieldRow}>
-            <Text style={styles.fieldLabel}>Server Capture Time (IST):</Text>
+            <Text style={styles.fieldLabel}>Preservation Time (IST):</Text>
             <Text style={styles.fieldValue}>{formatIST(manifest.time.serverFinishedAt)}</Text>
           </View>
           <View style={styles.fieldRow}>
