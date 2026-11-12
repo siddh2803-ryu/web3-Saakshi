@@ -115,29 +115,38 @@ export async function GET(
     }
 
     // Build Streaming ZIP (FR-10.1)
+    const isMockTx = Boolean(
+      capture.anchoring?.txHash &&
+        (capture.anchoring.txHash.startsWith("0xmock") ||
+          capture.anchoring.txHash.toLowerCase().includes("mock"))
+    );
+    const hasRealAnchoring = Boolean(
+      capture.anchoring?.txHash && !isMockTx && capture.anchoring?.root
+    );
+
     const zipStream = buildEvidenceBundleStream({
       manifest: capture.manifest,
       artifacts: decryptedEntries,
-      proofJson: capture.anchoring?.txHash
+      proofJson: hasRealAnchoring
         ? {
             chainId:
-              capture.anchoring.chainId ||
+              capture.anchoring!.chainId ||
               Number(process.env.NEXT_PUBLIC_CHAIN_ID || process.env.CHAIN_ID || 80002),
             network:
-              capture.anchoring.network ||
+              capture.anchoring!.network ||
               (Number(process.env.NEXT_PUBLIC_CHAIN_ID || process.env.CHAIN_ID) === 31337
                 ? "local"
                 : "polygon-amoy"),
-            contract: capture.anchoring.contract || "",
-            txHash: capture.anchoring.txHash || "",
-            blockNumber: capture.anchoring.blockNumber || 0,
-            anchoredAt: capture.anchoring.anchoredAt || new Date().toISOString(),
-            root: capture.anchoring.root || "",
+            contract: capture.anchoring!.contract || "",
+            txHash: capture.anchoring!.txHash || "",
+            blockNumber: capture.anchoring!.blockNumber || 0,
+            anchoredAt: capture.anchoring!.anchoredAt || new Date().toISOString(),
+            root: capture.anchoring!.root || "",
             manifestSha256: capture.manifestSha256,
-            proof: capture.anchoring.proof || [],
+            proof: capture.anchoring!.proof || [],
             treeFormat: "openzeppelin-standard-v1",
             leafEncoding: ["bytes32"],
-            batchCid: capture.anchoring.batchCid || "",
+            batchCid: capture.anchoring!.batchCid || "",
           }
         : null,
       aiAnalysisJson: capture.aiAnalysis || null,
