@@ -16,6 +16,7 @@ import {
   MANDATORY_PAGE_DISCLAIMER,
   STATUTORY_SCHEDULE_ADVISORY,
   LAWFUL_CONTROL_STATEMENT,
+  HASH_ALGORITHM_ASCII_LINE,
 } from "./certificate-text";
 
 const styles = StyleSheet.create({
@@ -316,8 +317,10 @@ export const CertificateDocument: React.FC<CertificateProps> = ({
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>5. Cryptographic Hash Disclosures (BSA 2023 s.63(4))</Text>
           <View style={styles.fieldRow}>
-            <Text style={styles.fieldLabel}>Hash Algorithm:</Text>
-            <Text style={styles.fieldValue}>[X] SHA-256    [ ] SHA-1    [ ] MD5    [ ] Other</Text>
+            <Text style={styles.fieldLabel}>Hash Algorithm Disclosed:</Text>
+            <Text style={[styles.fieldValue, { fontFamily: "Courier", fontSize: 8 }]}>
+              {HASH_ALGORITHM_ASCII_LINE}
+            </Text>
           </View>
           <View style={styles.fieldRow}>
             <Text style={styles.fieldLabel}>Canonical Manifest SHA-256:</Text>
