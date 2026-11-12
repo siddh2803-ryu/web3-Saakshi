@@ -349,42 +349,94 @@ export const CertificateDocument: React.FC<CertificateProps> = ({
         {/* 6. Blockchain Anchoring Annex */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Annex: On-Chain Merkle Timestamping</Text>
-          <View style={[styles.annexBox, { flexDirection: "row", justifyContent: "space-between" }]}>
-            <View style={{ width: qrDataUrl ? "78%" : "100%" }}>
-              <View style={styles.fieldRow}>
-                <Text style={styles.fieldLabel}>Blockchain Network:</Text>
-                <Text style={styles.fieldValue}>
-                  {Number(anchoring?.chainId || process.env.NEXT_PUBLIC_CHAIN_ID || 80002) === 31337
-                    ? "Local Hardhat (Chain ID: 31337)"
-                    : `Polygon Amoy Testnet (Chain ID: ${anchoring?.chainId || process.env.NEXT_PUBLIC_CHAIN_ID || 80002})`}
-                </Text>
+          {(() => {
+            const isMockTx = Boolean(
+              anchoring?.txHash &&
+                (anchoring.txHash.startsWith("0xmock") ||
+                  anchoring.txHash.toLowerCase().includes("mock"))
+            );
+            const activeAnchoring =
+              anchoring && anchoring.txHash && !isMockTx && anchoring.root
+                ? anchoring
+                : null;
+
+            if (!activeAnchoring) {
+              return (
+                <View style={styles.annexBox}>
+                  <Text style={{ fontSize: 8.5, color: "#64748B", fontFamily: "Helvetica-Bold" }}>
+                    Not yet anchored
+                  </Text>
+                  <Text style={{ fontSize: 7, color: "#94A3B8", marginTop: 2 }}>
+                    This capture has not been anchored to an immutable blockchain ledger. Once anchored, the Merkle root and transaction proof will be recorded permanently.
+                  </Text>
+                </View>
+              );
+            }
+
+            const isLocalChain =
+              Number(activeAnchoring.chainId || process.env.NEXT_PUBLIC_CHAIN_ID || 80002) === 31337;
+            const networkName = isLocalChain
+              ? "local test chain (Hardhat Chain ID: 31337)"
+              : `Polygon Amoy Testnet (Chain ID: ${activeAnchoring.chainId || 80002})`;
+
+            return (
+              <View style={styles.annexBox}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                  <View style={{ width: qrDataUrl ? "78%" : "100%" }}>
+                    <View style={styles.fieldRow}>
+                      <Text style={styles.fieldLabel}>Blockchain Network:</Text>
+                      <Text style={styles.fieldValue}>{networkName}</Text>
+                    </View>
+                    <View style={styles.fieldRow}>
+                      <Text style={styles.fieldLabel}>Merkle Root:</Text>
+                      <Text style={[styles.fieldValue, styles.hashText]}>{activeAnchoring.root}</Text>
+                    </View>
+                    <View style={styles.fieldRow}>
+                      <Text style={styles.fieldLabel}>Transaction Hash:</Text>
+                      <Text style={[styles.fieldValue, styles.hashText]}>{activeAnchoring.txHash}</Text>
+                    </View>
+                    <View style={styles.fieldRow}>
+                      <Text style={styles.fieldLabel}>Block Number:</Text>
+                      <Text style={styles.fieldValue}>{activeAnchoring.blockNumber ?? "N/A"}</Text>
+                    </View>
+                    <View style={styles.fieldRow}>
+                      <Text style={styles.fieldLabel}>Block Time:</Text>
+                      <Text style={styles.fieldValue}>
+                        {activeAnchoring.anchoredAt ? formatIST(activeAnchoring.anchoredAt) : "N/A"}
+                      </Text>
+                    </View>
+                    <View style={styles.fieldRow}>
+                      <Text style={styles.fieldLabel}>Contract Address:</Text>
+                      <Text style={[styles.fieldValue, styles.hashText]}>
+                        {activeAnchoring.contract || "N/A"}
+                      </Text>
+                    </View>
+                  </View>
+                  {qrDataUrl && (
+                    <View style={{ width: "20%", alignItems: "center" }}>
+                      <Image src={qrDataUrl} style={styles.qrCode} />
+                      <Text style={{ fontSize: 6, color: "#64748B", marginTop: 2 }}>Scan to Verify</Text>
+                    </View>
+                  )}
+                </View>
+                {/* 3 lines on how to verify independently */}
+                <View style={{ marginTop: 6, borderTopWidth: 1, borderTopColor: "#E2E8F0", paddingTop: 4 }}>
+                  <Text style={{ fontSize: 7.5, fontFamily: "Helvetica-Bold", color: "#1E1B4B", marginBottom: 2 }}>
+                    How to Verify Independently:
+                  </Text>
+                  <Text style={{ fontSize: 6.5, color: "#475569" }}>
+                    1. Open /verify in any modern browser to compute SHA-256 locally via WebCrypto without uploading files.
+                  </Text>
+                  <Text style={{ fontSize: 6.5, color: "#475569" }}>
+                    2. Query the EvidenceRegistry contract directly via eth_call verify(manifestHash, proof, root).
+                  </Text>
+                  <Text style={{ fontSize: 6.5, color: "#475569" }}>
+                    3. Confirm the on-chain Merkle root matches the immutable block timestamp.
+                  </Text>
+                </View>
               </View>
-              <View style={styles.fieldRow}>
-                <Text style={styles.fieldLabel}>Contract Address:</Text>
-                <Text style={[styles.fieldValue, styles.hashText]}>
-                  {anchoring?.contract || "Pending batch anchoring"}
-                </Text>
-              </View>
-              <View style={styles.fieldRow}>
-                <Text style={styles.fieldLabel}>Transaction Hash:</Text>
-                <Text style={[styles.fieldValue, styles.hashText]}>
-                  {anchoring?.txHash || "Pending batch anchoring"}
-                </Text>
-              </View>
-              <View style={styles.fieldRow}>
-                <Text style={styles.fieldLabel}>Merkle Root:</Text>
-                <Text style={[styles.fieldValue, styles.hashText]}>
-                  {anchoring?.root || "Pending batch anchoring"}
-                </Text>
-              </View>
-            </View>
-            {qrDataUrl && (
-              <View style={{ width: "20%", alignItems: "center" }}>
-                <Image src={qrDataUrl} style={styles.qrCode} />
-                <Text style={{ fontSize: 6, color: "#64748B", marginTop: 2 }}>Scan to Verify</Text>
-              </View>
-            )}
-          </View>
+            );
+          })()}
         </View>
 
         {/* Signatures */}
