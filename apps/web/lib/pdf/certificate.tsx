@@ -106,13 +106,13 @@ const styles = StyleSheet.create({
     fontFamily: "Helvetica-Bold",
     fontSize: 8,
   },
-  col1: { width: "15%" },
-  col2: { width: "25%" },
+  col1: { width: "20%" },
+  col2: { width: "20%" },
   col3: { width: "12%" },
   col4: { width: "48%" },
   hashText: {
     fontFamily: "Courier",
-    fontSize: 7,
+    fontSize: 6.5,
     color: "#334155",
   },
   annexBox: {
@@ -178,6 +178,38 @@ interface CertificateProps {
   manifestSha256: string;
   anchoring?: CertificateAnchoringDetails | null;
   qrDataUrl?: string | null;
+}
+
+export function getArtifactFileName(art: {
+  id: string;
+  kind: string;
+  mime?: string;
+  stepIndex?: number;
+}): string {
+  switch (art.kind) {
+    case "fullpage_screenshot":
+      return "fullpage_screenshot.png";
+    case "page_pdf":
+      return "page.pdf";
+    case "dom_html":
+      return "dom.html";
+    case "network_log":
+      return "network_log.json";
+    case "tls_info":
+      return "tls_info.json";
+    case "fetch_markdown":
+      return "fetch_content.md";
+    case "fetch_meta":
+      return "fetch_meta.json";
+    case "agent_step_screenshot":
+      return `step_${art.stepIndex ?? 1}.png`;
+    case "agent_result_json":
+      return "agent_result.json";
+    default: {
+      const ext = art.mime ? art.mime.split("/")[1] || "dat" : "dat";
+      return `${art.id}.${ext}`;
+    }
+  }
 }
 
 export const CertificateDocument: React.FC<CertificateProps> = ({
@@ -289,14 +321,14 @@ export const CertificateDocument: React.FC<CertificateProps> = ({
           {/* Artifacts Table */}
           <View style={styles.table}>
             <View style={[styles.tableRow, styles.tableHeader]}>
-              <Text style={styles.col1}>Artifact ID</Text>
+              <Text style={styles.col1}>File Name</Text>
               <Text style={styles.col2}>Kind</Text>
               <Text style={styles.col3}>Size</Text>
               <Text style={styles.col4}>SHA-256 Plaintext Hash</Text>
             </View>
-            {manifest.artifacts.slice(0, 10).map((art) => (
+            {manifest.artifacts.map((art) => (
               <View key={art.id} style={styles.tableRow}>
-                <Text style={styles.col1}>{art.id}</Text>
+                <Text style={styles.col1}>{getArtifactFileName(art)}</Text>
                 <Text style={styles.col2}>{art.kind}</Text>
                 <Text style={styles.col3}>{(art.bytes / 1024).toFixed(1)} KB</Text>
                 <Text style={[styles.col4, styles.hashText]}>{art.sha256}</Text>
