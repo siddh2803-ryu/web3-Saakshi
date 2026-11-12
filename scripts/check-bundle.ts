@@ -87,16 +87,44 @@ async function checkBundle(zipPath: string): Promise<boolean> {
     console.warn(`[WARN] VERIFY.md missing from bundle`);
   }
 
-  // 5. Check AI analysis separation (must NOT be in manifest.artifacts)
-  const aiFile = zip.file("ai_analysis.json");
-  if (aiFile) {
-    console.log(`[PASS] ai_analysis.json included as secondary artifact`);
-    const inManifest = (manifest.artifacts || []).some((a: any) => a.id === "ai_analysis" || a.kind === "ai_analysis");
-    if (inManifest) {
-      console.error(`[FAIL] ai_analysis MUST NOT appear in anchored manifest.artifacts (PRD FR-9.3)`);
-      allPassed = false;
+  // 5. Derivative files check (listed separately, excluded from anchored manifest)
+  console.log(`\nChecking derivative files (FR-9.3 / Section 13)...`);
+  const KNOWN_DERIVATIVE_FILES = [
+    { name: "certificate_part_a_draft.pdf", label: "s.63(4) Part A draft certificate" },
+    { name: "ai_analysis.json", label: "AI analysis report" },
+  ];
+
+  const foundDerivativeFiles: { name: string; label: string; bytes: number; sha256: string }[] = [];
+
+  for (const deriv of KNOWN_DERIVATIVE_FILES) {
+    const file = zip.file(deriv.name);
+    if (file) {
+      const buffer = await file.async("nodebuffer");
+      const hash = computeSha256(buffer);
+      foundDerivativeFiles.push({
+        name: deriv.name,
+        label: deriv.label,
+        bytes: buffer.length,
+        sha256: hash,
+      });
+
+      // Verify that derivative files are NEVER in manifest.artifacts
+      const inManifest = (manifest.artifacts || []).some(
+        (a: any) =>
+          a.id === deriv.name ||
+          a.kind === deriv.name ||
+          (deriv.name.startsWith("ai_analysis") && (a.id === "ai_analysis" || a.kind === "ai_analysis")) ||
+          (deriv.name.startsWith("certificate") && (a.id?.includes("certificate") || a.kind?.includes("certificate")))
+      );
+
+      if (inManifest) {
+        console.error(`[FAIL] Derivative file ${deriv.name} MUST NOT appear in anchored manifest.artifacts (PRD FR-9.3)`);
+        allPassed = false;
+      } else {
+        console.log(`[DERIVATIVE] ${deriv.name} (${deriv.label}): ${hash} (${buffer.length} bytes) - excluded from manifest`);
+      }
     } else {
-      console.log(`[PASS] ai_analysis correctly excluded from anchored manifest.artifacts`);
+      console.log(`[INFO] Derivative file ${deriv.name} not present in bundle (optional)`);
     }
   }
 
@@ -142,6 +170,14 @@ async function checkBundle(zipPath: string): Promise<boolean> {
   }
 
   console.log(`\n========================================`);
+  if (foundDerivativeFiles.length > 0) {
+    console.log(`Derivative files present (${foundDerivativeFiles.length}):`);
+    for (const d of foundDerivativeFiles) {
+      console.log(`  - ${d.name} (${d.label}, ${d.bytes} bytes, sha256: ${d.sha256.slice(0, 16)}...)`);
+    }
+    console.log(`  (Note: Derivative files are verified excluded from anchored manifest)`);
+    console.log(`----------------------------------------`);
+  }
   if (allPassed) {
     console.log(`OVERALL RESULT: PASS (All bundle files match manifest hashes)`);
     console.log(`========================================\n`);
