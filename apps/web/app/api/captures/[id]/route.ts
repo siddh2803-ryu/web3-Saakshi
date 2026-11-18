@@ -7,6 +7,7 @@ import {
   getWatchRecord,
   getWatchByCaptureId,
   saveWatchRecord,
+  assignCaptureToCase,
 } from "@/lib/firebase/admin";
 import { getAgentRun } from "@/lib/tinyfish/agent";
 import { runFinalizePipeline } from "@/lib/pipeline/finalize";
@@ -75,6 +76,34 @@ export async function GET(
         artifacts,
       },
     });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}
+
+/**
+ * PATCH /api/captures/:id - Update capture properties (such as case assignment)
+ */
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const captureId = params.id;
+    const capture = await getCaptureRecord(captureId);
+    if (!capture) {
+      return NextResponse.json({ error: "Capture not found" }, { status: 404 });
+    }
+
+    const body = await req.json().catch(() => ({}));
+    if ("caseId" in body) {
+      const targetCaseId = body.caseId === null || body.caseId === "" ? null : String(body.caseId);
+      await assignCaptureToCase(captureId, targetCaseId);
+    }
+
+    const updated = await getCaptureRecord(captureId);
+    return NextResponse.json({ success: true, capture: updated });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: msg }, { status: 500 });

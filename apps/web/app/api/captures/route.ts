@@ -4,6 +4,7 @@ import {
   saveCaptureRecord,
   listUserCaptures,
   checkUserDailyQuota,
+  assignCaptureToCase,
 } from "@/lib/firebase/admin";
 import { startAgentRun } from "@/lib/tinyfish/agent";
 import { validateCaptureUrl } from "@/lib/validation/url";
@@ -123,6 +124,13 @@ export async function POST(req: NextRequest) {
     };
 
     await saveCaptureRecord(captureId, captureRecord);
+    if (caseId) {
+      try {
+        await assignCaptureToCase(captureId, caseId);
+      } catch (assignErr) {
+        console.warn("Could not automatically assign new capture to case:", assignErr);
+      }
+    }
 
     // Start TinyFish agent run asynchronously
     try {
