@@ -66,7 +66,7 @@ You can verify the inclusion proof by calling \`verify(manifestHash, proof, root
 `;
 }
 
-function populateZip(zip: JSZip, options: BundleOptions) {
+export function populateZip(zip: JSZip, options: BundleOptions) {
   // 1. Add canonical manifest.json
   zip.file("manifest.json", JSON.stringify(options.manifest, null, 2));
 
@@ -128,4 +128,100 @@ export async function buildEvidenceBundleZip(options: BundleOptions): Promise<Bu
   });
 
   return zipBuffer;
+}
+
+// -------------------------------------------------------------
+// Case-Level ZIP Export Types & Builders (FR-12.2)
+// -------------------------------------------------------------
+
+export interface CaseManifestJson {
+  caseId: string;
+  ownerUid: string;
+  title: string;
+  notes: string;
+  createdAt: string;
+  exportedAt: string;
+  captures: Array<{
+    captureId: string;
+    manifestSha256: string;
+    status: string;
+    url: string;
+    createdAt: string;
+  }>;
+}
+
+export interface CaseExportItem {
+  captureId: string;
+  manifestSha256: string;
+  status: string;
+  url: string;
+  createdAt: string;
+  bundleOptions: BundleOptions;
+}
+
+export interface CaseExportOptions {
+  caseData: {
+    id: string;
+    ownerUid: string;
+    title: string;
+    notes: string;
+    createdAt: string;
+  };
+  captures: CaseExportItem[];
+}
+
+export function populateCaseZip(zip: JSZip, options: CaseExportOptions): CaseManifestJson {
+  const caseManifest: CaseManifestJson = {
+    caseId: options.caseData.id,
+    ownerUid: options.caseData.ownerUid,
+    title: options.caseData.title,
+    notes: options.caseData.notes,
+    createdAt: options.caseData.createdAt,
+    exportedAt: new Date().toISOString(),
+    captures: options.captures.map((c) => ({
+      captureId: c.captureId,
+      manifestSha256: c.manifestSha256,
+      status: c.status,
+      url: c.url,
+      createdAt: c.createdAt,
+    })),
+  };
+
+  // 1. Add root case-manifest.json
+  zip.file("case-manifest.json", JSON.stringify(caseManifest, null, 2));
+
+  // 2. Add each capture's bundle into its own folder
+  for (const item of options.captures) {
+    const captureFolder = zip.folder(`capture_${item.captureId}`);
+    if (captureFolder) {
+      populateZip(captureFolder, item.bundleOptions);
+    }
+  }
+
+  return caseManifest;
+}
+
+export async function buildCaseExportZip(options: CaseExportOptions): Promise<Buffer> {
+  const zip = new JSZip();
+  populateCaseZip(zip, options);
+
+  return await zip.generateAsync({
+    type: "nodebuffer",
+    compression: "DEFLATE",
+    compressionOptions: { level: 6 },
+  });
+}
+
+export function buildCaseExportStream(options: CaseExportOptions): ReadableStream {
+  const zip = new JSZip();
+  populateCaseZip(zip, options);
+
+  const nodeStream = zip.generateNodeStream({
+    type: "nodebuffer",
+    streamFiles: true,
+    compression: "DEFLATE",
+    compressionOptions: { level: 6 },
+  });
+
+  return Readable.toWeb(nodeStream as unknown as Readable) as unknown as ReadableStream;
 }
