@@ -26,6 +26,7 @@ import {
   ArrowRight,
   Trash2,
   Cpu,
+  Folder,
 } from "lucide-react";
 import { formatIST, truncateHash } from "@/lib/utils";
 import { OFFICIAL_REPORTING_CHANNELS } from "@/lib/ai/channels";
@@ -442,6 +443,15 @@ export default function CaptureDetailPage() {
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-600" />
                   <span>Demo data: not on IPFS</span>
                 </span>
+              )}
+              {capture.caseId && (
+                <Link
+                  href={`/case/${capture.caseId}`}
+                  className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 flex items-center space-x-1"
+                >
+                  <Folder className="w-3 h-3 text-indigo-600" />
+                  <span>Case View</span>
+                </Link>
               )}
             </div>
 
