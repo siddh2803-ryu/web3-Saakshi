@@ -28,6 +28,7 @@ import {
   Cpu,
   Folder,
   Plus,
+  X,
 } from "lucide-react";
 import { formatIST, truncateHash } from "@/lib/utils";
 import { OFFICIAL_REPORTING_CHANNELS } from "@/lib/ai/channels";
@@ -50,6 +51,14 @@ export default function CaptureDetailPage() {
   const [repostLoading, setRepostLoading] = useState(false);
   const [repostSearched, setRepostSearched] = useState(false);
   const [repostError, setRepostError] = useState<string | null>(null);
+
+  // Capture This Too Modal State (FR-11.3)
+  const [captureTooModalOpen, setCaptureTooModalOpen] = useState(false);
+  const [captureTooUrl, setCaptureTooUrl] = useState("");
+  const [captureTooConsent, setCaptureTooConsent] = useState(false);
+  const [captureTooLoading, setCaptureTooLoading] = useState(false);
+  const [captureTooError, setCaptureTooError] = useState<string | null>(null);
+  const [captureTooQuota, setCaptureTooQuota] = useState<{ remaining: number; total: number } | null>(null);
 
   const [copiedHash, setCopiedHash] = useState<string | null>(null);
   const [copiedText, setCopiedText] = useState<string | null>(null);
@@ -136,14 +145,91 @@ export default function CaptureDetailPage() {
     }
   };
 
-  const handleInitiateCaptureToo = (targetUrl: string) => {
-    // Navigates or opens capture flow with target URL and same caseId
-    const currentCaseId = capture?.caseId || "";
-    const query = new URLSearchParams({
-      url: targetUrl,
-      ...(currentCaseId ? { caseId: currentCaseId } : {}),
-    });
-    window.location.href = `/capture/new?${query.toString()}`;
+  const handleOpenCaptureToo = async (url: string) => {
+    setCaptureTooUrl(url);
+    setCaptureTooConsent(false);
+    setCaptureTooError(null);
+    setCaptureTooModalOpen(true);
+
+    try {
+      const qRes = await fetch("/api/captures");
+      if (qRes.ok) {
+        const qData = await qRes.json();
+        if (qData.quota) {
+          setCaptureTooQuota(qData.quota);
+        }
+      }
+    } catch {}
+  };
+
+  const handleConfirmCaptureToo = async () => {
+    if (!captureTooConsent) {
+      setCaptureTooError("Statutory preservation consent must be acknowledged.");
+      return;
+    }
+    if (captureTooQuota && captureTooQuota.remaining <= 0) {
+      setCaptureTooError("Daily capture quota reached (0 remaining). Cannot initiate capture.");
+      return;
+    }
+
+    setCaptureTooLoading(true);
+    setCaptureTooError(null);
+
+    try {
+      let targetCaseId = capture?.caseId;
+
+      // If current capture has no caseId, create a case first so both captures share the same case
+      if (!targetCaseId) {
+        const titleSnippet = capture?.manifest?.observed?.title || capture?.url || "Repost Matter";
+        const caseTitle = `Matter: ${titleSnippet}`.slice(0, 60);
+        const caseRes = await fetch("/api/cases", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: caseTitle,
+            notes: `Auto-linked case for capture ${captureId} and discovered reposts.`,
+          }),
+        });
+        if (caseRes.ok) {
+          const caseData = await caseRes.json();
+          targetCaseId = caseData.case.id;
+          // Assign current capture to this new case
+          await fetch(`/api/cases/${targetCaseId}/captures`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ captureId }),
+          });
+          setCapture((prev: any) => ({ ...prev, caseId: targetCaseId }));
+        }
+      }
+
+      const res = await fetch("/api/captures", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: captureTooUrl,
+          goal: `Preserve discovered repost/mirror matching "${repostPhrases[0] || "original content"}"`,
+          mode: "fast",
+          consent: true,
+          aiOptIn: capture?.aiOptIn ?? false,
+          caseId: targetCaseId || undefined,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setCaptureTooError(data.error || "Failed to start capture");
+        return;
+      }
+
+      setCaptureTooModalOpen(false);
+      window.location.href = `/capture/${data.captureId}`;
+    } catch (err) {
+      console.error(err);
+      setCaptureTooError("Network error starting capture");
+    } finally {
+      setCaptureTooLoading(false);
+    }
   };
 
   const fetchCapture = useCallback(async () => {
@@ -2123,7 +2209,7 @@ export default function CaptureDetailPage() {
 
                         <div className="shrink-0">
                           <button
-                            onClick={() => handleInitiateCaptureToo(item.url)}
+                            onClick={() => handleOpenCaptureToo(item.url)}
                             className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold shadow-xs flex items-center space-x-1.5 transition-colors"
                           >
                             <Plus className="w-3.5 h-3.5" />
@@ -2137,6 +2223,105 @@ export default function CaptureDetailPage() {
               ) : null}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Capture This Too Consent & Quota Modal (FR-11.3) */}
+      {captureTooModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-xl max-w-lg w-full p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <ShieldCheck className="w-5 h-5 text-indigo-600" />
+                <h3 className="text-sm font-bold text-slate-900">Capture Discovered Repost</h3>
+              </div>
+              <button
+                onClick={() => setCaptureTooModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
+              <div className="text-[11px] font-bold text-slate-500 uppercase">Target URL</div>
+              <p className="text-xs font-mono text-slate-800 break-all">{captureTooUrl}</p>
+            </div>
+
+            <div className="p-3 bg-indigo-50/60 border border-indigo-200 rounded-lg space-y-1">
+              <div className="text-[11px] font-bold text-indigo-900 uppercase">Case Matter Grouping</div>
+              <p className="text-xs text-indigo-800">
+                {capture?.caseId
+                  ? `This record will be added to the current case (${capture.caseId}).`
+                  : "A linked case matter will be established to group both original evidence and this copy."}
+              </p>
+            </div>
+
+            {/* Daily Quota Indicator */}
+            <div className="flex items-center justify-between text-xs px-1">
+              <span className="text-slate-600 font-semibold">Daily Quota Status:</span>
+              <span
+                className={`font-mono font-bold ${
+                  captureTooQuota && captureTooQuota.remaining <= 0
+                    ? "text-rose-600"
+                    : "text-emerald-700"
+                }`}
+              >
+                {captureTooQuota
+                  ? `${captureTooQuota.remaining} of ${captureTooQuota.total} captures remaining today`
+                  : "Checking daily quota..."}
+              </span>
+            </div>
+
+            {/* Statutory Consent Confirmation */}
+            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
+              <label className="flex items-start space-x-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={captureTooConsent}
+                  onChange={(e) => setCaptureTooConsent(e.target.checked)}
+                  className="mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 shrink-0"
+                />
+                <span className="text-xs text-slate-700 leading-snug">
+                  I certify that I am preserving this digital copy for legal proceedings or
+                  compliance under{" "}
+                  <strong>Section 63(4) of the Bharatiya Sakshya Adhiniyam, 2023 (BSA)</strong>.
+                  I consent to evidence fingerprinting and Merkle anchoring.
+                </span>
+              </label>
+            </div>
+
+            {captureTooError && (
+              <p className="text-xs text-rose-600 bg-rose-50 p-2.5 rounded-lg border border-rose-200">
+                {captureTooError}
+              </p>
+            )}
+
+            <div className="flex justify-end space-x-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setCaptureTooModalOpen(false)}
+                className="px-3.5 py-2 border border-slate-300 text-slate-700 text-xs font-semibold rounded-lg hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmCaptureToo}
+                disabled={
+                  captureTooLoading ||
+                  !captureTooConsent ||
+                  (captureTooQuota !== null && captureTooQuota.remaining <= 0)
+                }
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg shadow-sm disabled:opacity-50 flex items-center space-x-1.5"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>
+                  {captureTooLoading ? "Starting Capture..." : "Confirm & Start Capture"}
+                </span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
