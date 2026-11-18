@@ -40,6 +40,9 @@ function loadDevStoreFromDisk() {
       if (data.watchEvents) {
         for (const [k, v] of Object.entries(data.watchEvents)) inMemoryStore.watchEvents.set(k, v as any[]);
       }
+      if (data.cases) {
+        for (const [k, v] of Object.entries(data.cases)) inMemoryStore.cases.set(k, v);
+      }
     }
   } catch {}
 }
@@ -52,6 +55,7 @@ function persistDevStoreToDisk() {
       artifacts: Object.fromEntries(inMemoryStore.artifacts.entries()),
       watches: Object.fromEntries(inMemoryStore.watches.entries()),
       watchEvents: Object.fromEntries(inMemoryStore.watchEvents.entries()),
+      cases: Object.fromEntries(inMemoryStore.cases.entries()),
     };
     nodeFs.writeFileSync(DEV_STORE_PATH, JSON.stringify(data), "utf8");
   } catch {}
@@ -392,4 +396,139 @@ export async function releaseFinalizeLock(captureId: string): Promise<void> {
     return;
   }
   inMemoryStore.locks.delete(captureId);
+}
+
+// -------------------------------------------------------------
+// Cases Data Model & Operations (FR-12.1, FR-12.2)
+// -------------------------------------------------------------
+
+export interface CaseRecord {
+  id: string;
+  ownerUid: string;
+  title: string;
+  notes: string;
+  captureIds: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function getCaseRecord(caseId: string): Promise<CaseRecord | null> {
+  const fs = getAdminFirestore();
+  if (fs) {
+    const doc = await fs.collection("cases").doc(caseId).get();
+    return doc.exists ? (doc.data() as CaseRecord) : null;
+  }
+  if (!inMemoryStore.cases.has(caseId)) {
+    loadDevStoreFromDisk();
+  }
+  return inMemoryStore.cases.get(caseId) || null;
+}
+
+export async function saveCaseRecord(caseId: string, data: Partial<CaseRecord>): Promise<CaseRecord> {
+  const now = new Date().toISOString();
+  const fs = getAdminFirestore();
+  if (fs) {
+    const docRef = fs.collection("cases").doc(caseId);
+    const existingSnap = await docRef.get();
+    const existing = existingSnap.exists ? existingSnap.data() : {};
+    const updated: CaseRecord = {
+      id: caseId,
+      ownerUid: data.ownerUid || existing?.ownerUid || "demo-user",
+      title: data.title !== undefined ? data.title : existing?.title || "Untitled Case",
+      notes: data.notes !== undefined ? data.notes : existing?.notes || "",
+      captureIds: Array.isArray(data.captureIds) ? data.captureIds : existing?.captureIds || [],
+      createdAt: existing?.createdAt || data.createdAt || now,
+      updatedAt: now,
+    };
+    await docRef.set(updated, { merge: true });
+    return updated;
+  }
+
+  loadDevStoreFromDisk();
+  const existing = inMemoryStore.cases.get(caseId) || {};
+  const updated: CaseRecord = {
+    id: caseId,
+    ownerUid: data.ownerUid || existing.ownerUid || "demo-user",
+    title: data.title !== undefined ? data.title : existing.title || "Untitled Case",
+    notes: data.notes !== undefined ? data.notes : existing.notes || "",
+    captureIds: Array.isArray(data.captureIds) ? data.captureIds : existing.captureIds || [],
+    createdAt: existing.createdAt || data.createdAt || now,
+    updatedAt: now,
+  };
+  inMemoryStore.cases.set(caseId, updated);
+  persistDevStoreToDisk();
+  return updated;
+}
+
+export async function deleteCaseRecord(caseId: string): Promise<boolean> {
+  const c = await getCaseRecord(caseId);
+  if (!c) return false;
+
+  // Unassign all captures in this case (captures are kept, become unassigned)
+  const capIds = [...(c.captureIds || [])];
+  for (const cid of capIds) {
+    const cap = await getCaptureRecord(cid);
+    if (cap && cap.caseId === caseId) {
+      await saveCaptureRecord(cid, { caseId: null });
+    }
+  }
+
+  const fs = getAdminFirestore();
+  if (fs) {
+    await fs.collection("cases").doc(caseId).delete();
+    return true;
+  }
+
+  loadDevStoreFromDisk();
+  const deleted = inMemoryStore.cases.delete(caseId);
+  persistDevStoreToDisk();
+  return deleted;
+}
+
+export async function listUserCases(uid: string): Promise<CaseRecord[]> {
+  const fs = getAdminFirestore();
+  if (fs) {
+    const snap = await fs
+      .collection("cases")
+      .where("ownerUid", "==", uid)
+      .orderBy("createdAt", "desc")
+      .get();
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() } as CaseRecord));
+  }
+  loadDevStoreFromDisk();
+  const list: CaseRecord[] = [];
+  for (const c of inMemoryStore.cases.values()) {
+    if (c.ownerUid === uid) {
+      list.push(c);
+    }
+  }
+  return list.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+}
+
+export async function assignCaptureToCase(captureId: string, targetCaseId: string | null): Promise<void> {
+  const cap = await getCaptureRecord(captureId);
+  if (!cap) throw new Error(`Capture ${captureId} not found`);
+
+  const prevCaseId = cap.caseId;
+
+  // If removing from previous case
+  if (prevCaseId && prevCaseId !== targetCaseId) {
+    const prevCase = await getCaseRecord(prevCaseId);
+    if (prevCase) {
+      const filtered = (prevCase.captureIds || []).filter((id) => id !== captureId);
+      await saveCaseRecord(prevCaseId, { captureIds: filtered });
+    }
+  }
+
+  // If adding to target case
+  if (targetCaseId) {
+    const targetCase = await getCaseRecord(targetCaseId);
+    if (!targetCase) throw new Error(`Target case ${targetCaseId} not found`);
+    const existingIds = new Set(targetCase.captureIds || []);
+    existingIds.add(captureId);
+    await saveCaseRecord(targetCaseId, { captureIds: Array.from(existingIds) });
+  }
+
+  // Update capture
+  await saveCaptureRecord(captureId, { caseId: targetCaseId });
 }

@@ -1,0 +1,70 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+
+    // FR-12.1, FR-12.2: Cases Collection (Strict Owner-Only Access)
+    // cases/{caseId} with ownerUid, title, notes, captureIds, createdAt, updatedAt
+    match /cases/{caseId} {
+      allow read: if isOwner(resource.data.ownerUid);
+      allow create: if isOwner(request.resource.data.ownerUid);
+      allow update, delete: if isOwner(resource.data.ownerUid);
+    }
+
+    // Captures Collection (Owner-Only Access)
+    match /captures/{captureId} {
+      allow read: if isOwner(resource.data.ownerUid);
+      allow create: if isOwner(request.resource.data.ownerUid);
+      allow update, delete: if isOwner(resource.data.ownerUid);
+
+      match /artifacts/{artifactId} {
+        allow read: if isAuthenticated();
+        allow write: if false; // Server SDK only
+      }
+    }
+
+    // Public Proofs: Public Read, Server-Only Write (FR-7.2)
+    match /publicProofs/{sha256} {
+      allow read: if true;
+      allow write: if false; // Server SDK only
+    }
+
+    // Watches Collection (Owner-Only Access)
+    match /watches/{watchId} {
+      allow read: if isOwner(resource.data.ownerUid);
+      allow create: if isOwner(request.resource.data.ownerUid);
+      allow update, delete: if isOwner(resource.data.ownerUid);
+
+      match /events/{eventId} {
+        allow read: if isAuthenticated();
+        allow write: if false; // Server SDK only
+      }
+    }
+
+    // Custody Events: Read if Authenticated, Server-Only Write (FR-13.1)
+    match /custody/{eventId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Server SDK only
+    }
+
+    // Share Links: Public Read if Active, Owner-Only Manage (FR-14.1)
+    match /shares/{shareId} {
+      allow read: if true;
+      allow create: if isOwner(request.resource.data.ownerUid);
+      allow update, delete: if isOwner(resource.data.ownerUid);
+    }
+
+    // Users Collection
+    match /users/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+  }
+}
