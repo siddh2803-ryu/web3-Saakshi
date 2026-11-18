@@ -113,3 +113,41 @@ export function validateCaptureUrl(
 
   return { valid: true, normalizedUrl: parsed.toString() };
 }
+
+/**
+ * Normalizes a URL for deduplication and original exclusion (PRD F11, FR-11.2, FR-11.3).
+ * Strips protocol, trailing slashes, www. prefix, and common tracking query parameters.
+ */
+export function normalizeCompareUrl(rawUrl: string): string {
+  if (!rawUrl || typeof rawUrl !== "string") return "";
+  try {
+    const trimmed = rawUrl.trim();
+    const parsed = new URL(trimmed);
+    let host = parsed.hostname.toLowerCase();
+    if (host.startsWith("www.")) {
+      host = host.slice(4);
+    }
+    const pathname = parsed.pathname.replace(/\/+$/, "") || "/";
+    const trackingParams = new Set([
+      "utm_source",
+      "utm_medium",
+      "utm_campaign",
+      "utm_term",
+      "utm_content",
+      "ref",
+      "fbclid",
+      "gclid",
+      "_ga",
+    ]);
+    const cleanParams = new URLSearchParams();
+    for (const [key, value] of parsed.searchParams.entries()) {
+      if (!trackingParams.has(key.toLowerCase())) {
+        cleanParams.append(key, value);
+      }
+    }
+    const search = cleanParams.toString() ? `?${cleanParams.toString()}` : "";
+    return `${host}${pathname}${search}`.toLowerCase();
+  } catch {
+    return rawUrl.trim().toLowerCase().replace(/\/+$/, "");
+  }
+}

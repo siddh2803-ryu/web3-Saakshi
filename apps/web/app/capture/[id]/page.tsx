@@ -27,6 +27,7 @@ import {
   Trash2,
   Cpu,
   Folder,
+  Plus,
 } from "lucide-react";
 import { formatIST, truncateHash } from "@/lib/utils";
 import { OFFICIAL_REPORTING_CHANNELS } from "@/lib/ai/channels";
@@ -39,8 +40,16 @@ export default function CaptureDetailPage() {
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
   const [activeTab, setActiveTab] = useState<
-    "overview" | "artifacts" | "proof" | "watch" | "report" | "custody"
+    "overview" | "artifacts" | "proof" | "watch" | "report" | "custody" | "reposts"
   >("overview");
+
+  // Repost Finder State (FR-11.1 to 11.3)
+  const [repostPhrases, setRepostPhrases] = useState<string[]>([]);
+  const [customPhrase, setCustomPhrase] = useState("");
+  const [repostResults, setRepostResults] = useState<any[] | null>(null);
+  const [repostLoading, setRepostLoading] = useState(false);
+  const [repostSearched, setRepostSearched] = useState(false);
+  const [repostError, setRepostError] = useState<string | null>(null);
 
   const [copiedHash, setCopiedHash] = useState<string | null>(null);
   const [copiedText, setCopiedText] = useState<string | null>(null);
@@ -94,6 +103,47 @@ export default function CaptureDetailPage() {
     } finally {
       setRegeneratingAnalysis(false);
     }
+  };
+
+  const handleSearchReposts = async (phrasesToUse?: string[]) => {
+    setRepostLoading(true);
+    setRepostError(null);
+    try {
+      const phrases =
+        phrasesToUse && phrasesToUse.length > 0
+          ? phrasesToUse
+          : repostPhrases.length > 0
+          ? repostPhrases
+          : undefined;
+      const res = await fetch(`/api/captures/${captureId}/reposts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phrases }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setRepostError(data.error || "Search failed");
+        return;
+      }
+      setRepostPhrases(data.phrases || []);
+      setRepostResults(data.results || []);
+      setRepostSearched(true);
+    } catch (err) {
+      console.error("Repost search error:", err);
+      setRepostError("Failed to query repost search");
+    } finally {
+      setRepostLoading(false);
+    }
+  };
+
+  const handleInitiateCaptureToo = (targetUrl: string) => {
+    // Navigates or opens capture flow with target URL and same caseId
+    const currentCaseId = capture?.caseId || "";
+    const query = new URLSearchParams({
+      url: targetUrl,
+      ...(currentCaseId ? { caseId: currentCaseId } : {}),
+    });
+    window.location.href = `/capture/new?${query.toString()}`;
   };
 
   const fetchCapture = useCallback(async () => {
@@ -672,6 +722,7 @@ export default function CaptureDetailPage() {
               { id: "proof", label: "Blockchain Proof" },
               { id: "watch", label: "Deletion Watch" },
               { id: "report", label: "Complaint Drafts" },
+              { id: "reposts", label: "Repost Finder" },
               { id: "custody", label: "Chain of Custody" },
             ].map((tab) => (
               <button
@@ -1925,6 +1976,165 @@ export default function CaptureDetailPage() {
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* TAB 7: REPOST FINDER (FR-11.1 to 11.3) */}
+          {activeTab === "reposts" && (
+            <div className="bg-white p-6 sm:p-8 rounded-xl border border-slate-200/90 shadow-sm space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <Search className="w-5 h-5 text-indigo-600" />
+                    <h3 className="text-lg font-bold text-slate-900">Exact-Phrase Repost Finder</h3>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Detect stolen copies, unauthorized mirrors, or re-uploads across the web using TinyFish exact-phrase search.
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => handleSearchReposts()}
+                  disabled={repostLoading}
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold shadow-xs flex items-center space-x-1.5 transition-colors disabled:opacity-50 shrink-0"
+                >
+                  <Search className="w-3.5 h-3.5" />
+                  <span>{repostLoading ? "Searching Web..." : "Run Repost Finder"}</span>
+                </button>
+              </div>
+
+              {/* Phrase Picker Display */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Target Search Phrases (Exact Quotes)
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    {capture.aiOptIn && capture.aiAnalysis?.repost_phrases?.length
+                      ? "Extracted via Gemini AI Analysis"
+                      : "Selected via Deterministic Fallback"}
+                  </span>
+                </div>
+
+                {repostPhrases.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {repostPhrases.map((phrase, idx) => (
+                      <span
+                        key={idx}
+                        className="px-3 py-1 bg-white border border-indigo-200 text-indigo-900 text-xs font-mono rounded-lg shadow-2xs flex items-center space-x-1"
+                      >
+                        <span>&ldquo;{phrase}&rdquo;</span>
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500 italic">
+                    Press &quot;Run Repost Finder&quot; to auto-extract distinctive sentence fragments (12 words or fewer) and search TinyFish.
+                  </p>
+                )}
+
+                {/* Optional Custom Phrase Input */}
+                <div className="pt-2 flex items-center space-x-2">
+                  <input
+                    type="text"
+                    placeholder="Or enter a custom phrase to search..."
+                    value={customPhrase}
+                    onChange={(e) => setCustomPhrase(e.target.value)}
+                    className="flex-1 px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  />
+                  <button
+                    onClick={() => {
+                      if (customPhrase.trim()) {
+                        handleSearchReposts([customPhrase.trim()]);
+                      }
+                    }}
+                    disabled={repostLoading || !customPhrase.trim()}
+                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold rounded-lg disabled:opacity-50"
+                  >
+                    Search Custom
+                  </button>
+                </div>
+              </div>
+
+              {/* Error Message */}
+              {repostError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-lg text-xs">
+                  {repostError}
+                </div>
+              )}
+
+              {/* Results State */}
+              {repostLoading ? (
+                <div className="p-12 text-center space-y-2">
+                  <div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto" />
+                  <p className="text-xs text-slate-500 font-mono">
+                    Querying TinyFish Search API with exact-phrase quotes...
+                  </p>
+                </div>
+              ) : repostSearched && repostResults?.length === 0 ? (
+                /* Empty state: show "No copies found" clearly per Step 3 */
+                <div className="p-8 bg-emerald-50/50 border border-emerald-200 rounded-xl text-center space-y-2">
+                  <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto" />
+                  <h4 className="text-sm font-bold text-emerald-950">No copies found</h4>
+                  <p className="text-xs text-emerald-800 max-w-md mx-auto">
+                    No exact-phrase mirrors or reposts were found across the web for the checked phrases.
+                    The original content appears unique on indexed search engines.
+                  </p>
+                </div>
+              ) : repostResults && repostResults.length > 0 ? (
+                /* Results List */
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-800">
+                      Discovered Reposts ({repostResults.length})
+                    </span>
+                    <span className="text-[11px] text-slate-400">
+                      Deduplicated by normalized URL &bull; Original page excluded
+                    </span>
+                  </div>
+
+                  <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden bg-white">
+                    {repostResults.map((item, idx) => (
+                      <div
+                        key={idx}
+                        className="p-4 hover:bg-slate-50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                      >
+                        <div className="space-y-1 flex-1 min-w-0">
+                          <div className="flex items-center space-x-2">
+                            <span className="text-xs font-bold text-slate-900 truncate">
+                              {item.title || item.url}
+                            </span>
+                            <a
+                              href={item.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-slate-400 hover:text-slate-700 shrink-0"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </a>
+                          </div>
+                          <p className="text-xs font-mono text-indigo-700 truncate">{item.url}</p>
+                          {item.snippet && (
+                            <p className="text-xs text-slate-600 line-clamp-2 mt-1 bg-slate-50 p-2 rounded border border-slate-100 italic">
+                              &ldquo;{item.snippet}&rdquo;
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="shrink-0">
+                          <button
+                            onClick={() => handleInitiateCaptureToo(item.url)}
+                            className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold shadow-xs flex items-center space-x-1.5 transition-colors"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Capture this too</span>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </div>
           )}
         </div>

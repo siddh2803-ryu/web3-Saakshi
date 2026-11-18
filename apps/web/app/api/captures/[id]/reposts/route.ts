@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCaptureRecord, listArtifactRecords } from "@/lib/firebase/admin";
 import { searchReposts, SearchResultItem } from "@/lib/tinyfish/search";
 import { pickRepostPhrases } from "@/lib/tinyfish/phrase-picker";
+import { normalizeCompareUrl } from "@/lib/validation/url";
 
 export const dynamic = "force-dynamic";
 
@@ -37,18 +38,34 @@ export async function POST(
       }
     }
 
-    // Deduplicate by URL
+    // Identify original page URLs to exclude (PRD FR-11.3)
+    const originalUrls = new Set<string>();
+    if (capture.url) originalUrls.add(normalizeCompareUrl(capture.url));
+    if (capture.finalUrl) originalUrls.add(normalizeCompareUrl(capture.finalUrl));
+    if (capture.manifest?.target?.url) originalUrls.add(normalizeCompareUrl(capture.manifest.target.url));
+
+    // Deduplicate by normalized URL and exclude the original page
     const seen = new Set<string>();
-    const deduplicated = allResults.filter((r) => {
-      if (seen.has(r.url)) return false;
-      seen.add(r.url);
-      return true;
-    });
+    const deduplicated: SearchResultItem[] = [];
+
+    for (const item of allResults) {
+      if (!item.url) continue;
+      const norm = normalizeCompareUrl(item.url);
+      if (originalUrls.has(norm)) {
+        continue; // Exclude original page
+      }
+      if (seen.has(norm)) {
+        continue; // Exclude duplicates
+      }
+      seen.add(norm);
+      deduplicated.push(item);
+    }
 
     return NextResponse.json({
       success: true,
       phrases,
       results: deduplicated,
+      totalFound: deduplicated.length,
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
