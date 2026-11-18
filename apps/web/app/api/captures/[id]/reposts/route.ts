@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCaptureRecord } from "@/lib/firebase/admin";
+import { getCaptureRecord, listArtifactRecords } from "@/lib/firebase/admin";
 import { searchReposts, SearchResultItem } from "@/lib/tinyfish/search";
+import { pickRepostPhrases } from "@/lib/tinyfish/phrase-picker";
 
 export const dynamic = "force-dynamic";
 
@@ -17,14 +18,13 @@ export async function POST(
     }
 
     const body = await req.json().catch(() => ({}));
-    let phrases: string[] = body.phrases;
+    let phrases: string[] = Array.isArray(body.phrases) ? body.phrases : [];
 
     if (!phrases || phrases.length === 0) {
-      phrases = capture.aiAnalysis?.repost_phrases || [];
-    }
-
-    if (phrases.length === 0 && capture.manifest?.observed?.title) {
-      phrases = [capture.manifest.observed.title];
+      const artifacts = await listArtifactRecords(captureId);
+      const fetchArt = artifacts.find((a: any) => a.kind === "fetch_markdown");
+      const fetchText = fetchArt?.snippet || fetchArt?.text || capture.fetchText || null;
+      phrases = pickRepostPhrases(capture, fetchText);
     }
 
     const allResults: SearchResultItem[] = [];
