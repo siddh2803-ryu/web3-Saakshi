@@ -25,6 +25,24 @@ const nextConfig = {
       "firebase-admin",
     ],
   },
+  async headers() {
+    return [
+      {
+        source: "/s/:path*",
+        headers: [
+          { key: "Referrer-Policy", value: "no-referrer" },
+          { key: "X-Robots-Tag", value: "noindex, nofollow" },
+        ],
+      },
+      {
+        source: "/api/shares/:path*",
+        headers: [
+          { key: "Referrer-Policy", value: "no-referrer" },
+          { key: "X-Robots-Tag", value: "noindex, nofollow" },
+        ],
+      },
+    ];
+  },
   webpack: (config, { isServer }) => {
     if (process.env.NODE_ENV === "production" && process.env.TINYFISH_MODE === "fixture") {
       console.warn(
