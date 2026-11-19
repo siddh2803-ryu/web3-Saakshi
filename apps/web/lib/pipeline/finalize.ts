@@ -4,6 +4,7 @@ import {
   getCaptureRecord,
   saveCaptureRecord,
   saveArtifactRecord,
+  recordCustodyEvent,
 } from "@/lib/firebase/admin";
 import { getAgentRun, isRunBlockedOrPartial } from "@/lib/tinyfish/agent";
 import { captureWithBrowserApi } from "@/lib/tinyfish/browser";
@@ -503,6 +504,18 @@ export async function runFinalizePipeline(captureId: string): Promise<boolean> {
       partialReason: partialReason || null,
       updatedAt: new Date().toISOString(),
     });
+
+    // Record CREATE event in custody log (FR-13.1)
+    try {
+      await recordCustodyEvent({
+        captureId,
+        action: "CREATE",
+        actorId: capture.ownerUid || "system",
+        at: new Date().toISOString(),
+      });
+    } catch (custodyErr) {
+      console.warn("Could not record CREATE custody event:", custodyErr);
+    }
 
     return true;
   } catch (err: unknown) {

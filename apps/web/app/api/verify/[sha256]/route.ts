@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPublicProof } from "@/lib/firebase/admin";
+import { getPublicProof, recordCustodyEvent } from "@/lib/firebase/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -77,6 +77,15 @@ export async function GET(
         found: false,
         message: "Not found in Saakshi's records. This file was not captured by Saakshi, or it has been changed.",
       });
+    }
+
+    if (proof && proof.captureId) {
+      recordCustodyEvent({
+        captureId: proof.captureId,
+        action: "VERIFY",
+        actorId: "verifier",
+        details: { matchedSha256: cleanHash },
+      }).catch((e) => console.warn("Could not record VERIFY custody event:", e));
     }
 
     return NextResponse.json({

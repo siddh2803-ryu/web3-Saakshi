@@ -262,6 +262,8 @@ export default function CaptureDetailPage() {
 
   useEffect(() => {
     fetchCapture();
+    // Record VIEW custody event (throttled to at most 1/hr per actor on server)
+    fetch(`/api/captures/${captureId}/view`, { method: "POST" }).catch(() => {});
     // Poll while capture is still processing
     const interval = setInterval(() => {
       if (

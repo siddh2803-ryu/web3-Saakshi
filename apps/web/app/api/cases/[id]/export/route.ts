@@ -3,7 +3,8 @@ import {
   getCaseRecord,
   getCaptureRecord,
   listArtifactRecords,
-  logCustodyEvent,
+  recordCustodyEvent,
+  updateCustodyEventTxHash,
 } from "@/lib/firebase/admin";
 import { unwrapDek, decryptWithKey } from "@/lib/evidence/crypto";
 import {
@@ -154,34 +155,28 @@ export async function GET(
         });
 
         // -------------------------------------------------------------
-        // HOOK: Custody Logging (FR-10.3 & FR-13.1, Part 2 Extension Hook)
+        // Custody Logging (FR-10.3 & FR-13.1)
         // Every capture exported as part of a case ZIP writes an EXPORT event
         // -------------------------------------------------------------
-        const actorHash = computeSha256(caseData.ownerUid || "anonymous");
-        const custodyEvent = {
-          id: `custody_${Date.now()}_case_export_${cid}`,
+        const custodyEvent = await recordCustodyEvent({
           captureId: cid,
           action: "EXPORT",
-          actorHash,
-          at: new Date().toISOString(),
-          metadata: {
+          actorId: caseData.ownerUid || "anonymous",
+          details: {
             caseId: caseData.id,
             exportType: "case_zip_export",
           },
-        };
-        await logCustodyEvent(custodyEvent);
+        });
 
         if (capture.manifestBytes32) {
-          const actionPayload = {
-            actorHash,
-            action: "EXPORT",
-            at: custodyEvent.at,
-            captureId: cid,
-          };
-          const actionHash = `0x${computeSha256(canonicalJson(actionPayload))}` as `0x${string}`;
-          logCustodyOnChain(capture.manifestBytes32, actionHash, 1).catch((e) =>
-            console.warn("On-chain custody log error for case export:", e)
-          );
+          const actionHash = `0x${custodyEvent.eventHash}` as `0x${string}`;
+          logCustodyOnChain(capture.manifestBytes32, actionHash, 1)
+            .then(async (txHash) => {
+              if (txHash) {
+                await updateCustodyEventTxHash(cid, custodyEvent.id, txHash);
+              }
+            })
+            .catch((e) => console.warn("On-chain custody log error for case export:", e));
         }
       } catch (itemErr) {
         console.warn(`Error bundling capture ${cid} for case export:`, itemErr);

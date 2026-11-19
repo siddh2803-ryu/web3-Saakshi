@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   getCaptureRecord,
   listArtifactRecords,
-  logCustodyEvent,
+  recordCustodyEvent,
+  updateCustodyEventTxHash,
 } from "@/lib/firebase/admin";
 import { unwrapDek, decryptWithKey } from "@/lib/evidence/crypto";
 import {
@@ -154,28 +155,23 @@ export async function GET(
     });
 
     // Log EXPORT Custody Event (FR-10.3 & FR-13.1)
-    const actorHash = computeSha256(capture.ownerUid || "anonymous");
-    const custodyEvent = {
-      id: `custody_${Date.now()}_export`,
+    const custodyEvent = await recordCustodyEvent({
       captureId,
       action: "EXPORT",
-      actorHash,
-      at: new Date().toISOString(),
-    };
-    await logCustodyEvent(custodyEvent);
+      actorId: capture.ownerUid || "anonymous",
+      details: { format: "ZIP" },
+    });
 
-    // On-chain custody logging if anchored
+    // On-chain custody logging if anchored (actionCode 1: EXPORT)
     if (capture.manifestBytes32) {
-      const actionPayload = {
-        actorHash,
-        action: "EXPORT",
-        at: custodyEvent.at,
-        captureId,
-      };
-      const actionHash = `0x${computeSha256(canonicalJson(actionPayload))}` as `0x${string}`;
-      logCustodyOnChain(capture.manifestBytes32, actionHash, 1).catch((e) =>
-        console.warn("On-chain custody log error:", e)
-      );
+      const actionHash = `0x${custodyEvent.eventHash}` as `0x${string}`;
+      logCustodyOnChain(capture.manifestBytes32, actionHash, 1)
+        .then(async (txHash) => {
+          if (txHash) {
+            await updateCustodyEventTxHash(captureId, custodyEvent.id, txHash);
+          }
+        })
+        .catch((e) => console.warn("On-chain custody log error:", e));
     }
 
     return new Response(zipStream, {

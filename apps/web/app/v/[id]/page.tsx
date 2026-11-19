@@ -2,7 +2,11 @@ import React from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Metadata } from "next";
-import { getCaptureRecord, listArtifactRecords } from "@/lib/firebase/admin";
+import {
+  getCaptureRecord,
+  listArtifactRecords,
+  recordCustodyEvent,
+} from "@/lib/firebase/admin";
 import QRCode from "qrcode";
 import {
   ShieldCheck,
@@ -56,6 +60,18 @@ export default async function PublicProofPage({ params }: PageProps) {
 
   if (!capture) {
     return notFound();
+  }
+
+  // Record VERIFY custody event (count & timestamp only)
+  try {
+    await recordCustodyEvent({
+      captureId,
+      action: "VERIFY",
+      actorId: "public_verifier",
+      details: { source: "/v/[id]" },
+    });
+  } catch (custodyErr) {
+    console.warn("Could not record VERIFY custody event on /v/[id]:", custodyErr);
   }
 
   const dbArtifacts = await listArtifactRecords(captureId);

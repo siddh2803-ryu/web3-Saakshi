@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCaptureRecord, logCustodyEvent } from "@/lib/firebase/admin";
-import { computeSha256 } from "@/lib/evidence/hash";
-import { canonicalJson } from "@/lib/evidence/canonical";
+import {
+  getCaptureRecord,
+  recordCustodyEvent,
+  updateCustodyEventTxHash,
+} from "@/lib/firebase/admin";
 import { logCustodyOnChain } from "@/lib/chain/registry";
 
 export const dynamic = "force-dynamic";
@@ -41,27 +43,22 @@ export async function POST(req: NextRequest) {
     globalShares.set(token, shareData);
 
     // Log SHARE Custody Event (FR-13.1 & FR-13.2)
-    const actorHash = computeSha256(uid);
-    const custodyEvent = {
-      id: `custody_${Date.now()}_share`,
+    const custodyEvent = await recordCustodyEvent({
       captureId,
       action: "SHARE",
-      actorHash,
-      at: new Date().toISOString(),
-    };
-    await logCustodyEvent(custodyEvent);
+      actorId: uid,
+      details: { duration, expiresAt },
+    });
 
     if (capture.manifestBytes32) {
-      const actionPayload = {
-        actorHash,
-        action: "SHARE",
-        at: custodyEvent.at,
-        captureId,
-      };
-      const actionHash = `0x${computeSha256(canonicalJson(actionPayload))}` as `0x${string}`;
-      logCustodyOnChain(capture.manifestBytes32, actionHash, 2).catch((e) =>
-        console.warn("On-chain share custody log error:", e)
-      );
+      const actionHash = `0x${custodyEvent.eventHash}` as `0x${string}`;
+      logCustodyOnChain(capture.manifestBytes32, actionHash, 2)
+        .then(async (txHash) => {
+          if (txHash) {
+            await updateCustodyEventTxHash(captureId, custodyEvent.id, txHash);
+          }
+        })
+        .catch((e) => console.warn("On-chain share custody log error:", e));
     }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";

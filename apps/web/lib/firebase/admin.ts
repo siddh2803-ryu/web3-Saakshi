@@ -5,6 +5,7 @@ import {
   CustodyEvent,
   CustodyAction,
   buildCustodyEvent,
+  computeActorHash,
 } from "@/lib/custody/model";
 export type { CustodyEvent, CustodyAction };
 
@@ -415,6 +416,29 @@ export async function recordCustodyEvent(params: {
   }
 
   return event;
+}
+
+export async function recordViewCustodyEvent(
+  captureId: string,
+  actorId: string
+): Promise<{ recorded: boolean; throttled: boolean; event?: CustodyEvent }> {
+  const actorHash = computeActorHash(actorId);
+  const events = await listCustodyEvents(captureId, "asc");
+  const viewEvents = events.filter((e) => e.action === "VIEW" && e.actorHash === actorHash);
+  if (viewEvents.length > 0) {
+    const lastView = viewEvents[viewEvents.length - 1];
+    const diffMs = Date.now() - new Date(lastView.at).getTime();
+    if (diffMs < 3600 * 1000) {
+      return { recorded: false, throttled: true, event: lastView };
+    }
+  }
+
+  const event = await recordCustodyEvent({
+    captureId,
+    action: "VIEW",
+    actorId,
+  });
+  return { recorded: true, throttled: false, event };
 }
 
 export async function updateCustodyEventTxHash(
