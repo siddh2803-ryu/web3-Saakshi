@@ -2185,9 +2185,31 @@ export default function CaptureDetailPage() {
                               <span>Tx: {truncateHash(ev.txHash)}</span>
                             </a>
                           ) : ev.action === "EXPORT" || ev.action === "SHARE" ? (
-                            <span className="px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded text-[10px] font-medium font-mono">
-                              On-chain record pending
-                            </span>
+                            <div className="flex items-center space-x-2">
+                              <span className="px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded text-[10px] font-medium font-mono">
+                                On-chain record pending
+                              </span>
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    const res = await fetch(`/api/captures/${captureId}/custody/${ev.id}/retry`, {
+                                      method: "POST",
+                                    });
+                                    const d = await res.json();
+                                    if (res.ok && d.success) {
+                                      fetchCustodyEvents();
+                                    } else {
+                                      alert(d.error || "Retry failed");
+                                    }
+                                  } catch (e: any) {
+                                    alert(e.message || "Retry failed");
+                                  }
+                                }}
+                                className="px-1.5 py-0.5 bg-white border border-amber-300 hover:bg-amber-100 text-amber-800 rounded text-[10px] font-semibold transition-colors"
+                              >
+                                Retry
+                              </button>
+                            </div>
                           ) : (
                             <span className="text-[10px] text-slate-400 font-mono">Off-chain verified log</span>
                           )}
