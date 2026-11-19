@@ -7,7 +7,8 @@ import {
   buildCustodyEvent,
   computeActorHash,
 } from "@/lib/custody/model";
-export type { CustodyEvent, CustodyAction };
+import { ShareRecord } from "@/lib/share/model";
+export type { CustodyEvent, CustodyAction, ShareRecord };
 
 // Global in-memory storage fallback for local development and test environments
 const inMemoryStore = (global as any).__saakshiStore || {
@@ -457,6 +458,77 @@ export async function updateCustodyEventTxHash(
     target.txHash = txHash;
     persistDevStoreToDisk();
   }
+}
+
+// -------------------------------------------------------------
+// Share Links (FR-14.1) - Stores ONLY tokenHash (Never Raw Token)
+// -------------------------------------------------------------
+
+export async function saveShareRecord(share: ShareRecord): Promise<void> {
+  const fs = getAdminFirestore();
+  if (fs) {
+    await fs.collection("shares").doc(share.id).set(share);
+    return;
+  }
+  inMemoryStore.shares.set(share.id, share);
+  persistDevStoreToDisk();
+}
+
+export async function getShareRecordByTokenHash(tokenHash: string): Promise<ShareRecord | null> {
+  const fs = getAdminFirestore();
+  if (fs) {
+    const snap = await fs
+      .collection("shares")
+      .where("tokenHash", "==", tokenHash)
+      .limit(1)
+      .get();
+    if (snap.empty) return null;
+    const doc = snap.docs[0];
+    return { id: doc.id, ...doc.data() } as ShareRecord;
+  }
+  for (const s of inMemoryStore.shares.values()) {
+    if (s.tokenHash === tokenHash) return s as ShareRecord;
+  }
+  return null;
+}
+
+export async function listCaptureShares(captureId: string): Promise<ShareRecord[]> {
+  const fs = getAdminFirestore();
+  if (fs) {
+    const snap = await fs
+      .collection("shares")
+      .where("captureId", "==", captureId)
+      .orderBy("createdAt", "desc")
+      .get();
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() } as ShareRecord));
+  }
+  const result: ShareRecord[] = [];
+  for (const s of inMemoryStore.shares.values()) {
+    if (s.captureId === captureId) {
+      result.push(s as ShareRecord);
+    }
+  }
+  result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  return result;
+}
+
+export async function revokeShareRecord(shareId: string): Promise<boolean> {
+  const fs = getAdminFirestore();
+  const now = new Date().toISOString();
+  if (fs) {
+    const ref = fs.collection("shares").doc(shareId);
+    const snap = await ref.get();
+    if (!snap.exists) return false;
+    await ref.update({ revoked: true, revokedAt: now });
+    return true;
+  }
+  const share = inMemoryStore.shares.get(shareId);
+  if (!share) return false;
+  share.revoked = true;
+  share.revokedAt = now;
+  inMemoryStore.shares.set(shareId, share);
+  persistDevStoreToDisk();
+  return true;
 }
 
 // -------------------------------------------------------------
