@@ -86,6 +86,31 @@ export default function CaptureDetailPage() {
   } | null>(null);
   const [custodyLoading, setCustodyLoading] = useState(false);
 
+  // Share Links State (FR-14.1)
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [shareDuration, setShareDuration] = useState<"24h" | "7d" | "30d">("7d");
+  const [shareIncludeAi, setShareIncludeAi] = useState(false);
+  const [newCreatedShareUrl, setNewCreatedShareUrl] = useState<string | null>(null);
+  const [shareCreating, setShareCreating] = useState(false);
+  const [sharesList, setSharesList] = useState<any[]>([]);
+  const [sharesLoading, setSharesLoading] = useState(false);
+  const [shareRevokingId, setShareRevokingId] = useState<string | null>(null);
+
+  const fetchShares = useCallback(async () => {
+    try {
+      setSharesLoading(true);
+      const res = await fetch(`/api/captures/${captureId}/shares`);
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSharesList(data.shares || []);
+      }
+    } catch (err) {
+      console.warn("Could not fetch shares:", err);
+    } finally {
+      setSharesLoading(false);
+    }
+  }, [captureId]);
+
   const fetchCustodyEvents = useCallback(async () => {
     try {
       setCustodyLoading(true);
@@ -426,20 +451,56 @@ export default function CaptureDetailPage() {
     }
   };
 
-  const handleCreateShare = async () => {
+  const handleOpenShareModal = () => {
+    setShareModalOpen(true);
+    setNewCreatedShareUrl(null);
+    fetchShares();
+  };
+
+  const handleCreateShareLink = async () => {
+    setShareCreating(true);
     try {
-      const res = await fetch("/api/shares", {
+      const res = await fetch(`/api/captures/${captureId}/shares`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ captureId, duration: "7d" }),
+        body: JSON.stringify({
+          duration: shareDuration,
+          includeAi: shareIncludeAi,
+        }),
       });
       const data = await res.json();
-      if (res.ok) {
-        setShareUrl(data.shareUrl);
-        copyToClipboard(data.shareUrl, "text");
+      if (res.ok && data.success && data.share?.url) {
+        setNewCreatedShareUrl(data.share.url);
+        copyToClipboard(data.share.url, "text");
+        fetchShares();
+        fetchCustodyEvents();
+      } else {
+        alert(data.error || "Failed to create share link");
       }
-    } catch (err) {
-      console.error(err);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : String(err));
+    } finally {
+      setShareCreating(false);
+    }
+  };
+
+  const handleRevokeShareLink = async (shareId: string) => {
+    if (!confirm("Revoke this share link? Anyone using it will immediately lose access.")) return;
+    setShareRevokingId(shareId);
+    try {
+      const res = await fetch(`/api/captures/${captureId}/shares/${shareId}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        fetchShares();
+      } else {
+        alert(data.error || "Failed to revoke share link");
+      }
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : String(err));
+    } finally {
+      setShareRevokingId(null);
     }
   };
 
@@ -689,11 +750,11 @@ export default function CaptureDetailPage() {
                 </a>
 
                 <button
-                  onClick={handleCreateShare}
+                  onClick={handleOpenShareModal}
                   className="px-3 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 text-xs font-semibold rounded-lg shadow-sm flex items-center space-x-1 transition-colors"
                   title="Generate Expiring Share Link"
                 >
-                  <Share2 className="w-3.5 h-3.5" />
+                  <Share2 className="w-3.5 h-3.5 text-indigo-600" />
                   <span>Share</span>
                 </button>
 
@@ -720,13 +781,6 @@ export default function CaptureDetailPage() {
               The AES-256 encryption key for this capture has been permanently destroyed and files unpinned from IPFS.
               Ciphertext can never be decrypted again. On-chain hashes remain anchored on Polygon, but cryptographically reveal nothing about the content.
             </p>
-          </div>
-        )}
-
-        {shareUrl && (
-          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between text-xs text-blue-950">
-            <span className="truncate mr-2 font-mono">Share Link: {shareUrl}</span>
-            <span className="font-semibold text-emerald-700 whitespace-nowrap">Copied to clipboard!</span>
           </div>
         )}
       </div>
@@ -2479,6 +2533,197 @@ export default function CaptureDetailPage() {
                   {captureTooLoading ? "Starting Capture..." : "Confirm & Start Capture"}
                 </span>
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Share Evidence Modal (FR-14.1) */}
+      {shareModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-xl max-w-xl w-full p-6 space-y-5 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center space-x-2">
+                <Share2 className="w-5 h-5 text-indigo-600" />
+                <h3 className="text-base font-bold text-slate-900">Share Evidence Link</h3>
+              </div>
+              <button
+                onClick={() => setShareModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Creation Form */}
+            <div className="bg-slate-50 rounded-lg p-4 border border-slate-200 space-y-4">
+              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                Create New Expiring Link
+              </h4>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Link Expiration
+                  </label>
+                  <select
+                    value={shareDuration}
+                    onChange={(e) => setShareDuration(e.target.value as any)}
+                    className="w-full text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-2 font-medium text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="24h">24 Hours (Fast Expiry)</option>
+                    <option value="7d">7 Days (Standard)</option>
+                    <option value="30d">30 Days (Extended)</option>
+                  </select>
+                </div>
+
+                <div className="flex flex-col justify-end">
+                  <label className="flex items-center space-x-2 text-xs font-semibold text-slate-700 cursor-pointer py-2">
+                    <input
+                      type="checkbox"
+                      checked={shareIncludeAi}
+                      onChange={(e) => setShareIncludeAi(e.target.checked)}
+                      className="rounded-sm border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4"
+                    />
+                    <span>Include AI Analysis</span>
+                  </label>
+                  <p className="text-[10px] text-slate-500">
+                    Excluded by default to preserve privacy.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-1">
+                <button
+                  onClick={handleCreateShareLink}
+                  disabled={shareCreating}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-semibold rounded-lg shadow-xs flex items-center space-x-1.5 transition-colors"
+                >
+                  {shareCreating ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Generating...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Generate Share Link</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* One-Time Full URL Notice */}
+            {newCreatedShareUrl && (
+              <div className="p-4 bg-emerald-50 border border-emerald-300 rounded-lg space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-emerald-900 flex items-center space-x-1">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <span>Share Link Generated (One-Time Display)</span>
+                  </span>
+                  <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-semibold">
+                    SHA-256 Protected
+                  </span>
+                </div>
+                <p className="text-xs text-emerald-800 leading-relaxed">
+                  <strong>Important:</strong> Copy this link now. Only the SHA-256 hash of the token is stored in the database. The raw link cannot be retrieved again.
+                </p>
+                <div className="flex items-center space-x-2 pt-1">
+                  <input
+                    type="text"
+                    readOnly
+                    value={newCreatedShareUrl}
+                    className="w-full text-xs font-mono bg-white border border-emerald-300 rounded-md px-2.5 py-1.5 text-slate-800 select-all"
+                  />
+                  <button
+                    onClick={() => copyToClipboard(newCreatedShareUrl, "text")}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-md shadow-xs flex items-center space-x-1 shrink-0 transition-colors"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Copy</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* List of Existing Share Links */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                  Active & Revoked Share Links
+                </h4>
+                <button
+                  onClick={fetchShares}
+                  disabled={sharesLoading}
+                  className="text-slate-400 hover:text-slate-600 p-1 rounded-sm"
+                  title="Refresh list"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${sharesLoading ? "animate-spin" : ""}`} />
+                </button>
+              </div>
+
+              {sharesLoading && sharesList.length === 0 ? (
+                <div className="text-xs text-slate-500 py-4 text-center">Loading shares...</div>
+              ) : sharesList.length === 0 ? (
+                <div className="text-xs text-slate-500 py-4 text-center border border-dashed border-slate-200 rounded-lg">
+                  No share links generated for this capture yet.
+                </div>
+              ) : (
+                <div className="border border-slate-200 rounded-lg divide-y divide-slate-100 overflow-hidden">
+                  {sharesList.map((s) => {
+                    const isExpired = new Date(s.expiresAt).getTime() <= Date.now();
+                    const isRevoked = s.revoked;
+                    const isActive = !isExpired && !isRevoked;
+
+                    return (
+                      <div key={s.id} className="p-3 text-xs flex items-center justify-between hover:bg-slate-50/50">
+                        <div className="space-y-1">
+                          <div className="flex items-center space-x-2">
+                            <span className="font-mono text-slate-600 font-semibold">{s.id}</span>
+                            {isActive ? (
+                              <span className="px-1.5 py-0.5 rounded-sm text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                                Active
+                              </span>
+                            ) : isRevoked ? (
+                              <span className="px-1.5 py-0.5 rounded-sm text-[10px] font-bold bg-rose-100 text-rose-800">
+                                Revoked
+                              </span>
+                            ) : (
+                              <span className="px-1.5 py-0.5 rounded-sm text-[10px] font-bold bg-slate-100 text-slate-700">
+                                Expired
+                              </span>
+                            )}
+                            {s.includeAi && (
+                              <span className="px-1.5 py-0.5 rounded-sm text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                +AI
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-slate-500 flex items-center space-x-3">
+                            <span>Created: {new Date(s.createdAt).toLocaleDateString()}</span>
+                            <span>Expires: {formatIST(s.expiresAt)}</span>
+                          </div>
+                        </div>
+
+                        <div>
+                          {isActive ? (
+                            <button
+                              onClick={() => handleRevokeShareLink(s.id)}
+                              disabled={shareRevokingId === s.id}
+                              className="px-2.5 py-1 text-xs font-semibold text-rose-700 border border-rose-300 hover:bg-rose-50 rounded-md transition-colors disabled:opacity-50"
+                            >
+                              {shareRevokingId === s.id ? "Revoking..." : "Revoke"}
+                            </button>
+                          ) : (
+                            <span className="text-[11px] text-slate-400 italic">Inactive</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>

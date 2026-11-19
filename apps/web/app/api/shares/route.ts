@@ -1,57 +1,61 @@
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 import {
   getCaptureRecord,
+  saveShareRecord,
   recordCustodyEvent,
   updateCustodyEventTxHash,
 } from "@/lib/firebase/admin";
+import {
+  generateShareToken,
+  calculateExpiryDate,
+  ShareDuration,
+  ShareRecord,
+} from "@/lib/share/model";
 import { logCustodyOnChain } from "@/lib/chain/registry";
 
 export const dynamic = "force-dynamic";
 
-// In-memory / firestore shares store
-const globalShares = (global as any).__saakshiShares || new Map<string, any>();
-if (typeof global !== "undefined") {
-  (global as any).__saakshiShares = globalShares;
-}
-
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { captureId, duration = "7d", uid = "demo-user" } = body;
+    const { captureId, duration = "7d", uid = "demo-user", includeAi = false } = body;
 
     const capture = await getCaptureRecord(captureId);
     if (!capture) {
       return NextResponse.json({ error: "Capture not found" }, { status: 404 });
     }
 
-    let ms = 7 * 24 * 60 * 60 * 1000; // default 7 days
-    if (duration === "24h") ms = 24 * 60 * 60 * 1000;
-    if (duration === "30d") ms = 30 * 24 * 60 * 60 * 1000;
+    const { rawToken, tokenHash } = generateShareToken();
+    const expiresAt = calculateExpiryDate(duration as ShareDuration).toISOString();
+    const shareId = `sh_${crypto.randomBytes(16).toString("hex")}`;
 
-    const expiresAt = new Date(Date.now() + ms).toISOString();
-    const token = `sh_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 10)}`;
-
-    const shareData = {
-      token,
+    const shareRecord: ShareRecord = {
+      id: shareId,
       captureId,
-      createdBy: uid,
+      ownerUid: uid,
+      tokenHash,
       expiresAt,
+      includeAi: Boolean(includeAi),
       revoked: false,
       createdAt: new Date().toISOString(),
     };
 
-    globalShares.set(token, shareData);
+    await saveShareRecord(shareRecord);
 
     // Log SHARE Custody Event (FR-13.1 & FR-13.2)
     const custodyEvent = await recordCustodyEvent({
       captureId,
       action: "SHARE",
       actorId: uid,
-      details: { duration, expiresAt },
+      details: { shareId, duration, expiresAt, includeAi: shareRecord.includeAi },
     });
 
     if (capture.manifestBytes32) {
-      const actionHash = `0x${custodyEvent.eventHash}` as `0x${string}`;
+      const actionHash = (custodyEvent.eventHash.startsWith("0x")
+        ? custodyEvent.eventHash
+        : `0x${custodyEvent.eventHash}`) as `0x${string}`;
+
       logCustodyOnChain(capture.manifestBytes32, actionHash, 2)
         .then(async (txHash) => {
           if (txHash) {
@@ -62,13 +66,15 @@ export async function POST(req: NextRequest) {
     }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    const shareUrl = `${appUrl}/v/${captureId}?share=${token}`;
+    const shareUrl = `${appUrl.replace(/\/$/, "")}/s/${rawToken}`;
 
     return NextResponse.json({
       success: true,
-      token,
+      token: rawToken,
+      shareId,
       shareUrl,
       expiresAt,
+      includeAi: shareRecord.includeAi,
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
