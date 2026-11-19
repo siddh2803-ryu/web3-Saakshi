@@ -1,6 +1,12 @@
 /* eslint-disable */
 import * as admin from "firebase-admin";
 import * as nodeFs from "fs";
+import {
+  CustodyEvent,
+  CustodyAction,
+  buildCustodyEvent,
+} from "@/lib/custody/model";
+export type { CustodyEvent, CustodyAction };
 
 // Global in-memory storage fallback for local development and test environments
 const inMemoryStore = (global as any).__saakshiStore || {
@@ -43,6 +49,12 @@ function loadDevStoreFromDisk() {
       if (data.cases) {
         for (const [k, v] of Object.entries(data.cases)) inMemoryStore.cases.set(k, v);
       }
+      if (data.custody) {
+        for (const [k, v] of Object.entries(data.custody)) inMemoryStore.custody.set(k, v as any[]);
+      }
+      if (data.shares) {
+        for (const [k, v] of Object.entries(data.shares)) inMemoryStore.shares.set(k, v);
+      }
     }
   } catch {}
 }
@@ -56,6 +68,8 @@ function persistDevStoreToDisk() {
       watches: Object.fromEntries(inMemoryStore.watches.entries()),
       watchEvents: Object.fromEntries(inMemoryStore.watchEvents.entries()),
       cases: Object.fromEntries(inMemoryStore.cases.entries()),
+      custody: Object.fromEntries(inMemoryStore.custody.entries()),
+      shares: Object.fromEntries(inMemoryStore.shares.entries()),
     };
     nodeFs.writeFileSync(DEV_STORE_PATH, JSON.stringify(data), "utf8");
   } catch {}
@@ -329,6 +343,28 @@ export async function listWatchEvents(watchId: string): Promise<any[]> {
   return inMemoryStore.watchEvents.get(watchId) || [];
 }
 
+export async function listCustodyEvents(
+  captureId: string,
+  direction: "asc" | "desc" = "asc"
+): Promise<CustodyEvent[]> {
+  const fs = getAdminFirestore();
+  if (fs) {
+    const snap = await fs
+      .collection("custody")
+      .where("captureId", "==", captureId)
+      .orderBy("at", direction)
+      .get();
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() } as CustodyEvent));
+  }
+  const list = (inMemoryStore.custody.get(captureId) || []).slice() as CustodyEvent[];
+  list.sort((a, b) => {
+    const tA = new Date(a.at).getTime();
+    const tB = new Date(b.at).getTime();
+    return direction === "asc" ? tA - tB : tB - tA;
+  });
+  return list;
+}
+
 export async function logCustodyEvent(event: any): Promise<void> {
   const fs = getAdminFirestore();
   if (fs) {
@@ -336,21 +372,67 @@ export async function logCustodyEvent(event: any): Promise<void> {
     return;
   }
   const list = inMemoryStore.custody.get(event.captureId) || [];
-  list.unshift(event);
+  list.push(event);
   inMemoryStore.custody.set(event.captureId, list);
+  persistDevStoreToDisk();
 }
 
-export async function listCustodyEvents(captureId: string): Promise<any[]> {
+export async function recordCustodyEvent(params: {
+  captureId: string;
+  action: CustodyAction;
+  actorId: string;
+  isShare?: boolean;
+  at?: string;
+  txHash?: string | null;
+  details?: Record<string, unknown>;
+}): Promise<CustodyEvent> {
+  // 1. Fetch current chronological chain to determine prevEventHash
+  const existingEvents = await listCustodyEvents(params.captureId, "asc");
+  const lastEvent = existingEvents.length > 0 ? existingEvents[existingEvents.length - 1] : null;
+  const prevEventHash = lastEvent ? lastEvent.eventHash : null;
+
+  // 2. Build the hash-chained event
+  const event = buildCustodyEvent({
+    captureId: params.captureId,
+    action: params.action,
+    actorId: params.actorId,
+    isShare: params.isShare,
+    prevEventHash,
+    at: params.at,
+    txHash: params.txHash,
+    details: params.details,
+  });
+
+  // 3. Save to Firestore or inMemoryStore with disk persistence
   const fs = getAdminFirestore();
   if (fs) {
-    const snap = await fs
-      .collection("custody")
-      .where("captureId", "==", captureId)
-      .orderBy("at", "desc")
-      .get();
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    await fs.collection("custody").doc(event.id).set(event);
+  } else {
+    const list = inMemoryStore.custody.get(params.captureId) || [];
+    list.push(event);
+    inMemoryStore.custody.set(params.captureId, list);
+    persistDevStoreToDisk();
   }
-  return inMemoryStore.custody.get(captureId) || [];
+
+  return event;
+}
+
+export async function updateCustodyEventTxHash(
+  captureId: string,
+  eventId: string,
+  txHash: string
+): Promise<void> {
+  const fs = getAdminFirestore();
+  if (fs) {
+    await fs.collection("custody").doc(eventId).update({ txHash });
+    return;
+  }
+  const list = inMemoryStore.custody.get(captureId) || [];
+  const target = list.find((e: any) => e.id === eventId);
+  if (target) {
+    target.txHash = txHash;
+    persistDevStoreToDisk();
+  }
 }
 
 // -------------------------------------------------------------
