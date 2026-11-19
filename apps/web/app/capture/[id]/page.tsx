@@ -75,6 +75,33 @@ export default function CaptureDetailPage() {
   const [regeneratingAnalysis, setRegeneratingAnalysis] = useState(false);
   const [regenerateMsg, setRegenerateMsg] = useState<string | null>(null);
 
+  // Custody Chain State (FR-13.1, FR-13.2)
+  const [custodyEvents, setCustodyEvents] = useState<any[]>([]);
+  const [custodyVerification, setCustodyVerification] = useState<{
+    valid: boolean;
+    totalEvents: number;
+    brokenAtIndex?: number;
+    brokenEventId?: string;
+    reason?: string;
+  } | null>(null);
+  const [custodyLoading, setCustodyLoading] = useState(false);
+
+  const fetchCustodyEvents = useCallback(async () => {
+    try {
+      setCustodyLoading(true);
+      const res = await fetch(`/api/captures/${captureId}/custody`);
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setCustodyEvents(data.events || []);
+        setCustodyVerification(data.verification || { valid: true, totalEvents: 0 });
+      }
+    } catch (err) {
+      console.warn("Could not fetch custody events:", err);
+    } finally {
+      setCustodyLoading(false);
+    }
+  }, [captureId]);
+
   const downloadTextFile = (content: string, filename: string) => {
     if (!content) return;
     const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
@@ -281,6 +308,12 @@ export default function CaptureDetailPage() {
     }, 3000);
     return () => clearInterval(interval);
   }, [fetchCapture, capture?.status]);
+
+  useEffect(() => {
+    if (activeTab === "custody") {
+      fetchCustodyEvents();
+    }
+  }, [activeTab, fetchCustodyEvents]);
 
   const copyToClipboard = (text: string, type: "hash" | "text") => {
     navigator.clipboard.writeText(text);
@@ -2041,29 +2074,131 @@ export default function CaptureDetailPage() {
 
           {/* TAB 6: CHAIN OF CUSTODY */}
           {activeTab === "custody" && (
-            <div className="bg-white p-6 sm:p-8 rounded-xl border border-slate-200/90 shadow-sm space-y-4">
-              <h3 className="text-lg font-bold text-slate-900">Forensic Chain of Custody</h3>
-              <p className="text-xs text-slate-500">
-                All lifecycle actions (creation, viewing, bundle export, external share, public verification) are logged with cryptographically salted actor identifiers. Key events are signed to the smart contract.
-              </p>
-              <div className="space-y-3 pt-4 border-t border-slate-100">
-                <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs flex items-center justify-between">
-                  <div>
-                    <span className="font-bold text-slate-900">CREATE</span>
-                    <p className="text-slate-500 mt-0.5">Capture created by owner: {truncateHash(capture.ownerUid || "anon")}</p>
+            <div className="bg-white p-6 sm:p-8 rounded-xl border border-slate-200/90 shadow-sm space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-100">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-lg font-bold text-slate-900">Cryptographic Chain of Custody</h3>
+                    {custodyVerification && (
+                      custodyVerification.valid ? (
+                        <span className="inline-flex items-center space-x-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-full text-xs font-semibold">
+                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Chain Intact ({custodyEvents.length} Verified Events)</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center space-x-1.5 px-2.5 py-1 bg-rose-50 text-rose-800 border border-rose-200 rounded-full text-xs font-semibold">
+                          <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
+                          <span>Chain Broken ({custodyVerification.reason || "Hash mismatch"})</span>
+                        </span>
+                      )
+                    )}
                   </div>
-                  <span className="text-slate-400 font-mono">{formatIST(capture.createdAt)}</span>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Every lifecycle action (CREATE, VIEW, EXPORT, SHARE, VERIFY) is hash-chained with RFC 8785 JCS canonicalization. Tampering with or deleting past events breaks the cryptographic chain.
+                  </p>
                 </div>
-                {capture.anchoring && (
-                  <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200 text-xs flex items-center justify-between">
-                    <div>
-                      <span className="font-bold text-emerald-900">ANCHOR</span>
-                      <p className="text-emerald-700 mt-0.5">Committed to Polygon Amoy in block #{capture.anchoring.blockNumber}</p>
-                    </div>
-                    <span className="text-emerald-600 font-mono">{formatIST(capture.anchoring.anchoredAt)}</span>
-                  </div>
-                )}
+
+                <button
+                  onClick={() => fetchCustodyEvents()}
+                  disabled={custodyLoading}
+                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium flex items-center space-x-1.5 transition-colors self-start sm:self-auto shrink-0"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${custodyLoading ? "animate-spin" : ""}`} />
+                  <span>Refresh Chain</span>
+                </button>
               </div>
+
+              {custodyLoading && custodyEvents.length === 0 ? (
+                <div className="py-12 text-center text-xs text-slate-500">
+                  Verifying cryptographic custody chain...
+                </div>
+              ) : custodyEvents.length === 0 ? (
+                <div className="py-12 text-center text-xs text-slate-500">
+                  No custody events recorded yet.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {custodyEvents.map((ev: any, idx: number) => {
+                    const actionColors: Record<string, string> = {
+                      CREATE: "bg-blue-50 text-blue-800 border-blue-200",
+                      VIEW: "bg-slate-100 text-slate-800 border-slate-300",
+                      EXPORT: "bg-amber-50 text-amber-800 border-amber-200",
+                      SHARE: "bg-purple-50 text-purple-800 border-purple-200",
+                      VERIFY: "bg-emerald-50 text-emerald-800 border-emerald-200",
+                    };
+
+                    const explorerUrl =
+                      process.env.NEXT_PUBLIC_EXPLORER_URL || "https://amoy.polygonscan.com";
+
+                    return (
+                      <div
+                        key={ev.id || idx}
+                        className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-slate-50 transition-colors space-y-3"
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                          <div className="flex items-center space-x-2">
+                            <span
+                              className={`px-2.5 py-0.5 rounded text-xs font-bold border ${
+                                actionColors[ev.action] || "bg-slate-100 text-slate-700 border-slate-200"
+                              }`}
+                            >
+                              {ev.action}
+                            </span>
+                            <span className="text-xs text-slate-600 font-medium">
+                              Actor:{" "}
+                              <span className="font-mono text-slate-900 font-semibold">
+                                {truncateHash(ev.actorHash || "anonymous")}
+                              </span>
+                            </span>
+                          </div>
+                          <div className="text-right text-xs text-slate-500 font-mono">
+                            <span>{formatIST(ev.at)}</span>
+                          </div>
+                        </div>
+
+                        {/* Hash linkage */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px] font-mono pt-2 border-t border-slate-200/60 text-slate-600">
+                          <div>
+                            <span className="text-slate-400">Event Hash: </span>
+                            <span className="text-slate-800 font-semibold">
+                              {truncateHash(ev.eventHash)}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400">Previous Hash: </span>
+                            <span className="text-slate-800">
+                              {ev.prevEventHash ? truncateHash(ev.prevEventHash) : "Genesis Link (None)"}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* On-chain status */}
+                        <div className="flex items-center justify-between text-xs pt-1">
+                          {ev.txHash ? (
+                            <a
+                              href={`${explorerUrl}/tx/${ev.txHash}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center space-x-1 font-mono text-indigo-600 hover:text-indigo-800 text-xs font-semibold"
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                              <span>Tx: {truncateHash(ev.txHash)}</span>
+                            </a>
+                          ) : ev.action === "EXPORT" || ev.action === "SHARE" ? (
+                            <span className="px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded text-[10px] font-medium font-mono">
+                              On-chain record pending
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 font-mono">Off-chain verified log</span>
+                          )}
+
+                          <span className="text-[10px] text-slate-400 font-mono">#{idx + 1}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 
