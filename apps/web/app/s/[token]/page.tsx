@@ -1,6 +1,7 @@
 import React from "react";
 import Link from "next/link";
 import { Metadata } from "next";
+import { headers } from "next/headers";
 import {
   getCaptureRecord,
   getShareRecordByTokenHash,
@@ -8,6 +9,7 @@ import {
 } from "@/lib/firebase/admin";
 import { computeSha256 } from "@/lib/evidence/hash";
 import { isShareActive } from "@/lib/share/model";
+import { checkShareRateLimit } from "@/lib/share/rate-limit";
 import {
   ShieldCheck,
   ExternalLink,
@@ -75,6 +77,28 @@ function LinkUnavailableView() {
 }
 
 export default async function SharedEvidencePage({ params }: PageProps) {
+  // Rate limiting per IP (FR-14.1)
+  const reqHeaders = headers();
+  const forwarded = reqHeaders.get("x-forwarded-for");
+  const ip = forwarded ? forwarded.split(",")[0].trim() : reqHeaders.get("x-real-ip") || "127.0.0.1";
+  if (!checkShareRateLimit(ip)) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-2xl border border-slate-200/90 shadow-xl p-8 text-center space-y-4">
+          <div className="w-14 h-14 bg-rose-100 rounded-full flex items-center justify-center mx-auto text-rose-600 font-bold text-lg">
+            429
+          </div>
+          <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+            Too Many Requests
+          </h1>
+          <p className="text-sm text-slate-600 leading-relaxed">
+            Rate limit exceeded (maximum 30 requests per minute). Please wait a moment before trying again.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const rawToken = params.token;
   if (!rawToken || typeof rawToken !== "string" || rawToken.length < 16) {
     return <LinkUnavailableView />;

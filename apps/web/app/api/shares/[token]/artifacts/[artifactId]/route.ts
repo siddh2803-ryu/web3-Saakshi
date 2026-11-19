@@ -4,6 +4,7 @@ import { computeSha256 } from "@/lib/evidence/hash";
 import { isShareActive } from "@/lib/share/model";
 import { unwrapDek, decryptWithKey } from "@/lib/evidence/crypto";
 import { FIXTURE_BROWSER_CAPTURE, MOCK_JPEG_BASE64 } from "@/lib/tinyfish/fixtures";
+import { checkShareRateLimit } from "@/lib/share/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +13,19 @@ export async function GET(
   { params }: { params: { token: string; artifactId: string } }
 ) {
   try {
+    const forwarded = req.headers.get("x-forwarded-for");
+    const ip = forwarded ? forwarded.split(",")[0].trim() : req.headers.get("x-real-ip") || "127.0.0.1";
+    if (!checkShareRateLimit(ip)) {
+      return new NextResponse("Too many requests", {
+        status: 429,
+        headers: {
+          "Retry-After": "60",
+          "Referrer-Policy": "no-referrer",
+          "X-Robots-Tag": "noindex, nofollow",
+        },
+      });
+    }
+
     const { token, artifactId } = params;
     const tokenHash = computeSha256(token);
     const share = await getShareRecordByTokenHash(tokenHash);
