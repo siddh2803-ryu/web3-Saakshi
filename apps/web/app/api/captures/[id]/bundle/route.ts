@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   getCaptureRecord,
   listArtifactRecords,
+  listCustodyEvents,
   recordCustodyEvent,
   updateCustodyEventTxHash,
 } from "@/lib/firebase/admin";
@@ -105,11 +106,13 @@ export async function GET(
     // Generate Certificate PDF
     let certPdfBuffer: Buffer | null = null;
     try {
+      const existingCustodyEvents = await listCustodyEvents(captureId);
       certPdfBuffer = await renderCertificatePdf(
         capture.manifest,
         capture.manifestSha256,
         capture.anchoring,
-        qrDataUrl
+        qrDataUrl,
+        existingCustodyEvents
       );
     } catch (certErr) {
       console.warn("Certificate PDF generation error:", certErr);

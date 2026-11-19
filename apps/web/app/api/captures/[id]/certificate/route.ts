@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCaptureRecord } from "@/lib/firebase/admin";
+import { getCaptureRecord, listCustodyEvents } from "@/lib/firebase/admin";
 import { renderCertificatePdf } from "@/lib/pdf/certificate";
 import QRCode from "qrcode";
 
@@ -47,11 +47,14 @@ export async function GET(
       () => null
     );
 
+    const custodyEvents = await listCustodyEvents(captureId);
+
     const pdfBuffer = await renderCertificatePdf(
       capture.manifest,
       capture.manifestSha256,
       capture.anchoring,
-      qrDataUrl
+      qrDataUrl,
+      custodyEvents
     );
 
     return new NextResponse(new Uint8Array(pdfBuffer), {

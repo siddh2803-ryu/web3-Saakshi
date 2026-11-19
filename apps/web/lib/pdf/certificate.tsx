@@ -10,7 +10,8 @@ import {
   Image,
 } from "@react-pdf/renderer";
 import { EvidenceManifest } from "@/lib/evidence/manifest";
-import { formatIST } from "@/lib/utils";
+import { formatIST, truncateHash } from "@/lib/utils";
+import { CustodyEvent } from "@/lib/custody/model";
 import {
   STATUTORY_HEADER,
   MANDATORY_PAGE_DISCLAIMER,
@@ -179,6 +180,7 @@ interface CertificateProps {
   manifestSha256: string;
   anchoring?: CertificateAnchoringDetails | null;
   qrDataUrl?: string | null;
+  custodyEvents?: CustodyEvent[];
 }
 
 export function getArtifactFileName(art: {
@@ -218,7 +220,11 @@ export const CertificateDocument: React.FC<CertificateProps> = ({
   manifestSha256,
   anchoring,
   qrDataUrl,
+  custodyEvents = [],
 }) => {
+  const custodySummaryEvents = (custodyEvents || []).filter(
+    (e) => e.action === "EXPORT" || e.action === "SHARE"
+  );
   return (
     <Document title={`Certificate_s63_4_${manifest.captureId}`}>
       <Page size="A4" style={styles.page}>
@@ -439,6 +445,39 @@ export const CertificateDocument: React.FC<CertificateProps> = ({
           })()}
         </View>
 
+        {/* 7. Chain of Custody Summary Annex (FR-13.1) */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Annex: Chain of Custody Summary (FR-13.1)</Text>
+          {custodySummaryEvents.length === 0 ? (
+            <View style={styles.annexBox}>
+              <Text style={{ fontSize: 7.5, color: "#64748B", fontFamily: "Helvetica-Oblique" }}>
+                Initial capture preserved. No external export or share events recorded prior to certificate generation.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.table}>
+              <View style={[styles.tableRow, styles.tableHeader]}>
+                <Text style={{ width: "20%", fontSize: 7, fontFamily: "Helvetica-Bold", color: "#1E293B" }}>Action</Text>
+                <Text style={{ width: "35%", fontSize: 7, fontFamily: "Helvetica-Bold", color: "#1E293B" }}>Timestamp (IST)</Text>
+                <Text style={{ width: "45%", fontSize: 7, fontFamily: "Helvetica-Bold", color: "#1E293B" }}>Transaction Hash / Status</Text>
+              </View>
+              {custodySummaryEvents.map((evt, idx) => (
+                <View key={evt.id || idx} style={styles.tableRow}>
+                  <Text style={{ width: "20%", fontSize: 7, fontFamily: "Helvetica-Bold", color: evt.action === "EXPORT" ? "#0F766E" : "#4338CA" }}>
+                    {evt.action}
+                  </Text>
+                  <Text style={{ width: "35%", fontSize: 6.5, color: "#334155" }}>
+                    {formatIST(evt.at)}
+                  </Text>
+                  <Text style={[{ width: "45%", fontSize: 6, color: "#475569" }, styles.hashText]}>
+                    {evt.txHash ? truncateHash(evt.txHash, 12, 10) : "Off-chain / Local"}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+
         {/* Signatures */}
         <View style={styles.signatureRow}>
           <View style={styles.signatureBlock}>
@@ -476,7 +515,8 @@ export async function renderCertificatePdf(
   manifest: EvidenceManifest,
   manifestSha256: string,
   anchoring?: CertificateAnchoringDetails | null,
-  qrDataUrl?: string | null
+  qrDataUrl?: string | null,
+  custodyEvents?: CustodyEvent[]
 ): Promise<Buffer> {
   const doc = (
     <CertificateDocument
@@ -484,6 +524,7 @@ export async function renderCertificatePdf(
       manifestSha256={manifestSha256}
       anchoring={anchoring}
       qrDataUrl={qrDataUrl}
+      custodyEvents={custodyEvents}
     />
   );
   const blob = await pdf(doc).toBlob();
