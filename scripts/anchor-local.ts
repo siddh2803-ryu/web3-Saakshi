@@ -168,6 +168,7 @@ async function main() {
     createdAt: new Date().toISOString(),
     manifest,
     manifestSha256,
+    manifestBytes32: `0x${manifestSha256}`,
     anchoring: proofJson,
   });
 

@@ -13,7 +13,7 @@ if lsof -Pi :8545 -sTCP:LISTEN -t >/dev/null ; then
     echo "Found existing service on port 8545. Checking responsiveness..."
 else
     echo "Starting Hardhat node in background..."
-    nohup npx --prefix contracts hardhat node --hostname 127.0.0.1 --port 8545 > /tmp/hardhat_node.log 2>&1 &
+    nohup bash -c "cd '$DIR/contracts' && node run-hardhat.js node --hostname 127.0.0.1 --port 8545" > /tmp/hardhat_node.log 2>&1 &
     disown
 fi
 
@@ -35,7 +35,7 @@ if [ $READY -ne 1 ]; then
 fi
 
 echo "Deploying EvidenceRegistry to local chain..."
-(cd contracts && npx hardhat run --network localhost scripts/deploy.ts)
+(cd contracts && node run-hardhat.js run scripts/deploy.ts --network localhost)
 
 DEPLOY_JSON="$DIR/deployments/local.json"
 if [ ! -f "$DEPLOY_JSON" ]; then

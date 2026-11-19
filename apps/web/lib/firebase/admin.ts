@@ -486,6 +486,7 @@ export async function getShareRecordByTokenHash(tokenHash: string): Promise<Shar
     const doc = snap.docs[0];
     return { id: doc.id, ...doc.data() } as ShareRecord;
   }
+  loadDevStoreFromDisk();
   for (const s of inMemoryStore.shares.values()) {
     if (s.tokenHash === tokenHash) return s as ShareRecord;
   }

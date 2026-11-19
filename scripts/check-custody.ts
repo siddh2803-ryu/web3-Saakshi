@@ -147,10 +147,7 @@ async function main() {
           let custodyLogFound = false;
           for (const log of receipt.logs) {
             try {
-              const parsed = contract.interface.parseLog({
-                topics: log.topics as string[],
-                data: log.data,
-              });
+              const parsed = contract.interface.parseLog(log as any);
 
               if (parsed && parsed.name === "Custody") {
                 custodyLogFound = true;
@@ -158,10 +155,15 @@ async function main() {
                 const expectedCode = evt.action === "EXPORT" ? 1 : 2;
 
                 if (actionCode === expectedCode) {
+                  const atNum = Number(parsed.args.at);
+                  const atIso = !isNaN(atNum) && atNum > 0
+                    ? new Date(atNum > 1e11 ? atNum : atNum * 1000).toISOString()
+                    : "N/A";
+
                   console.log(
                     `[PASS] Event #${i + 1} [${evt.action}]: On-chain Custody verified in block #${receipt.blockNumber}\n` +
                     `       Tx: ${evt.txHash}\n` +
-                    `       Action Code: ${actionCode} | Timestamp: ${new Date(Number(parsed.args.at) * 1000).toISOString()}`
+                    `       Action Code: ${actionCode} | Timestamp: ${atIso}`
                   );
                 } else {
                   allPassed = false;

@@ -167,6 +167,9 @@ Anyone possessing an artifact or manifest can verify its existence and authentic
    # Run evidence cryptography, JCS, and pipeline unit tests (100% pass)
    npm run test:web
 
+   # Verify forensic custody chain integrity and on-chain event receipts
+   npm run check:custody -- <captureId>
+
    # Check health and reachability of official Indian reporting channel links
    npm run check:channels
    ```
@@ -192,7 +195,50 @@ The script validates:
 
 ---
 
-## 8. Legal Disclaimer & Section 63(4) BSA, 2023 Draft Certificate
+## 8. Case Matters, Repost Finder & Digital Chain of Custody
+
+### Case Matters & Dashboard Management (FR-12.1, FR-12.2)
+- **Legal Case Grouping**: Group related captures under an investigation matter with private, editable notes and chronological evidence timeline.
+- **Dashboard Filters**: Filter evidence by case matter or status chips (`Ready`, `Anchored`, `Watching`, `Edited`, `Deleted`).
+- **Case-Level ZIP Export**: Generates an aggregated ZIP archive containing every capture's individual evidence bundle plus a root `case-manifest.json` indexing all capture IDs and manifest SHA-256 hashes.
+
+### Repost Finder via TinyFish Search (FR-11.1 - 11.3)
+- **Exact-Phrase Search**: Queries `api.search.tinyfish.ai` with exact quoted phrases, 10s timeout, 30 RPM rate limiting, and `location=IN` with `location=US` fallback.
+- **Phrase Picker**: Employs AI-extracted `repost_phrases` when opted in; otherwise falls back deterministically to distinctive sentence fragments (<= 12 words) from Fetch markdown.
+- **Deduplication & Exclusion**: Deduplicates by normalized URL, excludes the original page, and provides an empty state when no copies exist.
+- **"Capture This Too"**: Starts an immediate new capture in the same case matter with statutory consent confirmation dialog and daily quota enforcement.
+
+### Cryptographic Hash-Chained Custody Log (FR-13.1, FR-13.2)
+- **Per-Capture Hash Chaining**: Every lifecycle event (`CREATE`, `VIEW`, `EXPORT`, `SHARE`, `VERIFY`) is canonically formatted per **RFC 8785 (JCS)** and hashed:  
+  `eventHash = SHA-256(JCS({ captureId, action, actorHash, at, prevEventHash }))`
+- **Privacy-Preserving Actors**: User identities are hashed with a server salt (`SHA-256(salt + ":" + uid)`); share link visitors are identified by `share:<shareId>`. Raw personal identifiers and IP addresses are never recorded.
+- **View Throttling**: View events are throttled to at most once per hour per actor to prevent noise.
+- **On-Chain Custody Events**: `EXPORT` (action code 1) and `SHARE` (action code 2) transactions are submitted to `EvidenceRegistry.logCustody(manifestSha256, eventHash, actionCode)` via a sequential queue with fee floor, balance assertions, and pending nonce management.
+- **Custody Tab & Integrity Badge**: The capture detail page provides a real-time visual timeline and a dynamic "Chain Intact" / "Chain Broken" badge derived from re-computing the hash chain.
+
+### Expiring & Revocable Share Links (FR-14.1)
+- **Token Hash Storage**: Links use 32-byte crypto random tokens. The server stores only `tokenHash = SHA-256(rawToken)`; the full URL is displayed strictly once at creation.
+- **Configurable Expiry**: 24 hours, 7 days, or 30 days.
+- **Derivative AI Gating**: AI summary and analysis are excluded by default and only included if explicitly enabled during share creation.
+- **Public Read-Only View (`/s/[token]`)**: Displays target URL, timestamps, artifact previews, and cryptographic checksums while completely stripping owner identity. Protected by `Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex, nofollow`, and 30 req/min IP rate limiting.
+- **Uniform Security Refusal**: Expired, revoked, and nonexistent tokens return the exact same 404 response to eliminate token enumeration oracles.
+- **Recipient Bundle Download**: Downloading evidence through `/api/shares/[token]/bundle` logs an `EXPORT` custody event credited to the share actor.
+
+---
+
+## 9. Forensic Custody Chain Verification
+To audit a capture's hash chain and on-chain custody event receipts:
+```bash
+npm run check:custody -- <captureId>
+```
+The script validates:
+1. Canonical RFC 8785 JCS encoding and SHA-256 hash chaining from genesis to current event.
+2. Continuity of `prevEventHash` across all records.
+3. On-chain transaction receipts in `EvidenceRegistry` for `EXPORT` (code 1) and `SHARE` (code 2) events, confirming block number and parameter accuracy.
+
+---
+
+## 10. Legal Disclaimer & Section 63(4) BSA, 2023 Draft Certificate
 - **Section 63(4) BSA, 2023 Compliance**: Saakshi produces a court-formatted **draft Part A certificate** under Section 63(4) of the Bharatiya Sakshya Adhiniyam, 2023 (`certificate_part_a_draft.pdf`), detailing:
   - Preserved record identifiers, source URLs, and dual IST/UTC timestamps.
   - Full cryptographic disclosures: SHA-256 algorithm selection and individual hashes for every preserved artifact.
@@ -204,7 +250,7 @@ The script validates:
 
 ---
 
-## 9. Team Eclipse
+## 11. Team Eclipse
 Built with dedication for **KRITICAL HACKS '26**:
 - **Siddharth Dhawan**: Lead Full-Stack & Systems Architecture
 - **Pratham Jaiswal**: Web3, Smart Contracts & Merkle Batching
