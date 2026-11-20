@@ -18,6 +18,7 @@
     "test": "npm run test:web && npm run test:contracts",
     "test:contracts": "npm run test --workspace=contracts",
     "test:web": "npm run test --workspace=apps/web",
+    "test:rules": "export JAVA_HOME=${JAVA_HOME:-/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home} && export PATH=$JAVA_HOME/bin:$PATH && firebase emulators:exec --only firestore \"npm run test:web -- tests/firestore-rules.test.ts\"",
     "contracts:compile": "npm run compile --workspace=contracts",
     "contracts:test": "npm run test --workspace=contracts",
     "check:bundle": "npx ts-node -r tsconfig-paths/register scripts/check-bundle.ts",

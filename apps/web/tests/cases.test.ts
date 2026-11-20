@@ -183,10 +183,9 @@ describe("Phase 8: Cases & Repost Finder Suite (PRD 6 F11, F12, 7.4, 9.1)", () =
 
       // Verify cases collection block exists
       expect(rulesContent).toContain("match /cases/{caseId}");
-      // Verify owner-only read, update, delete
-      expect(rulesContent).toMatch(/allow read.*if isOwner\(resource\.data\.ownerUid\)/);
-      expect(rulesContent).toMatch(/allow create.*if isOwner\(request\.resource\.data\.ownerUid\)/);
-      expect(rulesContent).toMatch(/allow update, delete.*if isOwner\(resource\.data\.ownerUid\)/);
+      // Verify owner-only read and PRD 9.4 no client writes
+      expect(rulesContent).toMatch(/allow read:\s*if isOwner\(resource\.data\.ownerUid\)/);
+      expect(rulesContent).toMatch(/allow write:\s*if false/);
       // Verify helper functions
       expect(rulesContent).toContain("function isOwner(uid)");
       expect(rulesContent).toContain("request.auth.uid == uid");

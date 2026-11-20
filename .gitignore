@@ -44,3 +44,7 @@ coverage/
 *.keystore
 *credentials*.json
 *serviceAccount*.json
+
+# Firebase emulator logs
+*-debug.log
+firestore-debug.log
