@@ -10,6 +10,7 @@ import { startAgentRun } from "@/lib/tinyfish/agent";
 import { validateCaptureUrl } from "@/lib/validation/url";
 import { NewCaptureRequestSchema } from "@/lib/tinyfish/schemas";
 import { requireAuth } from "@/lib/auth/server";
+import { checkSharedRateLimit, rateLimitExceededResponse, getClientIp } from "@/lib/security/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +42,17 @@ export async function POST(req: NextRequest) {
 
     const auth = requireAuth(req);
     if ("response" in auth) return auth.response;
+
+    const ip = getClientIp(req);
+    const rl = await checkSharedRateLimit({
+      action: "capture_create",
+      identifier: ip,
+      limit: 10,
+      windowSeconds: 60,
+    });
+    if (!rl.allowed) {
+      return rateLimitExceededResponse(rl.retryAfter);
+    }
 
     const rawBody = await req.json().catch(() => null);
     if (!rawBody) {

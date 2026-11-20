@@ -7,6 +7,7 @@ import {
   resetChirpPosts,
 } from "@/lib/sandbox/store";
 import { SandboxAdminRequestSchema } from "@/lib/tinyfish/schemas";
+import { checkSharedRateLimit, rateLimitExceededResponse, getClientIp } from "@/lib/security/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,17 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = getClientIp(req);
+    const rl = await checkSharedRateLimit({
+      action: "sandbox_action",
+      identifier: ip,
+      limit: 20,
+      windowSeconds: 60,
+    });
+    if (!rl.allowed) {
+      return rateLimitExceededResponse(rl.retryAfter);
+    }
+
     const rawBody = await req.json().catch(() => null);
     if (!rawBody) {
       return NextResponse.json({ error: "Invalid JSON request body" }, { status: 400 });

@@ -14,6 +14,7 @@ import {
 } from "@/lib/share/model";
 import { logCustodyOnChain } from "@/lib/chain/registry";
 import { requireAuth, requireOwner } from "@/lib/auth/server";
+import { checkSharedRateLimit, rateLimitExceededResponse, getClientIp } from "@/lib/security/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,17 @@ export async function POST(req: NextRequest) {
   try {
     const auth = requireAuth(req);
     if ("response" in auth) return auth.response;
+
+    const ip = getClientIp(req);
+    const rl = await checkSharedRateLimit({
+      action: "share_create",
+      identifier: auth.user.uid || ip,
+      limit: 20,
+      windowSeconds: 60,
+    });
+    if (!rl.allowed) {
+      return rateLimitExceededResponse(rl.retryAfter);
+    }
 
     const body = await req.json();
     const { captureId, duration = "7d", includeAi = false } = body;

@@ -10,6 +10,7 @@ import { computeSha256 } from "@/lib/evidence/hash";
 import { unwrapDek, encryptWithKey } from "@/lib/evidence/crypto";
 import { uploadBufferToIpfs } from "@/lib/evidence/ipfs";
 import { requireAuth, requireOwner } from "@/lib/auth/server";
+import { checkSharedRateLimit, rateLimitExceededResponse, getClientIp } from "@/lib/security/rate-limit";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -32,6 +33,17 @@ export async function POST(
 
     const authError = requireOwner(auth.user.uid, capture.ownerUid);
     if (authError) return authError;
+
+    const ip = getClientIp(req);
+    const rl = await checkSharedRateLimit({
+      action: "ai_regenerate",
+      identifier: auth.user.uid || ip,
+      limit: 5,
+      windowSeconds: 60,
+    });
+    if (!rl.allowed) {
+      return rateLimitExceededResponse(rl.retryAfter);
+    }
 
     if (capture.status !== "READY" && capture.status !== "PARTIAL") {
       return NextResponse.json(

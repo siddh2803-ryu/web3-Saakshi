@@ -18,7 +18,7 @@ import { renderCertificatePdf } from "@/lib/pdf/certificate";
 import { logCustodyOnChain } from "@/lib/chain/registry";
 import QRCode from "qrcode";
 import { FIXTURE_BROWSER_CAPTURE, MOCK_JPEG_BASE64 } from "@/lib/tinyfish/fixtures";
-import { checkShareRateLimit } from "@/lib/share/rate-limit";
+import { checkSharedRateLimit, rateLimitExceededResponse, getClientIp } from "@/lib/security/rate-limit";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -28,17 +28,15 @@ export async function GET(
   { params }: { params: { token: string } }
 ) {
   try {
-    const forwarded = req.headers.get("x-forwarded-for");
-    const ip = forwarded ? forwarded.split(",")[0].trim() : req.headers.get("x-real-ip") || "127.0.0.1";
-    if (!checkShareRateLimit(ip)) {
-      return new NextResponse("Too many requests", {
-        status: 429,
-        headers: {
-          "Retry-After": "60",
-          "Referrer-Policy": "no-referrer",
-          "X-Robots-Tag": "noindex, nofollow",
-        },
-      });
+    const ip = getClientIp(req);
+    const rl = await checkSharedRateLimit({
+      action: "share_access",
+      identifier: ip,
+      limit: 30,
+      windowSeconds: 60,
+    });
+    if (!rl.allowed) {
+      return rateLimitExceededResponse(rl.retryAfter);
     }
 
     const rawToken = params.token;
