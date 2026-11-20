@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { revokeShareRecord } from "@/lib/firebase/admin";
+import { revokeShareRecord, getCaptureRecord } from "@/lib/firebase/admin";
+import { requireAuth, requireOwner } from "@/lib/auth/server";
 
 export const dynamic = "force-dynamic";
 
@@ -8,6 +9,17 @@ export async function DELETE(
   { params }: { params: { id: string; shareId: string } }
 ) {
   try {
+    const auth = requireAuth(req);
+    if ("response" in auth) return auth.response;
+
+    const capture = await getCaptureRecord(params.id);
+    if (!capture) {
+      return NextResponse.json({ error: "Capture not found" }, { status: 404 });
+    }
+
+    const authError = requireOwner(auth.user.uid, capture.ownerUid);
+    if (authError) return authError;
+
     const { shareId } = params;
     const ok = await revokeShareRecord(shareId);
 

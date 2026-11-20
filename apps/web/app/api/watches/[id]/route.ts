@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getWatchRecord, saveWatchRecord, listWatchEvents } from "@/lib/firebase/admin";
-import { updateMonitor } from "@/lib/tinyfish/monitor";
+import { updateMonitor, deleteMonitor } from "@/lib/tinyfish/monitor";
+import { requireAuth, requireOwner } from "@/lib/auth/server";
 
 export const dynamic = "force-dynamic";
 
@@ -9,12 +10,18 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    const auth = requireAuth(req);
+    if ("response" in auth) return auth.response;
+
     const watchId = params.id;
     const watch = await getWatchRecord(watchId);
 
     if (!watch) {
       return NextResponse.json({ error: "Watch not found" }, { status: 404 });
     }
+
+    const authError = requireOwner(auth.user.uid, watch.ownerUid);
+    if (authError) return authError;
 
     const events = await listWatchEvents(watchId);
     return NextResponse.json({
@@ -34,12 +41,18 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
+    const auth = requireAuth(req);
+    if ("response" in auth) return auth.response;
+
     const watchId = params.id;
     const watch = await getWatchRecord(watchId);
 
     if (!watch) {
       return NextResponse.json({ error: "Watch not found" }, { status: 404 });
     }
+
+    const authError = requireOwner(auth.user.uid, watch.ownerUid);
+    if (authError) return authError;
 
     const body = await req.json();
     const { state, scheduleCron } = body;
@@ -60,6 +73,44 @@ export async function PATCH(
       success: true,
       watch: { ...watch, ...updates },
     });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const auth = requireAuth(req);
+    if ("response" in auth) return auth.response;
+
+    const watchId = params.id;
+    const watch = await getWatchRecord(watchId);
+
+    if (!watch) {
+      return NextResponse.json({ error: "Watch not found" }, { status: 404 });
+    }
+
+    const authError = requireOwner(auth.user.uid, watch.ownerUid);
+    if (authError) return authError;
+
+    if (watch.monitorId) {
+      try {
+        await deleteMonitor(watch.monitorId);
+      } catch (mErr) {
+        console.warn("Failed to delete monitor:", mErr);
+      }
+    }
+
+    await saveWatchRecord(watchId, {
+      state: "deleted",
+      updatedAt: new Date().toISOString(),
+    });
+
+    return NextResponse.json({ success: true, deleted: true });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: msg }, { status: 500 });

@@ -67,11 +67,13 @@ describe("Phase 7 Part 2: Report Tab & Regenerate Route Tests", () => {
   it("regenerate route returns 400 for unfinalized capture", async () => {
     await saveCaptureRecord("cap_running", {
       id: "cap_running",
+      ownerUid: "test_user_report",
       status: "AGENT_RUNNING",
     });
 
     const req = new NextRequest("http://localhost:3000/api/captures/cap_running/regenerate-analysis", {
       method: "POST",
+      headers: { "x-user-id": "test_user_report" },
     });
     const res = await regenerateHandler(req, { params: { id: "cap_running" } });
     expect(res.status).toBe(400);
@@ -82,6 +84,7 @@ describe("Phase 7 Part 2: Report Tab & Regenerate Route Tests", () => {
   it("successfully regenerates analysis and decrements daily remaining limit", async () => {
     const req = new NextRequest(`http://localhost:3000/api/captures/${testCaptureId}/regenerate-analysis`, {
       method: "POST",
+      headers: { "x-user-id": "test_user_report" },
     });
     const res = await regenerateHandler(req, { params: { id: testCaptureId } });
     expect(res.status).toBe(200);
@@ -105,6 +108,7 @@ describe("Phase 7 Part 2: Report Tab & Regenerate Route Tests", () => {
 
     const req = new NextRequest(`http://localhost:3000/api/captures/${testCaptureId}/regenerate-analysis`, {
       method: "POST",
+      headers: { "x-user-id": "test_user_report" },
     });
     const res = await regenerateHandler(req, { params: { id: testCaptureId } });
     expect(res.status).toBe(429);
@@ -123,6 +127,7 @@ describe("Phase 7 Part 2: Report Tab & Regenerate Route Tests", () => {
 
     const req = new NextRequest(`http://localhost:3000/api/captures/${testCaptureId}/regenerate-analysis`, {
       method: "POST",
+      headers: { "x-user-id": "test_user_report" },
     });
     const res = await regenerateHandler(req, { params: { id: testCaptureId } });
     expect(res.status).toBe(200);

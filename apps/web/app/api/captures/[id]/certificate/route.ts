@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCaptureRecord, listCustodyEvents } from "@/lib/firebase/admin";
 import { renderCertificatePdf } from "@/lib/pdf/certificate";
 import QRCode from "qrcode";
+import { requireAuth, requireOwner } from "@/lib/auth/server";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -22,24 +23,15 @@ export async function GET(
     }
 
     // Owner-only authorization check
-    const requesterUid =
-      req.headers.get("x-user-uid")?.trim() ||
-      new URL(req.url).searchParams.get("uid")?.trim() ||
-      (req.headers.get("authorization")?.startsWith("Bearer ")
-        ? req.headers.get("authorization")!.slice(7).trim()
-        : null) ||
-      "demo-user";
+    const auth = requireAuth(req);
+    if ("response" in auth) return auth.response;
 
-    if (capture.ownerUid && capture.ownerUid !== "anonymous") {
-      if (requesterUid !== capture.ownerUid) {
-        return new NextResponse(
-          JSON.stringify({
-            error: "Forbidden: Only the owner of this capture can download the s.63(4) certificate.",
-          }),
-          { status: 403, headers: { "Content-Type": "application/json" } }
-        );
-      }
-    }
+    const authError = requireOwner(
+      auth.user.uid,
+      capture.ownerUid,
+      "Forbidden: Only the owner of this capture can download the s.63(4) certificate."
+    );
+    if (authError) return authError;
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     const verifyUrl = `${appUrl}/v/${captureId}`;

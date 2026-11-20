@@ -73,14 +73,24 @@ export async function GET(
       });
     }
 
-    if (process.env.TINYFISH_MODE === "fixture" || !capture.wrappedDek) {
-      if (artifact.mime.startsWith("image/")) {
+    const mime = artifact.mime || "application/octet-stream";
+    let dek: Buffer | null = null;
+    if (capture.wrappedDek && process.env.TINYFISH_MODE !== "fixture") {
+      try {
+        dek = unwrapDek(capture.wrappedDek);
+      } catch (e) {
+        console.warn("DEK unwrap failed, using simulated fallback for demo:", e);
+      }
+    }
+
+    if (!dek) {
+      if (mime.startsWith("image/")) {
         const buf = artifact.kind === "fullpage_screenshot"
           ? FIXTURE_BROWSER_CAPTURE.fullpageScreenshot
           : Buffer.from(MOCK_JPEG_BASE64.replace(/^data:image\/\w+;base64,/, ""), "base64");
         return new NextResponse(new Uint8Array(buf), {
           headers: {
-            "Content-Type": artifact.mime,
+            "Content-Type": mime,
             "Referrer-Policy": "no-referrer",
             "X-Robots-Tag": "noindex, nofollow",
           },
@@ -88,14 +98,12 @@ export async function GET(
       }
       return new NextResponse("Preview fixture data", {
         headers: {
-          "Content-Type": artifact.mime,
+          "Content-Type": mime,
           "Referrer-Policy": "no-referrer",
           "X-Robots-Tag": "noindex, nofollow",
         },
       });
     }
-
-    const dek = unwrapDek(capture.wrappedDek);
     const gateway = process.env.PINATA_GATEWAY || "https://gateway.pinata.cloud/ipfs";
     const ipfsRes = await fetch(`${gateway}/${artifact.cid}`);
 

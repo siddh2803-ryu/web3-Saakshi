@@ -3,6 +3,7 @@ import { getCaptureRecord, listArtifactRecords } from "@/lib/firebase/admin";
 import { unwrapDek, decryptWithKey } from "@/lib/evidence/crypto";
 import { computeSha256 } from "@/lib/evidence/hash";
 import { FIXTURE_BROWSER_CAPTURE, MOCK_JPEG_BASE64 } from "@/lib/tinyfish/fixtures";
+import { requireAuth, requireOwner } from "@/lib/auth/server";
 
 export const dynamic = "force-dynamic";
 
@@ -11,12 +12,18 @@ export async function GET(
   { params }: { params: { id: string; artifactId: string } }
 ) {
   try {
+    const auth = requireAuth(req);
+    if ("response" in auth) return auth.response;
+
     const { id: captureId, artifactId } = params;
     const capture = await getCaptureRecord(captureId);
 
     if (!capture) {
-      return new NextResponse("Capture not found", { status: 404 });
+      return NextResponse.json({ error: "Capture not found" }, { status: 404 });
     }
+
+    const authError = requireOwner(auth.user.uid, capture.ownerUid);
+    if (authError) return authError;
 
     const artifacts = await listArtifactRecords(captureId);
     const artifact = artifacts.find((a: any) => a.id === artifactId);

@@ -19,6 +19,7 @@ import { computeSha256 } from "@/lib/evidence/hash";
 import { canonicalJson } from "@/lib/evidence/canonical";
 import QRCode from "qrcode";
 import { FIXTURE_BROWSER_CAPTURE, MOCK_JPEG_BASE64 } from "@/lib/tinyfish/fixtures";
+import { requireAuth, requireOwner } from "@/lib/auth/server";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -28,12 +29,18 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    const auth = requireAuth(req);
+    if ("response" in auth) return auth.response;
+
     const caseId = params.id;
     const caseData = await getCaseRecord(caseId);
 
     if (!caseData) {
-      return new NextResponse("Case not found", { status: 404 });
+      return NextResponse.json({ error: "Case not found" }, { status: 404 });
     }
+
+    const authError = requireOwner(auth.user.uid, caseData.ownerUid);
+    if (authError) return authError;
 
     const gateway = process.env.PINATA_GATEWAY || "https://gateway.pinata.cloud/ipfs";
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";

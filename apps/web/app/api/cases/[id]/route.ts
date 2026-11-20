@@ -5,6 +5,7 @@ import {
   deleteCaseRecord,
   getCaptureRecord,
 } from "@/lib/firebase/admin";
+import { requireAuth, requireOwner } from "@/lib/auth/server";
 
 export const dynamic = "force-dynamic";
 
@@ -13,11 +14,17 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    const auth = requireAuth(req);
+    if ("response" in auth) return auth.response;
+
     const caseId = params.id;
     const c = await getCaseRecord(caseId);
     if (!c) {
       return NextResponse.json({ error: "Case not found" }, { status: 404 });
     }
+
+    const authError = requireOwner(auth.user.uid, c.ownerUid);
+    if (authError) return authError;
 
     // Populate capture objects for timeline
     const captures = [];
@@ -40,11 +47,17 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
+    const auth = requireAuth(req);
+    if ("response" in auth) return auth.response;
+
     const caseId = params.id;
     const existing = await getCaseRecord(caseId);
     if (!existing) {
       return NextResponse.json({ error: "Case not found" }, { status: 404 });
     }
+
+    const authError = requireOwner(auth.user.uid, existing.ownerUid);
+    if (authError) return authError;
 
     const body = await req.json().catch(() => ({}));
     const updates: Record<string, any> = {};
@@ -73,7 +86,18 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    const auth = requireAuth(req);
+    if ("response" in auth) return auth.response;
+
     const caseId = params.id;
+    const existing = await getCaseRecord(caseId);
+    if (!existing) {
+      return NextResponse.json({ error: "Case not found" }, { status: 404 });
+    }
+
+    const authError = requireOwner(auth.user.uid, existing.ownerUid);
+    if (authError) return authError;
+
     const deleted = await deleteCaseRecord(caseId);
     if (!deleted) {
       return NextResponse.json({ error: "Case not found" }, { status: 404 });

@@ -3,6 +3,7 @@ import { getCaptureRecord, listArtifactRecords } from "@/lib/firebase/admin";
 import { searchReposts, SearchResultItem } from "@/lib/tinyfish/search";
 import { pickRepostPhrases } from "@/lib/tinyfish/phrase-picker";
 import { normalizeCompareUrl } from "@/lib/validation/url";
+import { requireAuth, requireOwner } from "@/lib/auth/server";
 
 export const dynamic = "force-dynamic";
 
@@ -11,12 +12,18 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
+    const auth = requireAuth(req);
+    if ("response" in auth) return auth.response;
+
     const captureId = params.id;
     const capture = await getCaptureRecord(captureId);
 
     if (!capture) {
       return NextResponse.json({ error: "Capture not found" }, { status: 404 });
     }
+
+    const authError = requireOwner(auth.user.uid, capture.ownerUid);
+    if (authError) return authError;
 
     const body = await req.json().catch(() => ({}));
     let phrases: string[] = Array.isArray(body.phrases) ? body.phrases : [];

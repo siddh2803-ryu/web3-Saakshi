@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCaseRecord, assignCaptureToCase, getCaptureRecord } from "@/lib/firebase/admin";
+import { requireAuth, requireOwner } from "@/lib/auth/server";
 
 export const dynamic = "force-dynamic";
 
@@ -11,11 +12,17 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
+    const auth = requireAuth(req);
+    if ("response" in auth) return auth.response;
+
     const caseId = params.id;
     const c = await getCaseRecord(caseId);
     if (!c) {
       return NextResponse.json({ error: "Case not found" }, { status: 404 });
     }
+
+    const authError = requireOwner(auth.user.uid, c.ownerUid);
+    if (authError) return authError;
 
     const body = await req.json().catch(() => ({}));
     const captureId = body.captureId;
@@ -27,6 +34,9 @@ export async function POST(
     if (!cap) {
       return NextResponse.json({ error: "Capture not found" }, { status: 404 });
     }
+
+    const capAuthError = requireOwner(auth.user.uid, cap.ownerUid);
+    if (capAuthError) return capAuthError;
 
     await assignCaptureToCase(captureId, caseId);
     const updatedCase = await getCaseRecord(caseId);
@@ -45,11 +55,17 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    const auth = requireAuth(req);
+    if ("response" in auth) return auth.response;
+
     const caseId = params.id;
     const c = await getCaseRecord(caseId);
     if (!c) {
       return NextResponse.json({ error: "Case not found" }, { status: 404 });
     }
+
+    const authError = requireOwner(auth.user.uid, c.ownerUid);
+    if (authError) return authError;
 
     const { searchParams } = new URL(req.url);
     const body = await req.json().catch(() => ({}));

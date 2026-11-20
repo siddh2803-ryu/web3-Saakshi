@@ -68,6 +68,7 @@ Exclusive 3-month remote engineering internship at Global AI Labs. Guaranteed st
 
     const req = new NextRequest(`http://localhost:3000/api/captures/${mockCaptureId}/watch`, {
       method: "POST",
+      headers: { "x-user-id": "test_user_alice" },
       body: JSON.stringify({ enabled: true, scheduleCron: "0 * * * *" }),
     });
 
@@ -107,6 +108,7 @@ Exclusive 3-month remote engineering internship at Global AI Labs. Guaranteed st
 
     const req = new NextRequest(`http://localhost:3000/api/captures/${mockCaptureId}/watch`, {
       method: "POST",
+      headers: { "x-user-id": "test_user_alice" },
       body: JSON.stringify({ enabled: false }),
     });
 
@@ -148,6 +150,7 @@ Exclusive 3-month remote engineering internship at Global AI Labs. Guaranteed st
 
     const req = new NextRequest(`http://localhost:3000/api/captures/${testCapId}/watch`, {
       method: "POST",
+      headers: { "x-user-id": limitUid },
       body: JSON.stringify({ enabled: true }),
     });
 
@@ -182,6 +185,7 @@ Exclusive 3-month remote engineering internship at Global AI Labs. Guaranteed st
 
     const req = new NextRequest(`http://localhost:3000/api/captures/${capId}/watch`, {
       method: "POST",
+      headers: { "x-user-id": "new_user_bob" },
       body: JSON.stringify({ enabled: true }),
     });
 
@@ -214,6 +218,7 @@ Exclusive 3-month remote engineering internship at Global AI Labs. Guaranteed st
 
     const req = new NextRequest(`http://localhost:3000/api/watches/${mockWatchId}/check`, {
       method: "POST",
+      headers: { "x-user-id": "test_user_alice" },
     });
 
     const res = await checkPostHandler(req, { params: { id: mockWatchId } });
@@ -258,6 +263,7 @@ Exclusive 3-month remote engineering internship at Global AI Labs. Stipend reduc
 
     const req = new NextRequest(`http://localhost:3000/api/watches/${mockWatchId}/check`, {
       method: "POST",
+      headers: { "x-user-id": "test_user_alice" },
     });
 
     const res = await checkPostHandler(req, { params: { id: mockWatchId } });
@@ -309,6 +315,7 @@ Exclusive 3-month remote engineering internship at Global AI Labs. Stipend reduc
 
     const req = new NextRequest(`http://localhost:3000/api/watches/${mockWatchId}/check`, {
       method: "POST",
+      headers: { "x-user-id": "test_user_alice" },
     });
 
     const res = await checkPostHandler(req, { params: { id: mockWatchId } });
@@ -334,6 +341,7 @@ Exclusive 3-month remote engineering internship at Global AI Labs. Stipend reduc
     });
     await saveCaptureRecord(mockCaptureId, {
       id: mockCaptureId,
+      ownerUid: "test_user_alice",
       watchId: mockWatchId,
       isWatching: true,
       status: "READY",
@@ -346,6 +354,7 @@ Exclusive 3-month remote engineering internship at Global AI Labs. Stipend reduc
 
     const req = new NextRequest(`http://localhost:3000/api/captures/${mockCaptureId}`, {
       method: "DELETE",
+      headers: { "x-user-id": "test_user_alice" },
     });
 
     const res = await captureDeleteHandler(req, { params: { id: mockCaptureId } });

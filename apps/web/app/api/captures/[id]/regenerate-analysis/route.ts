@@ -9,6 +9,7 @@ import { analyzeEvidenceWithGemini, createFailedAnalysis } from "@/lib/ai/gemini
 import { computeSha256 } from "@/lib/evidence/hash";
 import { unwrapDek, encryptWithKey } from "@/lib/evidence/crypto";
 import { uploadBufferToIpfs } from "@/lib/evidence/ipfs";
+import { requireAuth, requireOwner } from "@/lib/auth/server";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -25,6 +26,12 @@ export async function POST(
     if (!capture) {
       return NextResponse.json({ error: "Capture not found" }, { status: 404 });
     }
+
+    const auth = requireAuth(req);
+    if ("response" in auth) return auth.response;
+
+    const authError = requireOwner(auth.user.uid, capture.ownerUid);
+    if (authError) return authError;
 
     if (capture.status !== "READY" && capture.status !== "PARTIAL") {
       return NextResponse.json(

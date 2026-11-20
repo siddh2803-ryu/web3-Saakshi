@@ -13,18 +13,26 @@ import {
   ShareRecord,
 } from "@/lib/share/model";
 import { logCustodyOnChain } from "@/lib/chain/registry";
+import { requireAuth, requireOwner } from "@/lib/auth/server";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = requireAuth(req);
+    if ("response" in auth) return auth.response;
+
     const body = await req.json();
-    const { captureId, duration = "7d", uid = "demo-user", includeAi = false } = body;
+    const { captureId, duration = "7d", includeAi = false } = body;
+    const uid = auth.user.uid;
 
     const capture = await getCaptureRecord(captureId);
     if (!capture) {
       return NextResponse.json({ error: "Capture not found" }, { status: 404 });
     }
+
+    const authError = requireOwner(auth.user.uid, capture.ownerUid);
+    if (authError) return authError;
 
     const { rawToken, tokenHash } = generateShareToken();
     const expiresAt = calculateExpiryDate(duration as ShareDuration).toISOString();

@@ -6,6 +6,7 @@ import {
 } from "@/lib/firebase/admin";
 import { logCustodyOnChain } from "@/lib/chain/registry";
 import { toBytes32 } from "@/lib/evidence/hash";
+import { requireAuth, requireOwner } from "@/lib/auth/server";
 
 export const dynamic = "force-dynamic";
 
@@ -14,12 +15,18 @@ export async function POST(
   { params }: { params: { id: string; eventId: string } }
 ) {
   try {
+    const auth = requireAuth(req);
+    if ("response" in auth) return auth.response;
+
     const { id: captureId, eventId } = params;
     const capture = await getCaptureRecord(captureId);
 
     if (!capture) {
       return NextResponse.json({ error: "Capture not found" }, { status: 404 });
     }
+
+    const authError = requireOwner(auth.user.uid, capture.ownerUid);
+    if (authError) return authError;
 
     const events = await listCustodyEvents(captureId, "asc");
     const target = events.find((e) => e.id === eventId);

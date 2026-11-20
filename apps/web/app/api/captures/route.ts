@@ -9,13 +9,15 @@ import {
 import { startAgentRun } from "@/lib/tinyfish/agent";
 import { validateCaptureUrl } from "@/lib/validation/url";
 import { NewCaptureRequestSchema } from "@/lib/tinyfish/schemas";
+import { requireAuth } from "@/lib/auth/server";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url);
-    const uid = searchParams.get("uid") || "demo-user";
+    const auth = requireAuth(req);
+    if ("response" in auth) return auth.response;
+    const uid = auth.user.uid;
     const [captures, quota] = await Promise.all([
       listUserCaptures(uid),
       checkUserDailyQuota(uid),
@@ -37,6 +39,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const auth = requireAuth(req);
+    if ("response" in auth) return auth.response;
+
     const rawBody = await req.json().catch(() => null);
     if (!rawBody) {
       return NextResponse.json({ error: "Invalid JSON request body." }, { status: 400 });
@@ -49,7 +54,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: firstError, details: parsed.error.issues }, { status: 400 });
     }
 
-    const { url, goal, mode, consent, aiOptIn, uid, caseId } = parsed.data;
+    const { url, goal, mode, consent, aiOptIn, caseId } = parsed.data;
+    const uid = auth.user.uid;
 
     // FR-2.2 Statutory Consent Check
     if (!consent) {

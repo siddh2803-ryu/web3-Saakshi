@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCaptureRecord, recordViewCustodyEvent } from "@/lib/firebase/admin";
+import { requireAuth } from "@/lib/auth/server";
 
 export const dynamic = "force-dynamic";
 
@@ -8,6 +9,9 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
+    const auth = requireAuth(req);
+    if ("response" in auth) return auth.response;
+
     const captureId = params.id;
     const capture = await getCaptureRecord(captureId);
 
@@ -16,7 +20,7 @@ export async function POST(
     }
 
     const body = await req.json().catch(() => ({}));
-    const actorId = body.actorId || capture.ownerUid || "owner";
+    const actorId = auth.user.uid || body.actorId || capture.ownerUid || "owner";
 
     const result = await recordViewCustodyEvent(captureId, actorId);
     return NextResponse.json({

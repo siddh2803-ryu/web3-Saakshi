@@ -14,6 +14,7 @@ import { runFinalizePipeline } from "@/lib/pipeline/finalize";
 import { unpinFromIpfs } from "@/lib/evidence/ipfs";
 import { computeSha256 } from "@/lib/evidence/hash";
 import { deleteMonitor } from "@/lib/tinyfish/monitor";
+import { requireAuth, requireOwner } from "@/lib/auth/server";
 
 export const dynamic = "force-dynamic";
 
@@ -22,12 +23,18 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    const auth = requireAuth(req);
+    if ("response" in auth) return auth.response;
+
     const captureId = params.id;
     const capture = await getCaptureRecord(captureId);
 
     if (!capture) {
       return NextResponse.json({ error: "Capture not found" }, { status: 404 });
     }
+
+    const authError = requireOwner(auth.user.uid, capture.ownerUid);
+    if (authError) return authError;
 
     // While agent is running, poll TinyFish agent status
     if (capture.status === "AGENT_RUNNING" && capture.tinyfish?.runId) {
@@ -90,11 +97,17 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
+    const auth = requireAuth(req);
+    if ("response" in auth) return auth.response;
+
     const captureId = params.id;
     const capture = await getCaptureRecord(captureId);
     if (!capture) {
       return NextResponse.json({ error: "Capture not found" }, { status: 404 });
     }
+
+    const authError = requireOwner(auth.user.uid, capture.ownerUid);
+    if (authError) return authError;
 
     const body = await req.json().catch(() => ({}));
     if ("caseId" in body) {
@@ -120,12 +133,18 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    const auth = requireAuth(req);
+    if ("response" in auth) return auth.response;
+
     const captureId = params.id;
     const capture = await getCaptureRecord(captureId);
 
     if (!capture) {
       return NextResponse.json({ error: "Capture not found" }, { status: 404 });
     }
+
+    const authError = requireOwner(auth.user.uid, capture.ownerUid);
+    if (authError) return authError;
 
     // Deleting a capture deletes its monitor (PRD Section 17 Phase 6)
     const watch = capture.watchId

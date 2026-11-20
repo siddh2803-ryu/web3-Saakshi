@@ -496,6 +496,7 @@ describe("Phase 1: Agent & Capture Hardening Test Suite", () => {
     it("rejects capture submission if consent is missing or false (400)", async () => {
       const req = new NextRequest("http://localhost:3000/api/captures", {
         method: "POST",
+        headers: { "x-user-id": "test_consent_user" },
         body: JSON.stringify({
           url: "https://example.com/post/1",
           consent: false,
@@ -514,6 +515,7 @@ describe("Phase 1: Agent & Capture Hardening Test Suite", () => {
       // Submit capture 1
       const req1 = new NextRequest("http://localhost:3000/api/captures", {
         method: "POST",
+        headers: { "x-user-id": uid },
         body: JSON.stringify({
           url: "https://example.com/post/1",
           consent: true,
@@ -526,6 +528,7 @@ describe("Phase 1: Agent & Capture Hardening Test Suite", () => {
       // Submit capture 2
       const req2 = new NextRequest("http://localhost:3000/api/captures", {
         method: "POST",
+        headers: { "x-user-id": uid },
         body: JSON.stringify({
           url: "https://example.com/post/2",
           consent: true,
@@ -538,6 +541,7 @@ describe("Phase 1: Agent & Capture Hardening Test Suite", () => {
       // Submit capture 3 (exceeds quota of 2)
       const req3 = new NextRequest("http://localhost:3000/api/captures", {
         method: "POST",
+        headers: { "x-user-id": uid },
         body: JSON.stringify({
           url: "https://example.com/post/3",
           consent: true,

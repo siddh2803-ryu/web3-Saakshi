@@ -12,6 +12,7 @@ import { runMonitorNow } from "@/lib/tinyfish/monitor";
 import { classifyWatchRun } from "@/lib/watch/classify";
 import { fetchCleanText } from "@/lib/tinyfish/fetch";
 import { startAgentRun } from "@/lib/tinyfish/agent";
+import { requireAuth, requireOwner } from "@/lib/auth/server";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -21,12 +22,18 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
+    const auth = requireAuth(req);
+    if ("response" in auth) return auth.response;
+
     const watchId = params.id;
     const watch = await getWatchRecord(watchId);
 
     if (!watch) {
       return NextResponse.json({ error: "Watch not found" }, { status: 404 });
     }
+
+    const authError = requireOwner(auth.user.uid, watch.ownerUid);
+    if (authError) return authError;
 
     // 1. Resolve previous text for diffing
     let previousText = watch.lastText || watch.baselineText || "";

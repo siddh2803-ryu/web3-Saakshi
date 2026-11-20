@@ -14,6 +14,7 @@ import {
   ShareRecord,
 } from "@/lib/share/model";
 import { logCustodyOnChain } from "@/lib/chain/registry";
+import { requireAuth, requireOwner } from "@/lib/auth/server";
 
 export const dynamic = "force-dynamic";
 
@@ -22,12 +23,18 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    const auth = requireAuth(req);
+    if ("response" in auth) return auth.response;
+
     const captureId = params.id;
     const capture = await getCaptureRecord(captureId);
 
     if (!capture) {
       return NextResponse.json({ error: "Capture not found" }, { status: 404 });
     }
+
+    const authError = requireOwner(auth.user.uid, capture.ownerUid);
+    if (authError) return authError;
 
     const shares = await listCaptureShares(captureId);
     // Sanitize: never return tokenHash or secrets
@@ -53,6 +60,9 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
+    const auth = requireAuth(req);
+    if ("response" in auth) return auth.response;
+
     const captureId = params.id;
     const capture = await getCaptureRecord(captureId);
 
@@ -60,10 +70,13 @@ export async function POST(
       return NextResponse.json({ error: "Capture not found" }, { status: 404 });
     }
 
+    const authError = requireOwner(auth.user.uid, capture.ownerUid);
+    if (authError) return authError;
+
     const body = await req.json().catch(() => ({}));
     const duration = (body.duration || "7d") as ShareDuration;
     const includeAi = Boolean(body.includeAi);
-    const ownerUid = body.uid || capture.ownerUid || "owner";
+    const ownerUid = auth.user.uid;
 
     // 1. Generate 32-byte cryptographic random token
     const { rawToken, tokenHash } = generateShareToken();

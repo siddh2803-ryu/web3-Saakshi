@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { listUserCases, saveCaseRecord } from "@/lib/firebase/admin";
+import { requireAuth } from "@/lib/auth/server";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url);
-    const uid = searchParams.get("uid") || "demo-user";
-    const cases = await listUserCases(uid);
+    const auth = requireAuth(req);
+    if ("response" in auth) return auth.response;
+    const cases = await listUserCases(auth.user.uid);
     return NextResponse.json({ cases });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -18,8 +19,11 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = requireAuth(req);
+    if ("response" in auth) return auth.response;
+
     const body = await req.json().catch(() => ({}));
-    const uid = body.uid || "demo-user";
+    const uid = auth.user.uid;
     const title = (body.title || "").trim() || "Untitled Case";
     const notes = typeof body.notes === "string" ? body.notes : "";
 

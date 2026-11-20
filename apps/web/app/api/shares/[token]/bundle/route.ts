@@ -136,7 +136,8 @@ export async function GET(
         }
       }
 
-      const filename = `${art.id}_${art.kind}.${art.mime.includes("pdf") ? "pdf" : art.mime.includes("json") ? "json" : art.mime.includes("html") ? "html" : art.mime.includes("png") ? "png" : art.mime.includes("markdown") ? "md" : "jpg"}`;
+      const mime = art.mime || "application/octet-stream";
+      const filename = `${art.id}_${art.kind}.${mime.includes("pdf") ? "pdf" : mime.includes("json") ? "json" : mime.includes("html") ? "html" : mime.includes("png") ? "png" : mime.includes("markdown") ? "md" : "jpg"}`;
       decryptedEntries.push({
         filename,
         plaintextBuffer,

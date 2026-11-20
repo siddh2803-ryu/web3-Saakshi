@@ -16,6 +16,7 @@ import {
 } from "@/lib/tinyfish/monitor";
 import { normalizeWatchText } from "@/lib/watch/diff";
 import { computeSha256 } from "@/lib/evidence/hash";
+import { requireAuth, requireOwner } from "@/lib/auth/server";
 
 export const dynamic = "force-dynamic";
 
@@ -28,11 +29,17 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    const auth = requireAuth(req);
+    if ("response" in auth) return auth.response;
+
     const captureId = params.id;
     const capture = await getCaptureRecord(captureId);
     if (!capture) {
       return NextResponse.json({ error: "Capture not found" }, { status: 404 });
     }
+
+    const authError = requireOwner(auth.user.uid, capture.ownerUid);
+    if (authError) return authError;
 
     const watch = capture.watchId
       ? await getWatchRecord(capture.watchId)
@@ -63,12 +70,18 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
+    const auth = requireAuth(req);
+    if ("response" in auth) return auth.response;
+
     const captureId = params.id;
     const capture = await getCaptureRecord(captureId);
 
     if (!capture) {
       return NextResponse.json({ error: "Capture not found" }, { status: 404 });
     }
+
+    const authError = requireOwner(auth.user.uid, capture.ownerUid);
+    if (authError) return authError;
 
     const body = await req.json().catch(() => ({}));
     const existingWatch = capture.watchId
@@ -236,11 +249,17 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    const auth = requireAuth(req);
+    if ("response" in auth) return auth.response;
+
     const captureId = params.id;
     const capture = await getCaptureRecord(captureId);
     if (!capture) {
       return NextResponse.json({ error: "Capture not found" }, { status: 404 });
     }
+
+    const authError = requireOwner(auth.user.uid, capture.ownerUid);
+    if (authError) return authError;
 
     const watch = capture.watchId
       ? await getWatchRecord(capture.watchId)
