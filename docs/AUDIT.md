@@ -24,7 +24,7 @@
 | **Phase 6** | Watch with TinyFish Monitor | **PARTIAL** | 3/6 Core Criteria Live Verified / 3 Pending Live Webhook | 50% | `c9cf24d`, `feat(watch)` | **Part 1 of 3 Complete**: OpenAPI-aligned monitor client, Zod validation, volatile-stripped classifier (counters/timestamps ignored), 20 KB capped unified diff with word-level changes, monitor cleanup script, and live example.com monitor/runNow/delete verified. Remaining for Part 2/3: Live webhook delivery over public tunnel/Vercel URL, auto re-capture end-to-end on edited/deleted Chirp post, and watch timeline UI drilldown. |
 | **Phase 7** | Gemini AI Analysis & s.63(4) Certificate | **COMPLETE** | 10/10 Part 1 + 9/9 Part 2 + 10/10 Part 3 Items Verified / Live Calls Pending GEMINI_API_KEY | 100% | `fb66339`, `feat(ai)`, `feat(report)`, `feat(certificate)`, `test(certificate)`, `chore(scripts)` | Part 1 (AI engine hardening), Part 2 (Report tab, encrypted derivative storage FR-9.3, daily regeneration limit, validation suite), and Part 3 (s.63(4) Part A draft certificate PDF generator, bundle derivative handling, check-bundle script updates, and live integrity verification) COMPLETE. Schema validation passes for 3 evaluation captures. Live Gemini calls pending user-supplied `GEMINI_API_KEY`. |
 | **Phase 8** | Reposts, Cases, Custody & Share Links | **COMPLETE** | 4/4 Core Criteria Passed (Live Verified; on-chain Amoy PENDING) | 100% | `9fcd253`, `d1c6b18`, `809644f`, `071076b`, `f1c2ea4`, `713c039`, `9e2ff54`, `de28cbb`, `5573ac2`, `7cabfb1`, `f7b4faa`, `28611ef` | None. All 4 acceptance criteria passed (public quote search, capture-this-too, export custody tx on local chain, expired share link refusal). On-chain custody executed and verified on `LOCAL CHAIN` (Chain ID 31337); criterion PENDING for Amoy testnet. |
-| **Phase 9** | Hardening, Tests & Documentation | **PARTIAL** | 3/6 | 50% | `dcfb049`, `b988893` | Enforce production build failure on `TINYFISH_MODE=fixture`; add `firestore.rules`; fix `scripts/smoke.ts` module resolution alias. |
+| **Phase 9** | Hardening, Tests & Documentation | **PARTIAL** | 3/6 Criteria Verified (Part 1 Re-Check Complete) | 50% | `dcfb049`, `b988893` | Part 1 of 2 in progress: Enforce fatal production build failure on all dev-only flags (`TINYFISH_MODE=fixture`, `IPFS_FALLBACK=dev`, `CHAIN_MODE=mock`, `AI_FALLBACK=dev`); add `firestore.rules` and emulator tests; fix `scripts/smoke.ts` path alias and custom base URL; implement route auth matrix, shared rate limiter, CSP, uniform errors, UI states, structured logs, and secret scanning. Part 2: Final Vercel deployment. |
 | **Phase 10** | Demo Video, Social Post & Venue Readiness | **HUMAN TASK** | 1/6 | 17% | None | Record 2-3 min video; deploy to Vercel; fund Amoy faucet; publish social post; capture venue fallback recordings. |
 
 ---
@@ -622,6 +622,95 @@ In accordance with PRD Section 17 & AUDIT.md rules (*"Anything not verified with
    - Accessing `/s/faad5967...` returned `This link is no longer available` (404) with lock icon and home redirection.
    - Link #1 revoked via `DELETE /api/captures/.../shares/sh_5326415453f1e93698f9b585b242f600`.
    - Accessing `/s/a9784fa8...` returned the exact identical `This link is no longer available` (404) view, confirming uniform responses against enumeration attacks.
+
+---
+
+### 1.10 Phase 9 Re-Check & Gap Analysis (Hardening & Reliability - Part 1 of 2)
+
+**Status:** **PARTIAL** (Part 1 of 2: Security & Reliability Hardening; Part 2: Deployment & Final Verification).  
+**Objective:** Audit, harden, and verify environment validation, production build guards, Firestore security rules, route authentication & authorization, shared rate limiting, Content Security Policy, uniform error boundaries, UI states, structured logging, and secret scanning without deployment.
+
+#### A. Open Items Identified in Phase 9 Re-Check
+1. **Production Build Guard on Dev Flags:**
+   - *Current State:* `next.config.mjs` logs only an informational warning when `NODE_ENV=production` and `TINYFISH_MODE=fixture`.
+   - *Requirement:* Production builds must immediately throw a fatal error and fail if any development-only fallback flag is active (`TINYFISH_MODE=fixture`, `IPFS_FALLBACK=dev`, `CHAIN_MODE=mock`, `AI_FALLBACK=dev`).
+2. **Missing Firestore Security Rules (`firestore.rules`):**
+   - *Current State:* No `firestore.rules` exists in the repository root.
+   - *Requirement:* Define rules enforcing PRD 9.4: owner-only read access for `users`, `cases`, `captures`, `watches`, and `custody`; public read-only access for `publicProofs`; client access denied for `shares`; zero client writes permitted anywhere (all mutations via server Admin SDK). Provide automated emulator tests using `@firebase/rules-unit-testing`.
+3. **Module Resolution in `scripts/smoke.ts`:**
+   - *Current State:* Running `npx ts-node scripts/smoke.ts` directly fails on `@/` path aliases unless `-r tsconfig-paths/register` is passed.
+   - *Requirement:* Update smoke script execution and configure it to accept an arbitrary base URL argument (`npm run smoke -- https://target-url.com`).
+4. **API Route Authentication & Authorization Matrix:**
+   - *Current State:* Multiple route handlers accept `uid` from query params or default to `"demo-user"` without validating user identity or ownership.
+   - *Requirement:* Enforce route authentication across all private routes (401 for signed-out, 403 for cross-user resource access), allow signed-out requests on public endpoints, and verify with an automated test matrix covering every API route.
+5. **Shared Rate Limiting on Costly & Public Endpoints:**
+   - *Current State:* Rate limiting exists only in-memory on share endpoints (`lib/share/rate-limit.ts`), which does not persist across stateless Vercel lambdas.
+   - *Requirement:* Implement a shared store rate limiter (Firestore counter with memory fallback) on capture creation, public verify lookups, share links, sandbox actions, and AI regeneration, returning HTTP 429 with `Retry-After`.
+6. **Security Headers & Content Security Policy (CSP):**
+   - *Current State:* Only basic `Referrer-Policy: no-referrer` is applied to `/s/` and `/api/shares/`.
+   - *Requirement:* Add strict CSP (allowing self, TinyFish iframe streaming, Pinata gateway, Polygon RPCs, Firebase/Google auth), `frame-ancestors 'none'`, `X-Content-Type-Options: nosniff`, `Permissions-Policy`, and HSTS in production.
+7. **Uniform Error Handling & Production Information Leakage:**
+   - *Current State:* Route handlers return varied error formats (`{ error: string }`, `{ error, details }`).
+   - *Requirement:* Add Next.js App Router `global-error.tsx` and custom `not-found.tsx`. Standardize all API error envelopes to `{ error: { code: string, message: string } }` and strip stack traces/internal zod issues in production.
+8. **UI State Completeness:**
+   - *Current State:* Several screens lack explicit loading skeletons, empty state components, or structured error recovery views.
+   - *Requirement:* Review all PRD Section 15 screens (`/`, `/capture/new`, `/capture/[id]`, `/dashboard`, `/case/[id]`, `/verify`, `/v/[id]`, `/s/[token]`, `/sandbox/admin`, `/sandbox/post/[slug]`) and supply missing states.
+9. **Structured Logging & Secret Redaction:**
+   - *Current State:* Raw `console.log` and `console.error` calls throughout route handlers.
+   - *Requirement:* Standardize on structured server logging with request ID correlation and automatic redaction of API keys, JWTs, private keys, and bearer tokens.
+10. **Secret Scanning & Gitleaks CI:**
+    - *Current State:* Manual audits conducted, but no automated CI secret scanning step exists.
+    - *Requirement:* Run gitleaks across full commit history and working tree; scan `.next/static` bundles; configure gitleaks in GitHub Actions workflow.
+11. **Dependency Audit (npm audit):**
+    - *Current State:* npm audit contains unreviewed dependencies.
+    - *Requirement:* Remediate high/critical vulnerabilities via non-breaking upgrades and document exceptions.
+
+#### B. Complete API Route Authentication Matrix (PRD Section 10 vs Codebase)
+
+| # | HTTP Method | Endpoint Route | PRD Classification | Required Authorization | Current Implementation | Action Required |
+|---|---|---|---|---|---|---|
+| 1 | `GET` | `/api/captures` | Private | Authenticated User | Reads `?uid=` with `"demo-user"` fallback | Enforce authenticated session; return 401 if signed out. |
+| 2 | `POST` | `/api/captures` | Private | Authenticated User | Accepts `uid` in body with `"demo-user"` default | Enforce authenticated user session; return 401 if signed out. |
+| 3 | `GET` | `/api/captures/[id]` | Private | Capture Owner | Returns capture regardless of caller | Assert `capture.ownerUid === user.uid`; return 401/403. |
+| 4 | `PATCH` | `/api/captures/[id]` | Private | Capture Owner | Updates case without checking caller | Assert `capture.ownerUid === user.uid`; return 401/403. |
+| 5 | `DELETE` | `/api/captures/[id]` | Private | Capture Owner | Crypto-shreds without caller ownership check | Assert `capture.ownerUid === user.uid`; return 401/403. |
+| 6 | `GET` | `/api/captures/[id]/artifacts/[artifactId]` | Private | Capture Owner | Serves decrypted artifact to any caller | Assert `capture.ownerUid === user.uid`; return 401/403. |
+| 7 | `GET` | `/api/captures/[id]/bundle` | Private | Capture Owner | Streams ZIP bundle without caller check | Assert `capture.ownerUid === user.uid`; return 401/403. |
+| 8 | `GET` | `/api/captures/[id]/certificate` | Private | Capture Owner | Generates PDF without caller check | Assert `capture.ownerUid === user.uid`; return 401/403. |
+| 9 | `POST` | `/api/captures/[id]/retry` | Private | Capture Owner | Resumes pipeline without caller check | Assert `capture.ownerUid === user.uid`; return 401/403. |
+| 10 | `POST` | `/api/captures/[id]/finalize` | Private | Owner / Internal Lock | Guards double-run via lock; no caller check | Assert `capture.ownerUid === user.uid` or webhook/internal. |
+| 11 | `POST` | `/api/captures/[id]/anchor` | Private | Capture Owner | Triggers anchor without caller check | Assert `capture.ownerUid === user.uid`; return 401/403. |
+| 12 | `GET` | `/api/captures/[id]/watch` | Private | Capture Owner | Reads watch record without caller check | Assert `capture.ownerUid === user.uid`; return 401/403. |
+| 13 | `POST` | `/api/captures/[id]/watch` | Private | Capture Owner | Creates monitor without caller check | Assert `capture.ownerUid === user.uid`; return 401/403. |
+| 14 | `DELETE` | `/api/captures/[id]/watch` | Private | Capture Owner | Deletes monitor without caller check | Assert `capture.ownerUid === user.uid`; return 401/403. |
+| 15 | `GET` | `/api/captures/[id]/reposts` | Private | Capture Owner | Queries search without caller check | Assert `capture.ownerUid === user.uid`; return 401/403. |
+| 16 | `POST` | `/api/captures/[id]/regenerate-analysis` | Private | Capture Owner | Calls Gemini without caller check | Assert `capture.ownerUid === user.uid`; return 401/403. |
+| 17 | `POST` | `/api/captures/[id]/view` | Private | Authenticated User | Logs VIEW event using IP/caller hash | Assert authenticated user session; return 401. |
+| 18 | `GET` | `/api/captures/[id]/custody` | Private | Capture Owner | Lists custody events without caller check | Assert `capture.ownerUid === user.uid`; return 401/403. |
+| 19 | `POST` | `/api/captures/[id]/custody` | Private | Capture Owner | Records event without caller check | Assert `capture.ownerUid === user.uid`; return 401/403. |
+| 20 | `POST` | `/api/captures/[id]/custody/[eventId]/retry` | Private | Capture Owner | Retries on-chain custody without check | Assert `capture.ownerUid === user.uid`; return 401/403. |
+| 21 | `GET` | `/api/captures/[id]/shares` | Private | Capture Owner | Lists shares without caller check | Assert `capture.ownerUid === user.uid`; return 401/403. |
+| 22 | `POST` | `/api/captures/[id]/shares` | Private | Capture Owner | Creates share record without caller check | Assert `capture.ownerUid === user.uid`; return 401/403. |
+| 23 | `DELETE` | `/api/captures/[id]/shares/[shareId]` | Private | Capture Owner | Revokes share without caller check | Assert `capture.ownerUid === user.uid`; return 401/403. |
+| 24 | `POST` | `/api/shares` | Private | Capture Owner | Creates share link from body params | Assert caller owns `captureId`; return 401/403. |
+| 25 | `GET` | `/api/shares/[token]/artifacts/[artifactId]` | Public | Valid Share Token | Validates token hash, expiry, revocation | Maintain token auth; allow signed-out access. |
+| 26 | `GET` | `/api/shares/[token]/bundle` | Public | Valid Share Token | Validates token hash, expiry, revocation | Maintain token auth; allow signed-out access. |
+| 27 | `GET` | `/api/cases` | Private | Authenticated User | Reads `?uid=` with `"demo-user"` default | Enforce authenticated session; return 401 if signed out. |
+| 28 | `POST` | `/api/cases` | Private | Authenticated User | Accepts `uid` in body with default | Enforce authenticated user session; return 401 if signed out. |
+| 29 | `GET` | `/api/cases/[id]` | Private | Case Owner | Returns case without caller check | Assert `case.ownerUid === user.uid`; return 401/403. |
+| 30 | `PATCH` | `/api/cases/[id]` | Private | Case Owner | Updates title/notes without caller check | Assert `case.ownerUid === user.uid`; return 401/403. |
+| 31 | `DELETE` | `/api/cases/[id]` | Private | Case Owner | Deletes case without caller check | Assert `case.ownerUid === user.uid`; return 401/403. |
+| 32 | `POST` | `/api/cases/[id]/captures` | Private | Case & Capture Owner | Moves capture without ownership check | Assert caller owns case and capture; return 401/403. |
+| 33 | `DELETE` | `/api/cases/[id]/captures` | Private | Case Owner | Unassigns capture without caller check | Assert `case.ownerUid === user.uid`; return 401/403. |
+| 34 | `GET` | `/api/cases/[id]/export` | Private | Case Owner | Streams case ZIP without caller check | Assert `case.ownerUid === user.uid`; return 401/403. |
+| 35 | `GET` | `/api/watches/[id]` | Private | Watch Owner | Returns watch without caller check | Assert `watch.ownerUid === user.uid`; return 401/403. |
+| 36 | `DELETE` | `/api/watches/[id]` | Private | Watch Owner | Deletes watch without caller check | Assert `watch.ownerUid === user.uid`; return 401/403. |
+| 37 | `POST` | `/api/watches/[id]/check` | Private | Watch Owner | Runs manual check without caller check | Assert `watch.ownerUid === user.uid`; return 401/403. |
+| 38 | `GET` | `/api/verify/[sha256]` | Public | Unauthenticated | Public hash index lookup | Public endpoint; returns 200 without auth. |
+| 39 | `POST` | `/api/sandbox` | Protected | Admin Secret | Validates `SANDBOX_ADMIN_SECRET` | Secret token auth; rejects invalid secret with 401. |
+| 40 | `GET` | `/api/sandbox` | Public | Unauthenticated | Reads demo Chirp post state | Public endpoint; returns 200 without auth. |
+| 41 | `POST` | `/api/webhooks/tinyfish` | Protected | Webhook Secret | Validates `?token=WEBHOOK_SECRET` | Secret token auth; rejects invalid token with 401. |
+| 42 | `POST` | `/api/webhooks/monitor` | Protected | Webhook Secret | Validates `?token=WEBHOOK_SECRET` | Secret token auth; rejects invalid token with 401. |
 
 ---
 
