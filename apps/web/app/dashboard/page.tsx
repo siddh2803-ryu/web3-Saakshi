@@ -15,6 +15,7 @@ import {
   Filter,
   Activity,
   AlertTriangle,
+  AlertCircle,
   FolderPlus,
   X,
   Check,
@@ -27,6 +28,7 @@ export default function DashboardPage() {
   const [captures, setCaptures] = useState<any[]>([]);
   const [cases, setCases] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilterType>("ALL");
   const [caseFilter, setCaseFilter] = useState<string>("ALL");
@@ -58,8 +60,10 @@ export default function DashboardPage() {
         const data = await casesRes.json();
         setCases(data.cases || []);
       }
+      setFetchError(null);
     } catch (err) {
       console.error("Dashboard fetch error:", err);
+      setFetchError("Unable to load evidence dashboard records. Please check your network and retry.");
     } finally {
       setLoading(false);
     }
@@ -149,6 +153,25 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-[calc(100vh-4rem)] py-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+      {fetchError && (
+        <div className="mb-6 p-4 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-between">
+          <div className="flex items-center space-x-2 text-rose-800 text-xs font-semibold">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>{fetchError}</span>
+          </div>
+          <button
+            onClick={() => {
+              setFetchError(null);
+              setLoading(true);
+              fetchData();
+            }}
+            className="px-3 py-1 bg-white border border-rose-300 text-rose-800 text-xs font-semibold rounded-md hover:bg-rose-100/50"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Dashboard Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
         <div>

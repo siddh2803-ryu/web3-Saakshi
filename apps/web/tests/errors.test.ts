@@ -18,7 +18,7 @@ describe("Phase 9: Uniform API Errors & Production Leakage Guards (PRD Section 1
   it("masks 5xx internal server errors in production to prevent information leakage", async () => {
     const prevEnv = process.env.NODE_ENV;
     try {
-      process.env.NODE_ENV = "production";
+      (process.env as any).NODE_ENV = "production";
       const res = createApiError(
         500,
         "DATABASE_FAILURE",
@@ -34,14 +34,14 @@ describe("Phase 9: Uniform API Errors & Production Leakage Guards (PRD Section 1
       // Ensure no raw internal DB IP/host leaked
       expect(JSON.stringify(body)).not.toContain("10.0.1.42");
     } finally {
-      process.env.NODE_ENV = prevEnv;
+      (process.env as any).NODE_ENV = prevEnv;
     }
   });
 
   it("handleRouteError returns sanitized 500 response without stack traces in production", async () => {
     const prevEnv = process.env.NODE_ENV;
     try {
-      process.env.NODE_ENV = "production";
+      (process.env as any).NODE_ENV = "production";
       const sensitiveError = new Error("Firestore SDK secret token expired: key_live_xyz");
       sensitiveError.stack = "Error: at /server/secret/handler.ts:42\n    at internalFunction";
 
@@ -60,14 +60,14 @@ describe("Phase 9: Uniform API Errors & Production Leakage Guards (PRD Section 1
       expect(jsonStr).not.toContain("stack");
       expect(jsonStr).not.toContain("handler.ts");
     } finally {
-      process.env.NODE_ENV = prevEnv;
+      (process.env as any).NODE_ENV = prevEnv;
     }
   });
 
   it("handleRouteError includes error message in non-production environments for debugging", async () => {
     const prevEnv = process.env.NODE_ENV;
     try {
-      process.env.NODE_ENV = "development";
+      (process.env as any).NODE_ENV = "development";
       const devError = new Error("Zod validation failed: invalid url format");
 
       const res = handleRouteError(devError, "VALIDATION_FAILED");
@@ -76,7 +76,7 @@ describe("Phase 9: Uniform API Errors & Production Leakage Guards (PRD Section 1
       expect(body.error.code).toBe("VALIDATION_FAILED");
       expect(body.error.message).toContain("Zod validation failed");
     } finally {
-      process.env.NODE_ENV = prevEnv;
+      (process.env as any).NODE_ENV = prevEnv;
     }
   });
 });

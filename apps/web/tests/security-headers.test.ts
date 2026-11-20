@@ -3,23 +3,23 @@ import nextConfig from "../next.config.mjs";
 
 describe("Phase 9: Security Headers & Content Security Policy (PRD Section 17)", () => {
   it("defines comprehensive security headers for all routes and specific policies for share routes", async () => {
-    const headerRules = await nextConfig.headers();
+    const headerRules = await nextConfig.headers!();
 
     // Check share route headers
     const shareViewRule = headerRules.find((r: any) => r.source === "/s/:path*");
     expect(shareViewRule).toBeDefined();
-    const shareViewReferrer = shareViewRule.headers.find((h: any) => h.key === "Referrer-Policy");
+    const shareViewReferrer = shareViewRule!.headers.find((h: any) => h.key === "Referrer-Policy");
     expect(shareViewReferrer?.value).toBe("no-referrer");
 
     const shareApiRule = headerRules.find((r: any) => r.source === "/api/shares/:path*");
     expect(shareApiRule).toBeDefined();
-    const shareApiReferrer = shareApiRule.headers.find((h: any) => h.key === "Referrer-Policy");
+    const shareApiReferrer = shareApiRule!.headers.find((h: any) => h.key === "Referrer-Policy");
     expect(shareApiReferrer?.value).toBe("no-referrer");
 
     // Check global headers
     const globalRule = headerRules.find((r: any) => r.source === "/:path*");
     expect(globalRule).toBeDefined();
-    const headersMap = new Map(globalRule.headers.map((h: any) => [h.key, h.value]));
+    const headersMap = new Map(globalRule!.headers.map((h: any) => [h.key, h.value]));
 
     // 1. Content-Security-Policy
     const csp = headersMap.get("Content-Security-Policy");
@@ -49,15 +49,15 @@ describe("Phase 9: Security Headers & Content Security Policy (PRD Section 17)",
   it("includes Strict-Transport-Security (HSTS) when NODE_ENV is production", async () => {
     const prevEnv = process.env.NODE_ENV;
     try {
-      process.env.NODE_ENV = "production";
-      const headerRules = await nextConfig.headers();
+      (process.env as any).NODE_ENV = "production";
+      const headerRules = await nextConfig.headers!();
       const globalRule = headerRules.find((r: any) => r.source === "/:path*");
-      const hstsHeader = globalRule.headers.find((h: any) => h.key === "Strict-Transport-Security");
+      const hstsHeader = globalRule!.headers.find((h: any) => h.key === "Strict-Transport-Security");
       expect(hstsHeader).toBeDefined();
-      expect(hstsHeader.value).toContain("max-age=63072000");
-      expect(hstsHeader.value).toContain("includeSubDomains");
+      expect(hstsHeader!.value).toContain("max-age=63072000");
+      expect(hstsHeader!.value).toContain("includeSubDomains");
     } finally {
-      process.env.NODE_ENV = prevEnv;
+      (process.env as any).NODE_ENV = prevEnv;
     }
   });
 });
