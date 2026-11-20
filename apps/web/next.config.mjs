@@ -44,10 +44,25 @@ const nextConfig = {
     ];
   },
   webpack: (config, { isServer }) => {
-    if (process.env.NODE_ENV === "production" && process.env.TINYFISH_MODE === "fixture") {
-      console.warn(
-        "[Notice] Production build running with TINYFISH_MODE=fixture (demo / offline verification mode)."
-      );
+    // Production Guards: fail production builds when any dev-only flag is set
+    if (process.env.NODE_ENV === "production") {
+      const devFlags = [
+        { key: "TINYFISH_MODE", forbiddenValue: "fixture" },
+        { key: "IPFS_FALLBACK", forbiddenValue: "dev" },
+        { key: "CHAIN_MODE", forbiddenValue: "mock" },
+        { key: "AI_FALLBACK", forbiddenValue: "dev" },
+      ];
+      const violations = devFlags
+        .filter(({ key, forbiddenValue }) => process.env[key] === forbiddenValue)
+        .map(({ key, forbiddenValue }) => `${key}=${forbiddenValue}`);
+
+      if (violations.length > 0) {
+        throw new Error(
+          `[Production Guard Failure] Production build rejected: dev-only fallback flag(s) active: ${violations.join(
+            ", "
+          )}. Disable these flags before building for production.`
+        );
+      }
     }
     if (!isServer) {
       config.resolve.fallback = {
