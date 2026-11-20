@@ -4,23 +4,44 @@ import * as path from "path";
 dotenv.config({ path: path.resolve(__dirname, "../.env.local") });
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
-import { startAgentRun, getAgentRun } from "../apps/web/lib/tinyfish/agent";
-import { runFinalizePipeline } from "../apps/web/lib/pipeline/finalize";
-import { saveCaptureRecord, getCaptureRecord, listArtifactRecords, savePublicProof } from "../apps/web/lib/firebase/admin";
-import { buildMerkleBatch, verifyManifestProof } from "../apps/web/lib/evidence/merkle";
-import { anchorRootOnChain } from "../apps/web/lib/chain/registry";
+import { startAgentRun, getAgentRun } from "@/lib/tinyfish/agent";
+import { runFinalizePipeline } from "@/lib/pipeline/finalize";
+import { saveCaptureRecord, getCaptureRecord, listArtifactRecords, savePublicProof } from "@/lib/firebase/admin";
+import { buildMerkleBatch, verifyManifestProof } from "@/lib/evidence/merkle";
+import { anchorRootOnChain } from "@/lib/chain/registry";
 
 /**
  * End-to-End Smoke Test Script
- * Executes full pipeline from capture to anchoring to verification.
+ * Executes full pipeline from capture to anchoring to verification against any base URL.
  */
 async function runSmokeTest() {
   console.log("==================================================");
   console.log("SAAKSHI LIVE SMOKE TEST (END-TO-END PIPELINE)");
   console.log("==================================================\n");
 
+  const inputArg = process.argv[2];
+  let targetUrl: string;
+
+  if (inputArg) {
+    try {
+      const parsed = new URL(inputArg);
+      if (parsed.pathname && parsed.pathname !== "/") {
+        targetUrl = parsed.toString();
+      } else {
+        targetUrl = `${parsed.origin}/sandbox/post/internship-scam-alert`;
+      }
+    } catch {
+      const base = inputArg.replace(/\/+$/, "");
+      targetUrl = `${base}/sandbox/post/internship-scam-alert`;
+    }
+  } else if (process.env.NEXT_PUBLIC_APP_URL) {
+    const base = process.env.NEXT_PUBLIC_APP_URL.replace(/\/+$/, "");
+    targetUrl = `${base}/sandbox/post/internship-scam-alert`;
+  } else {
+    targetUrl = "https://chirp.local/sandbox/post/internship-scam-alert";
+  }
+
   const captureId = `cap_smoke_${Date.now()}`;
-  const targetUrl = "https://chirp.local/sandbox/post/internship-scam-alert";
 
   console.log(`[1] Initiating capture for target: ${targetUrl}`);
   await saveCaptureRecord(captureId, {

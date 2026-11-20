@@ -144,6 +144,17 @@ export async function anchorRootOnChain(
   const rpcUrl = getRpcUrl();
   const chainId = getChainId();
 
+  if (process.env.CHAIN_MODE === "mock") {
+    return {
+      txHash: `0xmock_${Date.now()}_${root.slice(2, 10)}`,
+      blockNumber: 1337,
+      anchoredAt: new Date().toISOString(),
+      root,
+      chainId: 80002,
+      contract: contractAddress || "0x0000000000000000000000000000000000000000",
+    };
+  }
+
   if (!privateKey || !contractAddress) {
     throw new Error("ANCHOR_PRIVATE_KEY or NEXT_PUBLIC_REGISTRY_ADDRESS is not configured for on-chain anchoring.");
   }

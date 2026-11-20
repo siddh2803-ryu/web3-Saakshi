@@ -21,6 +21,7 @@
     "test:rules": "export JAVA_HOME=${JAVA_HOME:-/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home} && export PATH=$JAVA_HOME/bin:$PATH && firebase emulators:exec --only firestore \"npm run test:web -- tests/firestore-rules.test.ts\"",
     "contracts:compile": "npm run compile --workspace=contracts",
     "contracts:test": "npm run test --workspace=contracts",
+    "smoke": "npx ts-node -r tsconfig-paths/register scripts/smoke.ts",
     "check:bundle": "npx ts-node -r tsconfig-paths/register scripts/check-bundle.ts",
     "pinata:cleanup": "npx ts-node -r tsconfig-paths/register scripts/pinata-cleanup.ts",
     "monitor:cleanup": "npx ts-node -r tsconfig-paths/register scripts/monitor-cleanup.ts",
