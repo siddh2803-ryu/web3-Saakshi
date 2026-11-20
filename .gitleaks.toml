@@ -1,0 +1,22 @@
+# Gitleaks Configuration for Saakshi Monorepo
+
+[allowlist]
+description = "Global allowlist for dependencies, build artifacts, test fixtures, and well-known local test keys"
+paths = [
+  '''node_modules''',
+  '''\.next''',
+  '''dist''',
+  '''coverage''',
+  '''\.git''',
+  '''\.gemini''',
+  '''tmp''',
+  '''apps/web/tests/.*''',
+  '''scripts/chain-local\.sh''',
+]
+
+# Allow known dummy test/demo secrets
+regexes = [
+  '''0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80''', # Hardhat Account #0 default dev key
+  '''DoJBQTTy\+d9ncfCa7etwiFCqD\+QNlp9MlfBslTwxYQ4=''', # CI dummy master key
+  '''ci_dummy_.*''',
+]
