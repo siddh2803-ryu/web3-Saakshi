@@ -73,46 +73,59 @@ This document provides exact, manual setup instructions to transition **Phase 0*
 2. Click **Add New...** &rarr; **Project**.
 3. Select your repository: `siddh2803-ryu/web3-Saakshi`.
 
-### 2.2 Configure Monorepo Build Settings
-1. **Root Directory:** Click *Edit* and select `apps/web`.
+### 2.2 Configure Monorepo Project Settings in Vercel
+1. **Root Directory:** Click *Edit* and set to `apps/web`.
 2. **Framework Preset:** `Next.js` (automatically detected).
-3. **Build Command:** Leave as default (`next build`).
-4. **Output Directory:** Leave as default (`.next`).
-5. **Install Command:** Leave as default (`npm install`).
+3. **Node.js Version:** In Vercel Project Settings &rarr; **General** &rarr; **Node.js Version**, ensure `20.x` is selected (matching `.nvmrc` and `engines: >=20.0.0`).
+4. **Build Command:** Leave as default (`next build`) or `npm run build`.
+5. **Output Directory:** Leave as default (`.next`).
+6. **Install Command:** Leave as default (`npm install`).
 
-### 2.3 Configure Environment Variables
-In the **Environment Variables** section on Vercel, add each of the following variables (referencing `.env.example`):
+### 2.3 Configure Production Environment Variables in Vercel
+In the **Environment Variables** section on the Vercel project dashboard, add each of the following variables.
 
-| Variable Name | Example / Production Value | Notes |
-|---|---|---|
-| `NEXT_PUBLIC_APP_URL` | `https://<your-project>.vercel.app` | Production app origin |
-| `WEBHOOK_SECRET` | `openssl rand -hex 24` | For TinyFish monitor/agent callbacks |
-| `CRON_SECRET` | `openssl rand -hex 16` | For scheduled batch anchoring / watch |
-| `SANDBOX_ADMIN_SECRET` | `chirp_admin_secret_key_demo` | Protects `/sandbox/admin` simulator |
-| `CAPTURE_ENABLED` | `true` | Allows user capture jobs |
-| `DAILY_FREE_CAPTURES` | `5` | Free quota per user |
-| `TINYFISH_API_KEY` | `tf_live_...` | From TinyFish Console |
-| `TINYFISH_MODE` | `live` | Live agent & CDP execution |
-| `NEXT_PUBLIC_FIREBASE_API_KEY` | *(From Firebase Web App)* | Client Firebase API key |
-| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | `saakshi-....firebaseapp.com` | Client Auth domain |
-| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | `saakshi-...` | Firebase project ID |
-| `NEXT_PUBLIC_FIREBASE_APP_ID` | `1:...:web:...` | Firebase web app ID |
-| `FIREBASE_SERVICE_ACCOUNT_B64` | *(Base64 string from Section 1.6)* | Server Admin SDK credentials |
-| `MASTER_KEY_B64` | `openssl rand -base64 32` | 256-bit AES master key for DEK wrapping |
-| `UID_HASH_SALT` | `openssl rand -hex 16` | Pseudonymous UID hashing salt |
-| `PINATA_JWT` | `eyJ...` | Pinata IPFS pinning token |
-| `PINATA_GATEWAY` | `https://gateway.pinata.cloud/ipfs` | IPFS retrieval gateway |
-| `AMOY_RPC_URL` | `https://rpc-amoy.polygon.technology` | Polygon Amoy testnet RPC |
-| `ANCHOR_PRIVATE_KEY` | `0x...` | Private key of funded deployer/anchor role |
-| `NEXT_PUBLIC_REGISTRY_ADDRESS` | `0x...` | Deployed `EvidenceRegistry` contract address |
-| `NEXT_PUBLIC_CHAIN_ID` | `80002` | Polygon Amoy chain ID |
-| `NEXT_PUBLIC_AMOY_RPC_URL` | `https://rpc-amoy.polygon.technology` | Client Amoy RPC |
-| `NEXT_PUBLIC_EXPLORER_URL` | `https://amoy.polygonscan.com` | Polygonscan explorer URL |
-| `POLYGONSCAN_API_KEY` | *(Optional)* | For contract source verification |
-| `GEMINI_API_KEY` | `AIza...` | Google AI Studio Gemini API key |
-| `GEMINI_MODEL` | `gemini-2.5-flash` | Gemini model name |
+> [!IMPORTANT]
+> **Production Mode Enforcement:** Production builds strictly require `TINYFISH_MODE=live`. Do **NOT** set `TINYFISH_MODE=fixture`, `IPFS_FALLBACK=dev`, `CHAIN_MODE=mock`, or `AI_FALLBACK=dev` in Vercel. Our fatal build guards (`apps/web/lib/config/guards.ts`) will reject and fail the build if any dev-only flag is set.
 
-4. Click **Deploy**.
+#### A. Server-Only Environment Variables (Secret — Never exposed to browser)
+- `TINYFISH_MODE`: Set to `live` (mandatory).
+- `TINYFISH_API_KEY`: Secret TinyFish API key (`sk-tinyfish-...` or `tf_live_...`).
+- `WEBHOOK_SECRET`: Secret token for webhook authenticity (generate with `openssl rand -hex 24`).
+- `CRON_SECRET`: Secret token for scheduled monitor polling & custody batching (`openssl rand -hex 16`).
+- `SANDBOX_ADMIN_SECRET`: Secret key protecting the `/sandbox/admin` interactive simulator.
+- `CAPTURE_ENABLED`: `true`
+- `DAILY_FREE_CAPTURES`: `5`
+- `FIREBASE_SERVICE_ACCOUNT_B64`: Base64-encoded Firebase Admin SDK service account credentials (from Section 1.6).
+- `MASTER_KEY_B64`: Base64-encoded 32-byte AES master key for client DEK wrapping (`openssl rand -base64 32`).
+- `UID_HASH_SALT`: Secret salt for pseudonymous owner hashing (`openssl rand -hex 16`).
+- `PINATA_JWT`: Secret JWT token for Pinata IPFS pinning service.
+- `PINATA_GATEWAY`: IPFS gateway URL (e.g. `https://gateway.pinata.cloud/ipfs`).
+- `AMOY_RPC_URL`: JSON-RPC URL for Polygon Amoy testnet (e.g. `https://rpc-amoy.polygon.technology`).
+- `ANCHOR_PRIVATE_KEY`: Hex-encoded EVM private key for the on-chain anchor wallet (optional / pending if Amoy contract is pending).
+- `POLYGONSCAN_API_KEY`: Polygonscan API key for verification.
+- `GEMINI_API_KEY`: Google AI Studio Gemini API key for analysis & complaint drafts.
+- `GEMINI_MODEL`: `gemini-2.5-flash`
+- `RESEND_API_KEY`: (Optional) For email notifications.
+
+#### B. Client-Side Environment Variables (`NEXT_PUBLIC_*` — Bundled for browser)
+- `NEXT_PUBLIC_APP_URL`: Production origin URL (e.g. `https://<your-project>.vercel.app`).
+- `NEXT_PUBLIC_FIREBASE_API_KEY`: Client Firebase Web API key.
+- `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`: Firebase Auth domain (e.g. `<project-id>.firebaseapp.com`).
+- `NEXT_PUBLIC_FIREBASE_PROJECT_ID`: Firebase project identifier.
+- `NEXT_PUBLIC_FIREBASE_APP_ID`: Firebase web app identifier (`1:...:web:...`).
+- `NEXT_PUBLIC_REGISTRY_ADDRESS`: Deployed `EvidenceRegistry` contract address on Polygon Amoy testnet (or placeholder if Amoy contract is pending).
+- `NEXT_PUBLIC_CHAIN_ID`: `80002`
+- `NEXT_PUBLIC_AMOY_RPC_URL`: Public Polygon Amoy RPC endpoint (`https://rpc-amoy.polygon.technology`).
+- `NEXT_PUBLIC_EXPLORER_URL`: Polygonscan explorer base URL (`https://amoy.polygonscan.com`).
+
+### 2.4 Authorize Domain in Firebase Authentication
+1. Open the [Firebase Console](https://console.firebase.google.com/) for your project.
+2. Navigate to **Authentication** &rarr; **Settings** tab &rarr; **Authorized domains**.
+3. Click **Add domain**.
+4. Enter your Vercel deployment domain (e.g., `<your-project>.vercel.app` and any custom domain).
+5. Click **Save**. This ensures Google Sign-In popups and redirect flows will succeed in production without auth domain restrictions.
+
+4. Click **Deploy** in Vercel.
 
 ---
 
