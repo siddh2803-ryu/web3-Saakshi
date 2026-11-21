@@ -14,10 +14,10 @@ node_modules/
 .env.*
 !.env.example
 
-# Build info
+# Build & Cache artifacts
 *.tsbuildinfo
-
-# Next.js
+dist/
+build/
 .next/
 out/
 
@@ -39,11 +39,19 @@ coverage/
 # Secrets & Keys
 *.pem
 *.key
-*.p12
+*.cert
 *.pfx
+*.p8
+*.p12
 *.keystore
-*credentials*.json
+
+# Cloud & Service credentials
+service-account*.json
 *serviceAccount*.json
+*service-account*.json
+credentials.json
+*credentials*.json
+*id_rsa*
 
 # Firebase emulator logs
 *-debug.log
