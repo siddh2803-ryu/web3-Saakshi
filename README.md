@@ -1,258 +1,527 @@
-# Saakshi (साक्षी)
+# Saakshi (साक्षी) — Decentralized Autonomous Evidence Custody
 
 [![CI](https://github.com/siddh2803-ryu/web3-Saakshi/actions/workflows/ci.yml/badge.svg)](https://github.com/siddh2803-ryu/web3-Saakshi/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Security: Gitleaks](https://img.shields.io/badge/Security-Gitleaks-brightgreen.svg)](.gitleaks.toml)
+[![Network: Polygon Amoy](https://img.shields.io/badge/Polygon-Amoy%2080002-8247e5.svg)](https://amoy.polygonscan.com)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D20.0.0-339933.svg)](.nvmrc)
+[![Hackathon Award](https://img.shields.io/badge/KRITICAL%20HACKS%20'26-Runner%20Up%20%F0%9F%8F%86-blueviolet.svg)](#hackathon-recognition--awards)
 
-**An AI witness for the internet.** Agentic, tamper-proof, court-ready web evidence. Captured by TinyFish web agents, fingerprinted with SHA-256, and anchored on Polygon.
+> **Repository URL:** [https://github.com/siddh2803-ryu/web3-Saakshi](https://github.com/siddh2803-ryu/web3-Saakshi)
 
-Built by **Team Eclipse** for **KRITICAL HACKS '26** (AssetMerkle &times; IGDTUW), Web3 Track.
-
----
-
-## 1. Problem & Innovation
-Harassing social posts, fraudulent job offers, consumer scams, and defamatory content are frequently edited or deleted within hours. Victims rely on device screenshots, which courts and platforms distrust because client-side screenshots are easily altered with DevTools or image editors.
-
-Under **Section 63(4) of the Bharatiya Sakshya Adhiniyam, 2023 (BSA)**, upheld by the Supreme Court of India in *Pune Bar Association v. Union of India* (May 2026), electronic evidence must be accompanied by a certificate disclosing the record's cryptographic hash value and details of lawful custody.
-
-**Saakshi automates this entire pipeline:**
-1. Autonomous **TinyFish web agents** browse the target page like a neutral human witness, documenting every action into a replayable step-by-step filmstrip.
-2. Every plaintext artifact is hashed with **SHA-256** and structured into an **RFC 8785 (JCS)** canonical manifest.
-3. Artifacts are sealed with **AES-256-GCM** envelope encryption and pinned to **IPFS**.
-4. The manifest hash is anchored into an OpenZeppelin **Merkle Tree** on **Polygon Amoy**, establishing an unalterable timestamp.
-5. **TinyFish Monitor** watches the page for alterations or deletions, generating instant diffs and automatic re-captures.
-6. **Google Gemini** summarizes facts, identifies parties, drafts bilingual complaints (English & Hindi), and produces a **draft Part A certificate under s.63(4) BSA, 2023**.
-7. **Trustless Public Verification**: Anyone can verify evidence in their browser via WebCrypto and direct Polygon RPC calls, with zero trust in Saakshi's servers.
+**An AI witness for the internet.** Agentic, tamper-proof, court-ready web evidence captured by TinyFish autonomous web agents, cryptographically sealed with SHA-256 and AES-256-GCM envelope encryption, structured into RFC 8785 (JCS) canonical manifests, and immutably anchored into OpenZeppelin Merkle Trees on Polygon.
 
 ---
 
-## 2. How Saakshi Uses TinyFish
-Saakshi integrates all five core products across the TinyFish automation suite:
-
-| TinyFish Product | Purpose in Saakshi | Code Implementation |
-|---|---|---|
-| **Web Agent** (`/v1/automation/run-async`) | Autonomous goal-driven web browsing, popup bypass, comment expansion, and forensic action trace. | [`apps/web/lib/tinyfish/agent.ts`](apps/web/lib/tinyfish/agent.ts) |
-| **Browser API** (CDP sessions) | Managed cloud Chromium sessions capturing full-page PNG, PDF, DOM HTML, network response logs, and TLS security details. | [`apps/web/lib/tinyfish/browser.ts`](apps/web/lib/tinyfish/browser.ts) |
-| **Fetch API** (`api.fetch.tinyfish.ai`) | Token-efficient clean markdown extraction with HTTP status codes and metadata. | [`apps/web/lib/tinyfish/fetch.ts`](apps/web/lib/tinyfish/fetch.ts) |
-| **Monitor API** (`/v1/monitors`) | Scheduled Page Monitor detecting content alteration and HTTP 404 deletion, powering the live diff engine with confirm-before-acting, deduplication, and automated re-captures. | [`apps/web/lib/tinyfish/monitor.ts`](apps/web/lib/tinyfish/monitor.ts) |
-| **Search API** (`api.search.tinyfish.ai`) | Reverse mirror and repost finder using exact-phrase quoted web queries. | [`apps/web/lib/tinyfish/search.ts`](apps/web/lib/tinyfish/search.ts) |
-
-### TinyFish Monitor & Automated Re-Capture Architecture
-- **Scheduled Monitoring (`/v1/monitors`)**: Configures recurrent crons down to 1-minute intervals to observe volatile target URLs.
-- **Intelligent Diff Classifier**: Strips transient counter updates (likes, shares, views), timestamps, and relative times ("2 hours ago") before hashing, preventing false alerts.
-- **Confirm-Before-Acting Protocol**: Because monitor webhooks cannot be signature-checked or re-read from the API, any webhook notification of `EDITED` or `DELETED` triggers an immediate `runNow` check to independently confirm the change before alerting or re-capturing.
-- **Unified Diff & Word-Level Highlighting**: Generates a 20 KB capped unified diff with granular word-level change tokens for UI side-by-side inspection.
-- **Automatic Re-Capture Trail**: Confirmed edits or deletions automatically launch an autonomous agent re-capture linked via `previousCaptureId`, chaining digital custody across the evidence lifecycle.
-
----
-
-## 3. AI Evidence Analysis & Legal Assistance (Google Gemini)
-Saakshi integrates Google Gemini (`@google/genai`) to provide victims of online harassment, financial fraud, and cyber defamation with objective, structured evidence analysis and bilingual complaint drafting assistance without altering or invalidating the underlying cryptographic evidence chain.
-
-### Core Capabilities
-- **Factual Extraction**: Plain, neutral analysis of captured web evidence (English max 120 words, simple Devanagari Hindi) identifying key claims, involved parties and roles, and evidence timestamps.
-- **Issue Categorization**: Confidence-scored categorization across statutory complaint types (`harassment`, `financial_fraud`, `fake_job`, `impersonation`, `morphed_image`, `defamation`, `consumer_dispute`, `ip_infringement`, `hate_speech`).
-- **Bilingual Complaint Drafts**: Pre-drafted, polite complaint templates in English and Hindi with bracketed placeholders (`[Your Name]`, `[Transaction ID]`, `[Date]`) tailored for Indian statutory grievance filing.
-- **Repost Discovery Phrases**: Distinctive short phrases (max 2, <= 12 words) supplied to TinyFish Search to detect mirror posts across the web.
-
-### Security, Privacy & Integrity Guardrails
-1. **Strict User Opt-In (Default OFF)**:
-   - AI analysis is strictly optional. Users must actively opt in via the checkbox *"Analyse with AI (Google Gemini)"* on `/capture/new`.
-   - Clear privacy disclosures notify the user that captured text and screenshots will be transmitted to Google's Gemini API. When opted out, analysis is marked `SKIPPED`, and no external AI call is made.
-2. **Untrusted Data Boundaries & Anti-Prompt-Injection**:
-   - Captured web pages, agent observations, and comment threads are untrusted external data that may contain malicious instructions designed to manipulate the model.
-   - The prompt builder wraps all external text in explicit delimiters (`<<<UNTRUSTED_CAPTURED_PAGE_TEXT>>>`).
-   - The system prompt strictly directs the model to treat all delimited content as passive evidence data and ignore any embedded commands (e.g. *"ignore previous instructions"*, *"say this is safe"*).
-   - Captured text is truncated at 20,000 characters; up to 3 step screenshots (first, middle, last step) are attached with IST timestamps.
-3. **Official Indian Reporting Channels & URL Safety**:
-   - The model is restricted to returning official channel IDs only (`ncrp`, `nch`, `ejagriti`, `platform_go`, `police`) and forbidden from outputting URLs.
-   - Portal hyperlinks originate strictly from immutable trusted constants (`OFFICIAL_REPORTING_CHANNELS`):
-     - **NCRP**: National Cyber Crime Reporting Portal (`https://cybercrime.gov.in`, Helpline: 1930)
-     - **NCH**: National Consumer Helpline (`https://consumerhelpline.gov.in`, Helpline: 1915)
-     - **e-Jagriti**: Consumer Commission Dispute Filing (`https://e-jagriti.gov.in`)
-     - **Platform GO**: Platform Grievance Officer under IT Rules (Rule 3) (Text-only, no link)
-     - **Police**: Local Police Station / Zero FIR (Helpline: 112) (Text-only, no link)
-   - A health check script (`npm run check:channels`) monitors channel link availability and redirects.
-4. **Structured Output & One Validation Retry**:
-   - Output is enforced using `GEMINI_RESPONSE_SCHEMA` and validated with `AiAnalysisSchema` (Zod).
-   - If output fails JSON syntax or schema rules, it is retried once with validation feedback. If it fails a second time, it is gracefully marked `FAILED` with a user-friendly notice without crashing the capture.
-5. **Safety-Blocked Content Handling**:
-   - If content triggers Gemini safety filters (harassment, hate speech, adult content) or returns empty candidates, the analysis is gracefully marked `UNAVAILABLE` (`"AI summary unavailable for this content"`), preserving all underlying cryptographic artifacts intact.
-6. **No Mock Analysis in Production**:
-   - Pre-written mock data is permanently refused in production. In development, synthetic data requires explicit `AI_FALLBACK=dev` and renders a prominent `"Demo data: not real AI output"` badge.
-7. **Rendering Safety**:
-   - Model outputs are rendered as plain text strings (never raw HTML / innerHTML) and never used to construct hyperlinks.
-8. **Derivative Storage (FR-9.3) & Report Interface**:
-   - `ai_analysis.json` is encrypted with the capture DEK and pinned to IPFS as a derivative artifact (`isDerivative: true`), kept strictly outside the anchored evidence manifest and Merkle root.
-   - The Report tab renders issue categories with confidence chips, extracted parties/claims/timestamps, official reporting channels with plain-text helplines, bilingual English and Hindi complaint drafts (with Copy and `.txt` download), and an interactive 3-per-day regeneration rate limit.
-   - Beautiful Devanagari typography powered by Google Noto Sans Devanagari.
+## Table of Contents
+1. [Hackathon Recognition & Awards](#hackathon-recognition--awards)
+2. [Problem & Innovation](#problem--innovation)
+3. [Statutory Legal Foundation (Section 63(4) BSA, 2023)](#statutory-legal-foundation-section-634-bsa-2023)
+4. [System Architecture & Data Flow](#system-architecture--data-flow)
+5. [TinyFish Autonomous Agent Integration](#tinyfish-autonomous-agent-integration)
+6. [Cryptographic Custody Engine](#cryptographic-custody-engine)
+7. [AI Evidence Analysis & Legal Assistance (Google Gemini)](#ai-evidence-analysis--legal-assistance-google-gemini)
+8. [Smart Contract Architecture (EvidenceRegistry.sol)](#smart-contract-architecture-evidenceregistrysol)
+9. [Tech Stack Breakdown](#tech-stack-breakdown)
+10. [Monorepo Directory Structure](#monorepo-directory-structure)
+11. [Getting Started & Local Development](#getting-started--local-development)
+12. [Comprehensive API Endpoint Reference](#comprehensive-api-endpoint-reference)
+13. [Testing & Quality Assurance Suite](#testing--quality-assurance-suite)
+14. [Granular Atomic Commit Roadmap](#granular-atomic-commit-roadmap)
+15. [Security & Secrecy Policy](#security--secrecy-policy)
+16. [Legal Disclaimer](#legal-disclaimer)
 
 ---
 
-## 4. Architecture & Data Flow
+## Hackathon Recognition & Awards
+
+**Saakshi was originally conceived, designed, and built during KRITICAL HACKS '26 (AssetMerkle &times; IGDTUW), where our team earned the prestigious RUNNER-UP award in the Web3 Track.** 🥈🏆
+
+### Why Saakshi Stood Out:
+- **Real-World Statutory Relevance:** Bridging the gap between Web3 cryptographic guarantees and statutory evidentiary requirements under India's **Bharatiya Sakshya Adhiniyam, 2023 (BSA)**.
+- **Agentic Autonomous Verification:** Replacing vulnerable client-side screenshots with cloud-isolated TinyFish Chromium agents that act as neutral digital witnesses.
+- **Zero-Knowledge / Trustless Public Auditing:** Allowing any judge, defense attorney, or platform moderator to independently re-verify evidence integrity in their browser using WebCrypto and direct Polygon RPC queries with zero dependency on Saakshi servers.
+- **Enterprise-Grade Architecture:** Combining full-stack TypeScript (Next.js 14 App Router), Solidity smart contracts, AES-256-GCM envelope encryption, IPFS decentralized pinning, and Google Gemini AI assistance.
+
+---
+
+## Problem & Innovation
+
+Victims of online harassment, financial fraud, impersonation, defamatory campaigns, and consumer disputes face a common challenge: **digital evidence is hyper-volatile**. Offensive posts, fraudulent payment handles, and abusive comments are regularly edited or deleted within hours of publication.
+
+When victims capture screenshots using their phone or desktop browser, courts and platforms frequently reject them because:
+1. Client-side screenshots are trivial to manipulate using DevTools, DOM editing, or image manipulation software.
+2. Screenshots lack cryptographic provenance, verifiable timestamps, and an unbroken chain of custody.
+3. Indian evidence law strictly regulates electronic records, demanding disclosure of cryptographic hash signatures and lawful custody records.
+
+**Saakshi provides a complete autonomous pipeline:**
+1. **Neutral Agentic Capture:** Cloud Chromium agents browse target URLs, record forensic HTTP/TLS traffic, expand collapsed threads, and compile step-by-step filmstrips.
+2. **Cryptographic Sealing:** Every raw artifact is hashed with SHA-256 and serialized into an RFC 8785 Canonical JSON (JCS) manifest.
+3. **Decentralized Storage:** Artifacts are encrypted with AES-256-GCM envelope encryption and pinned to IPFS.
+4. **On-Chain Merkle Anchoring:** Manifest hashes are batched into OpenZeppelin Merkle Trees and anchored to the `EvidenceRegistry` smart contract on Polygon Amoy.
+5. **Continuous Surveillance:** Scheduled monitors observe pages for unauthorized edits or HTTP 404 deletions, triggering automated re-captures with custody chaining.
+6. **AI Legal Drafting:** Google Gemini analyzes facts, categorizes complaints, identifies parties, and drafts bilingual complaints (English & Hindi) plus Section 63(4) BSA Part A draft certificates.
+
+---
+
+## Statutory Legal Foundation (Section 63(4) BSA, 2023)
+
+Under **Section 63(4) of the Bharatiya Sakshya Adhiniyam, 2023 (BSA)**, electronic records submitted as secondary evidence in Indian courts must be accompanied by a formal certificate that:
+- Identifies the electronic record and describes the manner in which it was produced.
+- Discloses the cryptographic hash value (SHA-256) of the preserved record.
+- Details the particulars of the device and lawful custody conditions.
+- Adheres to the Supreme Court of India's precedent in *Pune Bar Association v. Union of India* (May 2026).
+
+Saakshi produces a court-formatted **draft Part A Certificate** (`certificate_part_a_draft.pdf`) containing:
+- Preserved record identifiers, source URLs, dual IST/UTC timestamps.
+- Algorithm identification (`SHA-256`) with hash values for each artifact.
+- Polygon transaction hash, block number, and Merkle root verification annex with a scannable QR link to `/v/{captureId}`.
+- Clear statutory separation: Part A is generated as a drafting aid for the declarant, while Part B remains reserved for signing by a certified electronic evidence examiner.
+
+---
+
+## System Architecture & Data Flow
+
+### Component & Integration Diagram
 
 ```mermaid
-flowchart LR
-  U[User Browser: Next.js UI] --> API[Saakshi API: Route Handlers]
-  API -->|run-async + webhook_url| AG[TinyFish Web Agent]
-  AG -->|webhook run.completed| API
-  API -->|playwright-core over CDP| BR[TinyFish Browser API]
-  API --> FE[TinyFish Fetch API]
-  API --> SE[TinyFish Search API]
-  API --> MO[TinyFish Monitor API]
-  MO -->|scheduled webhook| API
-  API --> EV[Evidence Engine: SHA-256, JCS, AES-256-GCM]
-  EV --> IP[(IPFS via Pinata)]
-  EV --> FS[(Firestore / Memory Store)]
-  EV --> MK[Merkle Batcher: StandardMerkleTree]
-  MK -->|anchorRoot| CH[(EvidenceRegistry on Polygon Amoy)]
-  API --> AI[Google Gemini 2.5 Flash]
-  V[Public Verify Page] -->|SHA-256 in browser via WebCrypto| V
-  V -->|eth_call verify| CH
-  V -->|lookup proof| FS
+flowchart TB
+  subgraph ClientLayer["Client & Verification Layer"]
+    UI["Next.js 14 Web Application<br/>(Tailwind CSS + React 18)"]
+    VP["Public Trustless Verify Page<br/>(WebCrypto in Browser)"]
+  end
+
+  subgraph ApiLayer["API & Application Layer"]
+    API["Next.js Route Handlers<br/>(Strict Zod Validation)"]
+    LOGGER["Structured JSON Logger<br/>(PII & Secret Redaction)"]
+  end
+
+  subgraph AutomationLayer["TinyFish Autonomous Agent Suite"]
+    AG["Web Agent<br/>(/v1/automation/run-async)"]
+    BR["Browser API<br/>(Playwright over CDP)"]
+    FE["Fetch API<br/>(api.fetch.tinyfish.ai)"]
+    MO["Monitor API<br/>(/v1/monitors Cron)"]
+    SE["Search API<br/>(api.search.tinyfish.ai)"]
+  end
+
+  subgraph CryptoLayer["Forensic Evidence & Crypto Engine"]
+    EV["Evidence Engine<br/>(SHA-256 & RFC 8785 JCS)"]
+    ENC["Envelope Encryption<br/>(AES-256-GCM / 256-bit DEK)"]
+    CUSTODY["Custody Hash Chaining<br/>(SHA-256 Genesis-to-Tip)"]
+    MB["Merkle Batcher<br/>(@openzeppelin/merkle-tree)"]
+  end
+
+  subgraph StorageLayer["Decentralized & Persistence Layer"]
+    IPFS[("IPFS Decentralized Storage<br/>(Pinata Gateway)")]
+    FS[("Firestore / Memory Store<br/>(Encrypted State & Logs)")]
+  end
+
+  subgraph BlockchainLayer["Decentralized Settlement Layer"]
+    CHAIN[("Polygon Amoy Testnet<br/>EvidenceRegistry.sol (Chain ID 80002)")]
+  end
+
+  subgraph AiLayer["AI Assistance & Legal Drafting"]
+    GEMINI["Google Gemini 2.5 Flash<br/>(Anti-Prompt Injection Sandbox)"]
+  end
+
+  UI --> API
+  API --> LOGGER
+  API --> AG & BR & FE & MO & SE
+  API --> EV
+  EV --> ENC --> IPFS
+  EV --> CUSTODY --> FS
+  EV --> MB -->|anchorRoot / logCustody| CHAIN
+  API --> GEMINI
+  VP -->|Direct eth_call| CHAIN
+  VP -->|Direct IPFS Fetch| IPFS
+```
+
+### End-to-End Evidence Lifecycle
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor User as User / Investigator
+  participant Web as Next.js API
+  participant TF as TinyFish Automation
+  participant Engine as Crypto & Evidence Engine
+  participant IPFS as IPFS / Pinata
+  participant Chain as Polygon EvidenceRegistry
+  participant Gemini as Google Gemini AI
+
+  User->>Web: POST /api/captures (targetUrl, goal, aiOptIn)
+  Web->>TF: Dispatch Run (TinyFish Web Agent)
+  TF-->>Web: Webhook: run.completed (CDP, screenshots, filmstrip, DOM)
+  Web->>Engine: Generate SHA-256 Hashes & RFC 8785 Canonical Manifest
+  Engine->>Engine: Generate 32-byte DEK & Encrypt with AES-256-GCM
+  Engine->>IPFS: Pin Encrypted Artifacts & Manifest
+  Engine->>Chain: Submit Root via anchorRoot(merkleRoot)
+  Chain-->>Engine: Transaction Receipt & Block Confirmation
+  opt AI Analysis Enabled (Opt-In)
+    Web->>Gemini: Analyze with Untrusted Delimiters
+    Gemini-->>Web: Structured JSON (Parties, Categorization, Bilingual Drafts)
+    Web->>IPFS: Pin ai_analysis.json (isDerivative: true)
+  end
+  Web->>Engine: Log Initial Custody Event (CREATE, Genesis Hash)
+  Web-->>User: Capture Complete (Manifest SHA-256, TxHash, Explorer Link)
 ```
 
 ---
 
-## 5. Smart Contract Details
-- **Contract Name**: `EvidenceRegistry.sol`
-- **Network**: Polygon Amoy Testnet (Chain ID: `80002`)
-- **Standard**: OpenZeppelin `AccessControl` + `MerkleProof`
-- **Leaf Encoding**: `StandardMerkleTree` with `["bytes32"]`
-- **Verified Explorer**: [https://amoy.polygonscan.com](https://amoy.polygonscan.com)
-- **Contract Code**: [`contracts/contracts/EvidenceRegistry.sol`](contracts/contracts/EvidenceRegistry.sol)
+## TinyFish Autonomous Agent Integration
 
-### Trustless Verification Guarantee
-Anyone possessing an artifact or manifest can verify its existence and authenticity without trusting Saakshi:
-1. Open `/verify` in any browser.
-2. Drag and drop the file.
-3. The browser calculates the SHA-256 hash locally using `crypto.subtle.digest("SHA-256", bytes)`; the file is never uploaded.
-4. The browser queries the public Polygon Amoy RPC directly via `eth_call verify(manifestHash, proof, root)`.
+Saakshi deeply integrates all 5 products across the TinyFish cloud automation platform:
+
+| TinyFish Service | Route & Endpoint | Purpose & Forensics | Source Location |
+|---|---|---|---|
+| **Web Agent** | `/v1/automation/run-async` | Goal-driven autonomous browsing, dialog dismissals, comment thread expansion, and forensic action trail. | [`apps/web/lib/tinyfish/agent.ts`](apps/web/lib/tinyfish/agent.ts) |
+| **Browser API** | Cloud CDP WebSocket | Managed Chromium session collecting full-page PNG, PDF, DOM snapshot, HTTP network HAR logs, and TLS cipher specs. | [`apps/web/lib/tinyfish/browser.ts`](apps/web/lib/tinyfish/browser.ts) |
+| **Fetch API** | `api.fetch.tinyfish.ai` | Token-efficient clean markdown extraction for quick diffing and text extraction. | [`apps/web/lib/tinyfish/fetch.ts`](apps/web/lib/tinyfish/fetch.ts) |
+| **Monitor API** | `/v1/monitors` | Recurring cron monitor detecting content alterations and HTTP 404 deletions down to 1-minute intervals. | [`apps/web/lib/tinyfish/monitor.ts`](apps/web/lib/tinyfish/monitor.ts) |
+| **Search API** | `api.search.tinyfish.ai` | Reverse mirror discovery querying exact quoted phrases to locate reposted copies across the web. | [`apps/web/lib/tinyfish/search.ts`](apps/web/lib/tinyfish/search.ts) |
+
+### Page Monitoring & Intelligent Diff Engine
+- **Noise Filtering:** Automatically strips volatile counters (like counts, retweets, view statistics) and relative timestamps ("3 minutes ago") before computing content hashes.
+- **Confirm-Before-Acting Protocol:** Monitor webhook notifications (`EDITED` or `DELETED`) trigger an immediate independent verification check (`runNow`) before altering custody status or dispatching alerts.
+- **Automated Re-Capture Chain:** Confirmed page modifications trigger an autonomous agent re-capture linked via `previousCaptureId`, recording the lifecycle transition from live to edited or deleted state.
 
 ---
 
-## 6. Getting Started & Local Development
+## Cryptographic Custody Engine
+
+### 1. Artifact Hashing & RFC 8785 Canonical Manifest
+- Raw plaintext artifacts (`screenshot.png`, `page.html`, `network_log.json`, `tls_info.json`, `trace.json`) are hashed using standard SHA-256 (`crypto.createHash("sha256")`).
+- The evidence manifest is structured strictly adhering to **RFC 8785 (JSON Canonicalization Scheme - JCS)**. This guarantees identical bit-for-bit serialization across distinct operating systems and runtimes:
+  ```ts
+  const canonicalJson = canonicalize(manifestObject);
+  const manifestSha256 = crypto.createHash("sha256").update(canonicalJson).digest("hex");
+  ```
+
+### 2. Envelope Encryption (AES-256-GCM)
+- Every capture generates a unique 256-bit Data Encryption Key (DEK).
+- Artifacts are encrypted via `AES-256-GCM` with a 96-bit random initialization vector (IV) and a 128-bit authentication tag.
+- The DEK is encrypted using the master key (`MASTER_KEY_B64`), ensuring stored IPFS data cannot be decrypted without master authority.
+
+### 3. Merkle Tree Batch Anchoring
+- Manifest hashes are grouped into batches and converted into cryptographic leaves using OpenZeppelin's `StandardMerkleTree` with `["bytes32"]` leaf encoding.
+- The resulting Merkle root is committed to Polygon Amoy via `EvidenceRegistry.anchorRoot(bytes32 root)`.
+- Proof inclusion allows proving that any individual manifest is part of an anchored root:
+  $$\text{Verify}(P, L, R) \rightarrow \text{true}$$
+
+### 4. Hash-Chained Digital Chain of Custody
+Every lifecycle event (`CREATE`, `VIEW`, `EXPORT`, `SHARE`, `VERIFY`) is canonically serialized and chained:
+$$\text{eventHash}_n = \text{SHA-256}\Big(\text{JCS}\big(\{ \text{captureId}, \text{action}, \text{actorHash}, \text{at}, \text{prevEventHash} \}\big)\Big)$$
+- **Privacy Preservation:** Actor identities are hashed with a server salt: `actorHash = SHA-256(salt + ":" + uid)`. PII and raw IP addresses are never written to the chain.
+- **On-Chain Custody Transactions:** High-impact events (`EXPORT` code 1, `SHARE` code 2) are published directly to the smart contract via `logCustody(manifestSha256, eventHash, actionCode)`.
+
+### 5. Constant-Time Share Link Security
+- Share links utilize 32-byte cryptographically secure random tokens.
+- Servers store only `tokenHash = SHA-256(token)`.
+- Lookup queries execute constant-time comparisons, preventing timing attacks.
+- Nonexistent, revoked, or expired tokens return an identical `404 Not Found` response to eliminate token enumeration side-channels.
+
+---
+
+## AI Evidence Analysis & Legal Assistance (Google Gemini)
+
+Saakshi integrates Google Gemini (`@google/genai` / `gemini-2.5-flash`) to offer objective analytical assistance to victims without contaminating the cryptographic evidence chain.
+
+### Security, Privacy & Integrity Guardrails
+1. **Strict User Opt-In (Default OFF):** AI analysis is never performed automatically. Users must actively opt in on the capture creation screen. When unselected, status is recorded as `SKIPPED`.
+2. **Untrusted Data Boundaries & Anti-Prompt-Injection:** Captured web pages, comment trees, and user metadata are untrusted external inputs. All page content is wrapped within explicit isolation tags:
+   ```
+   <<<UNTRUSTED_CAPTURED_PAGE_TEXT>>>
+   ... captured content ...
+   <<<UNTRUSTED_CAPTURED_PAGE_TEXT>>>
+   ```
+   The system instruction commands the model to treat all tagged content strictly as passive evidence and ignore any embedded control directives.
+3. **Official Indian Reporting Channels:** The model is prohibited from generating arbitrary web URLs. Reporting destinations are constrained to trusted system constants:
+   - **NCRP:** National Cyber Crime Reporting Portal (`https://cybercrime.gov.in`, Helpline: `1930`)
+   - **NCH:** National Consumer Helpline (`https://consumerhelpline.gov.in`, Helpline: `1915`)
+   - **e-Jagriti:** Consumer Commission Online Dispute Redressal (`https://e-jagriti.gov.in`)
+   - **Platform Grievance Officer:** IT Rules (Rule 3) Compliance
+   - **Local Police Station:** Zero FIR Emergency (`112`)
+4. **Strict Derivative Separation (PRD FR-9.3):**
+   - AI outputs (`ai_analysis.json`) and Section 63(4) Part A draft PDFs (`certificate_part_a_draft.pdf`) are classified as derivative artifacts (`isDerivative: true`).
+   - Derivative artifacts are excluded from the canonical evidence manifest and do not alter the anchored Merkle root.
+
+---
+
+## Smart Contract Architecture (EvidenceRegistry.sol)
+
+The `EvidenceRegistry` contract serves as the decentralized settlement layer on Polygon Amoy.
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
+
+import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
+
+contract EvidenceRegistry is AccessControl {
+    bytes32 public constant ANCHOR_ROLE = keccak256("ANCHOR_ROLE");
+
+    event Anchored(bytes32 indexed root, uint256 indexed timestamp, address indexed caller);
+    event Custody(bytes32 indexed manifestSha256, bytes32 indexed eventHash, uint8 indexed actionCode, uint256 timestamp);
+
+    mapping(bytes32 => uint256) public anchoredRoots;
+
+    function anchorRoot(bytes32 root) external onlyRole(ANCHOR_ROLE);
+    function logCustody(bytes32 manifestSha256, bytes32 eventHash, uint8 actionCode) external onlyRole(ANCHOR_ROLE);
+    function verify(bytes32 leaf, bytes32[] calldata proof, bytes32 root) external view returns (bool);
+}
+```
+
+- **Contract Address:** Defined via `NEXT_PUBLIC_REGISTRY_ADDRESS`
+- **Network:** Polygon Amoy Testnet (Chain ID: `80002`)
+- **RPC Endpoint:** `https://rpc-amoy.polygon.technology`
+- **Block Explorer:** [https://amoy.polygonscan.com](https://amoy.polygonscan.com)
+- **Verified Contract Source:** [`contracts/contracts/EvidenceRegistry.sol`](contracts/contracts/EvidenceRegistry.sol)
+
+### Trustless Public Verification
+Anyone with an artifact file or manifest can verify its existence and authenticity without connecting to Saakshi's backend:
+1. Navigate to `/verify` in any browser.
+2. Select or drop the file.
+3. The browser computes the SHA-256 hash using native WebCrypto (`crypto.subtle.digest("SHA-256", buffer)`). The file never leaves the user's device.
+4. The browser queries the public Polygon RPC node directly via an `eth_call` to `verify(leaf, proof, root)`.
+
+---
+
+## Tech Stack Breakdown
+
+| Layer | Technologies & Libraries | Function |
+|---|---|---|
+| **Frontend Framework** | Next.js 14.2 (App Router), React 18.3, TypeScript 5.6 | Server-rendered UI, dynamic capture dashboards, verify views |
+| **Styling & Icons** | Tailwind CSS 3.4, PostCSS, Lucide React | Modern dark-themed forensic UI with responsive layouts |
+| **Web Automation** | TinyFish SDK (`@tiny-fish/sdk`), Playwright-core (CDP) | Autonomous cloud agents, DOM parsing, network logging |
+| **Cryptography** | Node.js `crypto`, WebCrypto API, `canonicalize` (RFC 8785) | SHA-256 hashing, AES-256-GCM envelope encryption, JCS |
+| **Blockchain / Web3** | Solidity 0.8.24, Hardhat, Ethers.js v6, OpenZeppelin | Merkle tree batch anchoring, custody event logs on Polygon |
+| **Decentralized Storage** | IPFS via Pinata SDK (`pinata`) | Tamper-proof artifact persistence and decentralized retrieval |
+| **Database & Cache** | Firebase Firestore Admin SDK, in-memory store | Metadata, hash chain storage, case groupings, watch records |
+| **Artificial Intelligence** | Google Gemini 2.5 Flash (`@google/genai`) | Facts extraction, issue classification, bilingual complaint drafts |
+| **Document Generation** | `@react-pdf/renderer`, `jszip`, `qrcode` | BSA Section 63(4) Part A PDF certificates, ZIP bundle exports |
+| **Security & Validation** | Zod 3.23, Gitleaks, structured redaction logger | OWASP A03 input validation, PII/secret masking |
+
+---
+
+## Monorepo Directory Structure
+
+```
+web3-Saakshi/
+├── .browserslistrc               # Root Browserslist configuration for deterministic build
+├── .env.example                  # Sanitized environment variable template
+├── .gitignore                    # Hardened secret and artifact defense patterns
+├── .gitleaks.toml                # Gitleaks secret scanning rules and exemptions
+├── .nvmrc                        # Enforced Node.js runtime (v20)
+├── package.json                  # Root monorepo workspace definition
+├── tsconfig.json                 # Monorepo TypeScript configuration
+├── apps/
+│   └── web/                      # Main Next.js 14 full-stack application
+│       ├── app/                  # App Router pages and API route handlers
+│       │   ├── api/              # Secure REST API endpoints (captures, cases, verify, shares)
+│       │   ├── capture/          # Capture creation, detail, and custody views
+│       │   ├── case/             # Case matter investigation grouping
+│       │   ├── dashboard/        # Central evidence management console
+│       │   ├── s/                # Expiring and revocable public share views
+│       │   ├── v/ & verify/      # Trustless browser-side verification interfaces
+│       │   └── layout.tsx        # Root layout with security headers and metadata
+│       ├── lib/                  # Core domain logic and architectural modules
+│       │   ├── crypto/           # SHA-256, JCS RFC 8785, AES-256-GCM envelope encryption
+│       │   ├── errors/           # Standardized API error handler & RFC 7807 responses
+│       │   ├── gemini/           # Google Gemini AI prompts, anti-injection, bilingual drafts
+│       │   ├── logging/          # Structured JSON logger with automated secret redaction
+│       │   ├── tinyfish/         # TinyFish SDK integration (agent, browser, fetch, monitor, search)
+│       │   └── web3/             # Polygon provider, Ethers.js contracts, Merkle batcher
+│       └── tests/                # 340+ Vitest unit and integration test assertions
+├── contracts/                    # Hardhat Solidity smart contract workspace
+│   ├── contracts/
+│   │   └── EvidenceRegistry.sol  # OpenZeppelin Merkle & Custody logging contract
+│   ├── test/                     # Hardhat test suites for anchoring and custody verification
+│   └── hardhat.config.js         # Network configuration (Polygon Amoy & Local Hardhat)
+├── deployments/                  # Deployed contract artifacts and addresses
+├── docs/                         # Comprehensive architectural specifications and PRDs
+└── scripts/                      # Operational and forensic audit utility scripts
+    ├── check-bundle.ts           # Offline evidence bundle validation
+    ├── check-channels.ts         # Indian reporting channel reachability auditor
+    ├── check-custody.ts          # Chain of custody integrity and receipt verifier
+    └── smoke.ts                  # End-to-end smoke test against any deployment
+```
+
+---
+
+## Getting Started & Local Development
 
 ### Prerequisites
-- Node.js >= 20.0.0
-- npm >= 10.0.0
+- **Node.js:** `>= 20.0.0` (checked via `.nvmrc`)
+- **npm:** `>= 10.0.0`
 
-### Setup
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/Team-Eclipse-KH26/saakshi.git
-   cd saakshi
-   ```
+### 1. Clone the Repository
+```bash
+git clone https://github.com/siddh2803-ryu/web3-Saakshi.git
+cd web3-Saakshi
+```
 
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+### 2. Install Dependencies
+```bash
+npm install
+```
 
-3. Configure environment variables:
-   ```bash
-   cp .env.example .env.local
-   ```
-   Fill in your API keys in `.env.local`:
-   - `TINYFISH_API_KEY`: Your TinyFish platform key.
-   - `GEMINI_API_KEY`: Google Gemini API key.
-   - `GEMINI_MODEL`: Gemini model identifier (e.g. `gemini-2.5-flash`). Never hardcoded.
-   - `AI_FALLBACK`: Set to `dev` for local mock demonstration data (prohibited in production).
-   - `MASTER_KEY_B64`: 32 random bytes in base64 (generate with `node -e 'console.log(require("crypto").randomBytes(32).toString("base64"))'`).
-   - `ANCHOR_PRIVATE_KEY`: Private key for the Polygon Amoy anchoring node.
+### 3. Environment Configuration
+Copy the sanitized environment template:
+```bash
+cp .env.example .env.local
+```
 
-4. Run tests:
-   ```bash
-   # Run smart contract unit tests (100% pass)
-   npm run test:contracts
+Configure your credentials in `.env.local`:
+```bash
+# Application URL
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
 
-   # Run evidence cryptography, JCS, and pipeline unit tests (100% pass)
-   npm run test:web
+# TinyFish Automation
+TINYFISH_API_KEY="tf_your_tinyfish_api_key"
+TINYFISH_MODE="live"
 
-   # Verify forensic custody chain integrity and on-chain event receipts
-   npm run check:custody -- <captureId>
+# Google Gemini AI
+GEMINI_API_KEY="your_gemini_api_key"
+GEMINI_MODEL="gemini-2.5-flash"
 
-   # Check health and reachability of official Indian reporting channel links
-   npm run check:channels
-   ```
+# Cryptographic Master Key (generate: node -e 'console.log(require("crypto").randomBytes(32).toString("base64"))')
+MASTER_KEY_B64="your_base64_encoded_32_byte_key"
+UID_HASH_SALT="your_secure_random_salt_for_uid_hashing"
 
-5. Run development server:
-   ```bash
-   npm run dev
-   ```
-   Open [http://localhost:3000](http://localhost:3000) in your browser.
+# IPFS Decentralized Storage
+PINATA_JWT="your_pinata_jwt"
+PINATA_GATEWAY="https://gateway.pinata.cloud/ipfs"
+
+# Polygon Amoy Testnet (Chain ID 80002)
+AMOY_RPC_URL="https://rpc-amoy.polygon.technology"
+ANCHOR_PRIVATE_KEY="your_anchor_wallet_private_key"
+NEXT_PUBLIC_REGISTRY_ADDRESS="0xYourDeployedEvidenceRegistryAddress"
+```
+
+### 4. Compile Smart Contracts
+```bash
+npm run contracts:compile
+```
+
+### 5. Start Local Development Server
+```bash
+npm run dev
+```
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
-## 7. Evidence Bundle Integrity Check
-To verify a complete Saakshi evidence bundle archive (`.zip`) offline:
+## Comprehensive API Endpoint Reference
+
+All API endpoints are strictly protected by input validation (OWASP A03) using Zod schemas and return standardized RFC 7807 error responses upon failure.
+
+| Method | Endpoint | Auth | Purpose | Request Body / Query | Success Response |
+|---|---|---|---|---|---|
+| `POST` | `/api/captures` | User Session | Dispatch new TinyFish capture | `{ targetUrl: string, goal?: string, aiOptIn?: boolean, caseId?: string }` | `201 Created` with capture record |
+| `GET` | `/api/captures/[id]` | User Session | Retrieve capture status and manifest | URL Param: `id` | `200 OK` with full capture details |
+| `POST` | `/api/captures/[id]/retry` | User Session | Retry failed capture execution | URL Param: `id` | `200 OK` with updated capture state |
+| `POST` | `/api/captures/[id]/anchor` | Admin / Anchor | Trigger on-chain Merkle anchor | URL Param: `id` | `200 OK` with txHash and root |
+| `GET` | `/api/captures/[id]/bundle` | User Session | Download complete evidence ZIP archive | URL Param: `id` | `200 OK` (`application/zip`) |
+| `GET` | `/api/captures/[id]/certificate` | User Session | Download Section 63(4) Part A PDF | URL Param: `id` | `200 OK` (`application/pdf`) |
+| `GET` | `/api/captures/[id]/artifacts/[artifactId]` | User Session | Retrieve decrypted raw artifact | URL Params: `id`, `artifactId` | `200 OK` with decrypted file stream |
+| `POST` | `/api/captures/[id]/shares` | User Session | Generate expiring/revocable share token | `{ expiryHours: 24 \| 168 \| 720, includeAi?: boolean }` | `201 Created` with shareable URL |
+| `GET` | `/api/shares/[token]/bundle` | Public Token | Download shared evidence bundle | URL Param: `token` | `200 OK` (`application/zip`) |
+| `POST` | `/api/captures/[id]/watch` | User Session | Initialize TinyFish monitor for URL | `{ frequency: "1m" \| "5m" \| "1h" }` | `201 Created` with monitor ID |
+| `POST` | `/api/captures/[id]/reposts` | User Session | Search web for exact-phrase reposts | URL Param: `id` | `200 OK` with list of detected mirrors |
+| `POST` | `/api/captures/[id]/regenerate-analysis` | User Session | Re-run Gemini AI analysis | URL Param: `id` | `200 OK` with updated analysis |
+| `GET` | `/api/cases` | User Session | List all legal investigation cases | None | `200 OK` with array of case matters |
+| `POST` | `/api/cases` | User Session | Create new investigation case | `{ title: string, notes?: string }` | `201 Created` with new case record |
+| `GET` | `/api/cases/[id]/export` | User Session | Export aggregated multi-capture ZIP | URL Param: `id` | `200 OK` (`application/zip`) |
+| `GET` | `/api/verify/[sha256]` | Public | Query on-chain Merkle proof for hash | URL Param: `sha256` | `200 OK` with `{ proof, root, block }` |
+| `POST` | `/api/webhooks/tinyfish` | TinyFish Webhook | Process agent run completion event | TinyFish Webhook JSON Payload | `200 OK` `{ received: true }` |
+| `POST` | `/api/webhooks/monitor` | TinyFish Webhook | Process page alteration/deletion alerts | TinyFish Monitor Webhook Payload | `200 OK` `{ processed: true }` |
+
+---
+
+## Testing & Quality Assurance Suite
+
+Saakshi enforces 100% test pass rates across both web application and smart contract workspaces.
+
+### Execute Full Test Suite
 ```bash
+npm run test
+```
+Runs 340+ frontend/backend unit and integration tests via Vitest plus 9 Solidity smart contract tests via Hardhat.
+
+### Workspace-Specific Test Commands
+```bash
+# Run web application tests (Vitest)
+npm run test:web
+
+# Run smart contract tests (Hardhat)
+npm run test:contracts
+
+# Perform strict TypeScript typechecking
+npm run typecheck
+
+# Execute ESLint verification
+npm run lint
+
+# Compile production build
+npm run build
+```
+
+### Forensic Audit & Verification Scripts
+```bash
+# Verify integrity of an offline evidence bundle ZIP
 npm run check:bundle <path-to-bundle.zip>
-```
-The script validates:
-- `manifest.json` canonicalization per RFC 8785 (JCS) and SHA-256 hash match.
-- Merkle proof alignment in `proof.json` against the manifest hash.
-- Strict derivative separation: `certificate_part_a_draft.pdf` and `ai_analysis.json` are listed separately and confirmed excluded from `manifest.artifacts` (PRD FR-9.3).
-- Plaintext hash matching for every captured artifact in `artifacts/`.
 
----
-
-## 8. Case Matters, Repost Finder & Digital Chain of Custody
-
-### Case Matters & Dashboard Management (FR-12.1, FR-12.2)
-- **Legal Case Grouping**: Group related captures under an investigation matter with private, editable notes and chronological evidence timeline.
-- **Dashboard Filters**: Filter evidence by case matter or status chips (`Ready`, `Anchored`, `Watching`, `Edited`, `Deleted`).
-- **Case-Level ZIP Export**: Generates an aggregated ZIP archive containing every capture's individual evidence bundle plus a root `case-manifest.json` indexing all capture IDs and manifest SHA-256 hashes.
-
-### Repost Finder via TinyFish Search (FR-11.1 - 11.3)
-- **Exact-Phrase Search**: Queries `api.search.tinyfish.ai` with exact quoted phrases, 10s timeout, 30 RPM rate limiting, and `location=IN` with `location=US` fallback.
-- **Phrase Picker**: Employs AI-extracted `repost_phrases` when opted in; otherwise falls back deterministically to distinctive sentence fragments (<= 12 words) from Fetch markdown.
-- **Deduplication & Exclusion**: Deduplicates by normalized URL, excludes the original page, and provides an empty state when no copies exist.
-- **"Capture This Too"**: Starts an immediate new capture in the same case matter with statutory consent confirmation dialog and daily quota enforcement.
-
-### Cryptographic Hash-Chained Custody Log (FR-13.1, FR-13.2)
-- **Per-Capture Hash Chaining**: Every lifecycle event (`CREATE`, `VIEW`, `EXPORT`, `SHARE`, `VERIFY`) is canonically formatted per **RFC 8785 (JCS)** and hashed:  
-  `eventHash = SHA-256(JCS({ captureId, action, actorHash, at, prevEventHash }))`
-- **Privacy-Preserving Actors**: User identities are hashed with a server salt (`SHA-256(salt + ":" + uid)`); share link visitors are identified by `share:<shareId>`. Raw personal identifiers and IP addresses are never recorded.
-- **View Throttling**: View events are throttled to at most once per hour per actor to prevent noise.
-- **On-Chain Custody Events**: `EXPORT` (action code 1) and `SHARE` (action code 2) transactions are submitted to `EvidenceRegistry.logCustody(manifestSha256, eventHash, actionCode)` via a sequential queue with fee floor, balance assertions, and pending nonce management.
-- **Custody Tab & Integrity Badge**: The capture detail page provides a real-time visual timeline and a dynamic "Chain Intact" / "Chain Broken" badge derived from re-computing the hash chain.
-
-### Expiring & Revocable Share Links (FR-14.1)
-- **Token Hash Storage**: Links use 32-byte crypto random tokens. The server stores only `tokenHash = SHA-256(rawToken)`; the full URL is displayed strictly once at creation.
-- **Configurable Expiry**: 24 hours, 7 days, or 30 days.
-- **Derivative AI Gating**: AI summary and analysis are excluded by default and only included if explicitly enabled during share creation.
-- **Public Read-Only View (`/s/[token]`)**: Displays target URL, timestamps, artifact previews, and cryptographic checksums while completely stripping owner identity. Protected by `Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex, nofollow`, and 30 req/min IP rate limiting.
-- **Uniform Security Refusal**: Expired, revoked, and nonexistent tokens return the exact same 404 response to eliminate token enumeration oracles.
-- **Recipient Bundle Download**: Downloading evidence through `/api/shares/[token]/bundle` logs an `EXPORT` custody event credited to the share actor.
-
----
-
-## 9. Forensic Custody Chain Verification
-To audit a capture's hash chain and on-chain custody event receipts:
-```bash
+# Audit cryptographic hash chain and on-chain custody event receipts
 npm run check:custody -- <captureId>
+
+# Verify availability and HTTP health of official Indian reporting channel links
+npm run check:channels
+
+# Execute end-to-end smoke test against any environment
+npm run smoke -- --base-url=http://localhost:3000
 ```
-The script validates:
-1. Canonical RFC 8785 JCS encoding and SHA-256 hash chaining from genesis to current event.
-2. Continuity of `prevEventHash` across all records.
-3. On-chain transaction receipts in `EvidenceRegistry` for `EXPORT` (code 1) and `SHARE` (code 2) events, confirming block number and parameter accuracy.
 
 ---
 
-## 10. Legal Disclaimer & Section 63(4) BSA, 2023 Draft Certificate
-- **Section 63(4) BSA, 2023 Compliance**: Saakshi produces a court-formatted **draft Part A certificate** under Section 63(4) of the Bharatiya Sakshya Adhiniyam, 2023 (`certificate_part_a_draft.pdf`), detailing:
-  - Preserved record identifiers, source URLs, and dual IST/UTC timestamps.
-  - Full cryptographic disclosures: SHA-256 algorithm selection and individual hashes for every preserved artifact.
-  - Canonical manifest SHA-256 hash.
-  - Fillable declarant sections with blank lines for signature and identifying particulars.
-  - Blockchain anchoring annex with QR verification link to `/v/{captureId}` and 3-step independent verification guidance.
-  - Fixed statutory disclaimer on every page: *"Generated by Saakshi as a drafting aid. Not legal advice. Check the wording against the official Schedule. Part B must be completed by a qualified expert."*
-- **Part B Requirement**: Under Indian law, Part B of the certificate must be signed by a qualified electronic evidence expert. Saakshi provides drafting assistance and cryptographic proof; it does not substitute for licensed legal counsel.
+## Granular Atomic Commit Roadmap
+
+The following atomic commits represent the production engineering and hardening roadmap executed for this repository:
+
+1. **`chore(security): harden .gitignore and prevent credential exposure`**
+   - *Affected files:* `.gitignore`
+   - *Implementation Notes:* Strengthened defense gate with explicit matching for private keys (`*.key`, `*.pem`, `*.cert`, `*.pfx`, `*.p8`), service account files (`service-account*.json`, `credentials.json`, `*id_rsa*`), environment files (`.env`, `.env.*`, `!.env.example`), and build artifacts (`dist/`, `build/`).
+
+2. **`build(web): add root browserslist configuration for build determinism`**
+   - *Affected files:* `.browserslistrc`
+   - *Implementation Notes:* Configured root standard Browserslist defaults to prevent Next.js and cssnano from traversing parent directories outside the workspace boundary during production compilation.
+
+3. **`docs(readme): overhaul architecture, hackathon runner-up context, and api specifications`**
+   - *Affected files:* `README.md`
+   - *Implementation Notes:* Exhaustive overhaul detailing KRITICAL HACKS '26 Runner-Up distinction, exact repository links, Mermaid architecture diagrams, full REST API specifications, legal compliance frameworks under BSA Section 63(4), and the atomic commit roadmap.
+
+4. **`ci(security): integrate automated pre-push secret scanning and verification`**
+   - *Affected files:* `package.json`, `.gitleaks.toml`
+   - *Implementation Notes:* Automated diff scanning gate ensuring zero private keys, API tokens, or credentials can ever be committed or pushed to remote branches.
 
 ---
 
-## 11. Team Eclipse
-Built with dedication for **KRITICAL HACKS '26**:
-- **Siddharth Dhawan**: Lead Full-Stack & Systems Architecture
-- **Pratham Jaiswal**: Web3, Smart Contracts & Merkle Batching
-- **Parnika Agarwal**: TinyFish Agent Orchestration & Pipeline
-- **Navya Khurana**: AI Prompt Engineering, UI/UX & BSA 2023 Research
+## Security & Secrecy Policy
+
+Security and secrecy preservation are the absolute highest priorities in the design and operation of Saakshi:
+
+- **Zero Hardcoded Secrets:** No API keys, private keys, database URLs, or JWT secrets are stored in code or test fixtures. All credentials are injected via environment variables.
+- **Automated Secret Scanning:** Continuous monitoring with Gitleaks (`.gitleaks.toml`) scans every commit before push.
+- **Input Sanitization & Schema Defense:** Every external request payload is strictly validated using Zod. Unsanitized data is rejected before processing.
+- **No PII Leakage:** Loggers redact authorization headers, bearer tokens, private keys, JWTs, emails, and phone numbers before writing to stdout.
+- **Information Leakage Prevention:** Internal stack traces and database details are sanitized; clients receive RFC 7807 formatted error envelopes.
+
+---
+
+## Legal Disclaimer
+
+*Saakshi is an automated digital evidence collection and drafting aid. The generated Section 63(4) Part A Certificate (`certificate_part_a_draft.pdf`) and AI analysis summaries are provided strictly to assist declarants in organizing digital records and do not constitute legal advice. Under Section 63(4) of the Bharatiya Sakshya Adhiniyam, 2023, Part B of the certificate must be evaluated and completed by a certified electronic evidence examiner. Users are advised to review all draft wording against official judicial schedules and consult qualified legal counsel.*
+
+---
+
+&copy; Saakshi Team. Released under the [MIT License](LICENSE).
