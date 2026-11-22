@@ -4,7 +4,11 @@ This document provides exact, manual setup instructions to transition **Phase 0*
 
 ---
 
-## 1. Firebase Setup
+## 1. Firebase Setup (Optional)
+
+> [!NOTE]
+> **Firebase is Completely Optional:**
+> Saakshi includes built-in in-memory and local storage fallbacks for captures, cases, watches, and rate limits. The app defaults to a seamless demo user session (`demo-user`) so all capture, watch, verification, and s.63(4) certificate flows function without needing Google sign-in or a Firebase account. You may skip this entire section if deploying for quick hackathon demonstrations.
 
 ### 1.1 Create the Firebase Project
 1. Open the [Firebase Console](https://console.firebase.google.com/).

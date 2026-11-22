@@ -22,7 +22,7 @@ export const EnvSchema = z.object({
   // Firebase
   NEXT_PUBLIC_FIREBASE_API_KEY: z.string().optional(),
   NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: z.string().optional(),
-  NEXT_PUBLIC_FIREBASE_PROJECT_ID: z.string().optional(),
+  NEXT_PUBLIC_FIREBASE_PROJECT_ID: z.string().default("saakshi-demo"),
   NEXT_PUBLIC_FIREBASE_APP_ID: z.string().optional(),
   FIREBASE_SERVICE_ACCOUNT_B64: z.string().optional(),
 
@@ -91,7 +91,6 @@ export const ProductionEnvSchema = EnvSchema.extend({
   UID_HASH_SALT: z.string().min(8),
   TINYFISH_API_KEY: z.string().min(1),
   PINATA_JWT: z.string().min(1),
-  NEXT_PUBLIC_FIREBASE_PROJECT_ID: z.string().min(1),
   AMOY_RPC_URL: z.string().min(1),
 });
 
