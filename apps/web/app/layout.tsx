@@ -3,17 +3,56 @@ import React from "react";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { ShieldCheck, Plus, Search, LayoutDashboard, Terminal, Activity, FileCheck, Scale, Lock } from "lucide-react";
+import { getAppUrl } from "@/lib/config/url";
 
 export const metadata: Metadata = {
-  title: "Saakshi | Cryptographic Web Evidence & Verification",
+  metadataBase: new URL(getAppUrl()),
+  title: {
+    default: "Saakshi | Cryptographic Web Evidence & Verification",
+    template: "%s | Saakshi",
+  },
   description:
     "Agentic, tamper-proof, court-admissible web evidence preserved by autonomous web agents, fingerprinted with SHA-256, and timestamped on Polygon.",
+  keywords: [
+    "web evidence",
+    "cryptographic proof",
+    "BSA 2023",
+    "Section 63(4)",
+    "TinyFish",
+    "Polygon",
+    "SHA-256",
+    "electronic evidence",
+    "court admissible",
+  ],
+  authors: [{ name: "Team Eclipse (KRITICAL HACKS '26)" }],
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: getAppUrl(),
+    siteName: "Saakshi",
+    title: "Saakshi | Cryptographic Web Evidence & Verification",
+    description:
+      "Autonomous web agents preserve court-admissible web evidence with SHA-256 manifests, RFC 8785 canonicalization, and Polygon Merkle timestamps.",
+    images: [
+      {
+        url: "/icon.svg",
+        width: 1200,
+        height: 630,
+        alt: "Saakshi Cryptographic Web Evidence Engine",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Saakshi | Cryptographic Web Evidence & Verification",
+    description:
+      "Autonomous web agents preserve court-admissible web evidence with SHA-256 manifests and Polygon Merkle timestamps.",
+    images: ["/icon.svg"],
+  },
   icons: {
     icon: [
-      { url: "/favicon.svg", type: "image/svg+xml" },
-      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.svg", type: "image/svg+xml" },
     ],
-    apple: "/apple-touch-icon.png",
   },
 };
 
