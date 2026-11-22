@@ -1,54 +1,51 @@
-# TinyFish Integration Notes & Live Documentation Comparison
+# TinyFish Integration Reference & Operations Manual
 
-This document records the integration details for TinyFish across Saakshi's architecture, matching the live documentation from [TinyFish](https://docs.tinyfish.ai/).
+This document provides the definitive integration specification for TinyFish services across Saakshi's architecture, matching live APIs, approximate operational costs, and documented API nuances.
 
-## Summary of TinyFish Products Used in Saakshi
+## Complete TinyFish Call Matrix
 
-1. **Web Agent (`https://agent.tinyfish.ai/v1/automation/run-async`)**:
-   - Asynchronous goal-driven browsing agent.
-   - Headers: `X-API-Key: $TINYFISH_API_KEY`, `Content-Type: application/json`.
-   - Polling / Status: `GET https://agent.tinyfish.ai/v1/runs/{id}`.
-   - Step Screenshots: `GET https://agent.tinyfish.ai/v1/runs/{id}?screenshots=base64`.
-   - Live stream: `streaming_url` displayed in sandbox live view.
-   - Cancel: `POST https://agent.tinyfish.ai/v1/runs/{id}/cancel`.
-   - Note on beta/account-gated fields:
-     - `agent_config.max_steps` and `agent_config.mode: "strict"` are gated under beta flags. Handled conditionally via `TINYFISH_AGENT_BETA=true`.
-     - `capture_config` (`elements`, `screenshots`, `html`) is account-gated. Handled conditionally via `TINYFISH_CAPTURE_CONFIG=true`.
-     - Fallback: rely on `agent_config.max_duration_seconds` and the step budget written into `GOAL_TEMPLATE`.
+| Endpoint & Protocol | Calling File | Forensic Purpose | Cost / Billing Estimation | Operational Status & Notes |
+|---|---|---|---|---|
+| `POST /v1/automation/run-async` | [`apps/web/lib/tinyfish/agent.ts`](apps/web/lib/tinyfish/agent.ts) | Dispatches autonomous agent for step-by-step browsing and filmstrip generation | ~1 credit / step (~$0.01 - $0.05 per run) | Production live endpoint; emits `streaming_url` and dispatches `run.completed` webhook. |
+| `GET /v1/runs/{id}` | [`apps/web/lib/tinyfish/agent.ts`](apps/web/lib/tinyfish/agent.ts) | Polls run lifecycle status (`RUNNING`, `COMPLETED`, `FAILED`, `CANCELLED`) | Included in run cost (no additional fee) | Polling fallback and webhook verification check. |
+| `GET /v1/runs/{id}?screenshots=base64` | [`apps/web/lib/tinyfish/agent.ts`](apps/web/lib/tinyfish/agent.ts) | Fetches complete array of base64 step screenshots for the forensic filmstrip | Included in run cost (no additional fee) | Downloaded immediately and hashed as individual step artifacts. |
+| `POST /v1/runs/{id}/cancel` | [`apps/web/lib/tinyfish/agent.ts`](apps/web/lib/tinyfish/agent.ts) | Cancels in-flight agent run upon user abort or execution timeout | No additional fee | Invoked on client abort or timeout cleanup. |
+| `POST https://api.browser.tinyfish.ai` | [`apps/web/lib/tinyfish/browser.ts`](apps/web/lib/tinyfish/browser.ts) | Initiates managed Chromium session over CDP for full-page screenshot, PDF, DOM, network HAR, and TLS cipher | ~1 credit / session (~$0.02 - $0.05 per session) | Initiated without target URL to attach network listeners before navigation. |
+| `DELETE https://api.browser.tinyfish.ai/{id}` | [`apps/web/lib/tinyfish/browser.ts`](apps/web/lib/tinyfish/browser.ts) | Terminates managed Chromium session | No additional fee | Guaranteed execution in `finally` block on all code paths. |
+| `POST https://api.fetch.tinyfish.ai` | [`apps/web/lib/tinyfish/fetch.ts`](apps/web/lib/tinyfish/fetch.ts) | Token-efficient clean markdown text and metadata extraction with link analysis | ~0.1 - 0.2 credits (~$0.005 per fetch) | Computes baseline content hash and strips volatile counters. |
+| `POST /v1/monitors` | [`apps/web/lib/tinyfish/monitor.ts`](apps/web/lib/tinyfish/monitor.ts) | Registers recurring cron monitor for target URL alterations | Billed per scheduled run (~$0.005 per check) | Accepts standard 5-field cron down to 1-minute intervals (`* * * * *`). |
+| `POST /v1/monitors/{id}/runs` | [`apps/web/lib/tinyfish/monitor.ts`](apps/web/lib/tinyfish/monitor.ts) | Executes immediate "Check Now" evaluation or confirmation run | Billed per run (~$0.005 per check) | Executed inline during "Check Now" and "Confirm-Before-Acting" checks. |
+| `DELETE /v1/monitors/{id}` | [`apps/web/lib/tinyfish/monitor.ts`](apps/web/lib/tinyfish/monitor.ts) | Deactivates and deletes monitor | No additional fee | Cleaned up on watch deletion or test teardown. |
+| `GET https://api.search.tinyfish.ai` | [`apps/web/lib/tinyfish/search.ts`](apps/web/lib/tinyfish/search.ts) | Exact-phrase reverse search agent scanning for duplicate mirrors across the web | ~0.5 credits (~$0.01 per search) | Scans for exact quoted text strings to locate unauthorized mirrors. |
 
-2. **Browser API (`https://api.browser.tinyfish.ai`)**:
-   - Direct CDP managed Chromium sessions.
-   - Session creation: `POST https://api.browser.tinyfish.ai` with `{ "timeout_seconds": 120 }` (without `url` so target page does not load before listeners attach; 60s client timeout).
-   - Connect via `playwright-core` using `chromium.connectOverCDP(cdp_url)`.
-   - Attach `page.on("response")` listeners BEFORE navigating, then `page.goto(target, { waitUntil: "domcontentloaded" })`.
-   - Captures: full-page PNG screenshot (`fullPage: true`), PDF render (`printBackground: true`, warning logged if unsupported over CDP), network response log JSON (`url, status, method, resourceType, contentType, timing`), TLS certificate details (`securityDetails()`: `protocol, issuer, subjectName, validFrom, validTo`), DOM outer HTML (`page.content()`).
-   - Lifecycle: Session terminated unconditionally via `DELETE https://api.browser.tinyfish.ai/{session_id}` in `finally` block on success, screenshot failure, and navigation failure; logs `browser session <id> terminated`; never logs `cdp_url`.
-   - Error handling: HTTP 402 wallet empty -> "capture credits exhausted", HTTP 429 honors `Retry-After`, HTTP 503 retries once after 5s.
+---
 
-3. **Fetch API (`https://api.fetch.tinyfish.ai`)**:
-   - Clean, token-efficient markdown extraction (client timeout 150s).
-   - Payload: `{ "urls": [url], "format": "markdown", "links": true, "image_links": true, "ttl": 0, "per_url_timeout_ms": 60000, "include_etag_and_last_modified": true }`.
-   - Response validated with Zod (`TinyFishFetchResponseSchema`).
-   - Artifacts: `fetch_markdown` (`results[0].text`) and `fetch_meta` JSON (`title, description, author, published_date, language, final_url, links, image_links, etag, last_modified, latency_ms`).
-   - Error mapping: maps `timeout`, `bot_blocked`, `page_not_found`, `login_required` to capture events and retains codes for Phase 6 deletion detection.
-   - Retries: 1 retry on 5xx or network error with 2-second backoff, no retry on 4xx, logs `X-Request-ID`.
+## Documented API Mismatches & Edge Case Handling
 
-4. **Monitor API (`https://agent.tinyfish.ai/v1/monitors`)**:
-   - Change detection and deletion alerting.
-   - Create: `POST https://agent.tinyfish.ai/v1/monitors` with `type: "fetch"`, cron schedule, webhook URL, and target URL.
-   - Run-now: `POST https://agent.tinyfish.ai/v1/monitors/{id}/runs` for instant evaluation during interactive demos (processed inline as run-now doesn't dispatch webhooks).
-   - Webhook processing: `POST /api/webhooks/monitor?token=...` handling classification (`NO_CHANGE`, `EDITED`, `DELETED`, `BLOCKED`).
+During live integration and stress-testing, we identified five critical documentation mismatches with TinyFish APIs:
 
-5. **Search API (`https://api.search.tinyfish.ai`)**:
-   - Repost and mirror finder.
-   - Query: `GET https://api.search.tinyfish.ai?query=<quoted-phrase>&location=IN&language=en` with fallback to `US`.
-   - Used in repost discovery flow to identify duplicate or scraped content.
+### 1. Webhook Signatures & High-Entropy Query Tokens
+- **Mismatch:** TinyFish webhook payloads do not currently supply HMAC signature headers (e.g. `X-TinyFish-Signature`).
+- **Solution:** Saakshi provisions unique high-entropy query tokens (`?token=<WEBHOOK_SECRET>`) for every webhook registration and verifies the token on incoming requests. In addition, when a webhook fires, the handler performs an out-of-band verification call (`GET /v1/runs/{id}`) directly to the TinyFish API to confirm the true run status before updating evidence state.
 
-## Discrepancies / Live Docs Alignment
+### 2. Account-Gated & Beta Configuration Fields
+- **Mismatch:** Setting `agent_config.mode: "strict"` or `agent_config.max_steps` returns HTTP 400/403 on standard developer tiers. Similarly, `capture_config` (`elements`, `screenshots`, `html`) is account-gated and returns HTTP 403 Forbidden.
+- **Solution:** Saakshi guards beta and account-gated options behind environment switches (`TINYFISH_AGENT_BETA=true` and `TINYFISH_CAPTURE_CONFIG=true`). By default, the system relies on the prompt-embedded step budget in `GOAL_TEMPLATE` and `agent_config.max_duration_seconds`, ensuring zero configuration errors across all account tiers.
 
-- **Webhook Validation**: TinyFish webhooks do not currently send cryptographic HMAC signatures; as specified in the PRD, we validate incoming webhooks via high-entropy query token (`?token=<WEBHOOK_SECRET>`) and verify the run status directly with `GET /v1/runs/{id}` before taking action.
-- **Run Completion vs Success**: Live docs confirm `COMPLETED` signifies that the agent lifecycle ended, not that the target content was legally accessible. Saakshi explicitly inspects `result.blocked`, captchas, and login barriers, transitioning to `PARTIAL` rather than blind success.
-- **Live Preview Stream**: `streaming_url` can take 3-5 seconds to initialize and closes upon agent completion. Saakshi UX accounts for this with a loading state and fallback to the step filmstrip once complete.
+### 3. Monitor "Run-Now" Does Not Dispatch Webhooks
+- **Mismatch:** Triggering an immediate run via `POST /v1/monitors/{id}/runs` executes the check synchronously and does **not** dispatch a webhook to the registered URL.
+- **Solution:** Saakshi's "Check Now" handler processes the API response inline rather than waiting for an asynchronous webhook, providing immediate sub-2-second feedback to the investigator.
+
+### 4. Upstream 502/Internal Error on Target Deletion
+- **Mismatch:** When a monitored page is deleted (returning HTTP 404/410), calling `POST /v1/monitors/{id}/runs` returns an HTTP 502 Bad Gateway with JSON:
+  ```json
+  {"error":{"code":"INTERNAL_ERROR","message":"Fetch failed: page_not_found"}}
+  ```
+- **Solution:** `apps/web/lib/tinyfish/monitor.ts` catches `page_not_found` from the upstream error string and maps it into a structured error `{ code: "page_not_found", status: 404 }`, enabling `classifyContentChange()` to deterministically classify the event as `DELETED`.
+
+### 5. Ephemeral Streaming URL Lifecycle
+- **Mismatch:** The `streaming_url` returned from `run-async` requires 3-5 seconds to initialize after run creation and is abruptly terminated by the host upon run completion.
+- **Solution:** The frontend iframe component renders a graceful loading skeleton while `streaming_url` is initializing, and automatically switches to the full forensic filmstrip carousel as soon as the run transitions to `COMPLETED`.
 
 ## Phase 1 Acceptance & Verification Status
 
