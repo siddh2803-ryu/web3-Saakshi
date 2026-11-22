@@ -106,7 +106,7 @@ export default function NewCapturePage() {
         </div>
 
         {/* Demo Fast-Fill Banner */}
-        <div className="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-4 shadow-sm">
+        <div className="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
           <div className="flex items-center space-x-3">
             <Terminal className="w-4 h-4 text-slate-700 shrink-0" />
             <div className="text-xs text-slate-800">

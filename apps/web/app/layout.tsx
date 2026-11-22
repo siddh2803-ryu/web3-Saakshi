@@ -43,16 +43,16 @@ export default function RootLayout({
             {/* Brand Logo */}
             <Link
               href="/"
-              className="flex items-center space-x-3 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 rounded-lg p-1"
+              className="flex items-center space-x-2 sm:space-x-3 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 rounded-lg p-1 shrink-0"
             >
-              <div className="w-9 h-9 rounded-lg bg-slate-900 flex items-center justify-center text-white shadow-sm border border-slate-800 transition-colors">
-                <ShieldCheck className="w-5 h-5 text-emerald-400" />
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-slate-900 flex items-center justify-center text-white shadow-sm border border-slate-800 transition-colors shrink-0">
+                <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" />
               </div>
               <div className="flex flex-col">
-                <span className="text-lg font-bold tracking-tight text-slate-900 leading-none">
+                <span className="text-base sm:text-lg font-bold tracking-tight text-slate-900 leading-none">
                   Saakshi
                 </span>
-                <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest mt-0.5">
+                <span className="text-[9px] sm:text-[10px] font-semibold text-slate-500 uppercase tracking-widest mt-0.5 hidden xs:inline">
                   Web Evidence Engine
                 </span>
               </div>
@@ -62,7 +62,7 @@ export default function RootLayout({
             <nav className="flex items-center space-x-1 sm:space-x-2">
               <Link
                 href="/dashboard"
-                className="px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg flex items-center space-x-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+                className="px-2 sm:px-3 py-1.5 sm:py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg flex items-center space-x-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
               >
                 <LayoutDashboard className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Dashboard</span>
@@ -70,26 +70,28 @@ export default function RootLayout({
 
               <Link
                 href="/verify"
-                className="px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg flex items-center space-x-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+                className="px-2 sm:px-3 py-1.5 sm:py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg flex items-center space-x-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
               >
                 <Search className="w-3.5 h-3.5" />
-                <span>Verify a File</span>
+                <span className="hidden sm:inline">Verify a File</span>
+                <span className="sm:hidden">Verify</span>
               </Link>
 
               <Link
                 href="/sandbox/admin"
-                className="px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg flex items-center space-x-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+                className="px-2 sm:px-3 py-1.5 sm:py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg flex items-center space-x-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
               >
                 <Terminal className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Chirp Sandbox</span>
+                <span className="hidden md:inline">Chirp Sandbox</span>
               </Link>
 
               <Link
                 href="/capture/new"
-                className="ml-2 px-3.5 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg shadow-sm flex items-center space-x-1.5 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-slate-900"
+                className="ml-1 sm:ml-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg shadow-sm flex items-center space-x-1.5 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-slate-900 shrink-0"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>New Capture</span>
+                <span className="hidden sm:inline">New Capture</span>
+                <span className="sm:hidden">Capture</span>
               </Link>
             </nav>
           </div>

@@ -20,7 +20,7 @@ export default function ChirpPostPage({ params }: PageProps) {
     <div className="min-h-screen bg-[#F8FAFC] py-12 px-4 sm:px-6">
       <div className="max-w-2xl mx-auto">
         {/* Sandbox Notice Banner */}
-        <div className="mb-6 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between text-xs text-amber-950">
+        <div className="mb-6 p-3 bg-amber-50 border border-amber-200 rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs text-amber-950">
           <div className="flex items-center space-x-2">
             <span className="font-bold px-2 py-0.5 bg-amber-200 text-amber-950 rounded-md">DEMO SANDBOX</span>
             <span>Simulated target platform &quot;Chirp&quot; for KRITICAL HACKS &apos;26 testing.</span>
