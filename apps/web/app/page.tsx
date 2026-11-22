@@ -186,73 +186,73 @@ export default function LandingPage() {
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider">
-                  <th className="py-3 pr-4">Evidentiary Requirement</th>
-                  <th className="py-3 px-4 text-slate-700">Client Screenshot</th>
-                  <th className="py-3 pl-4 text-blue-900 font-bold">Saakshi Cryptographic Bundle</th>
+                  <th scope="col" className="py-3 pr-4">Evidentiary Requirement</th>
+                  <th scope="col" className="py-3 px-4 text-slate-700">Client Screenshot</th>
+                  <th scope="col" className="py-3 pl-4 text-blue-900 font-bold">Saakshi Cryptographic Bundle</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
                 <tr>
-                  <td className="py-3.5 pr-4 font-medium">Independent Witness</td>
+                  <th scope="row" className="py-3.5 pr-4 font-medium text-left">Independent Witness</th>
                   <td className="py-3.5 px-4 text-slate-500 flex items-center space-x-1.5">
-                    <XCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                    <XCircle className="w-4 h-4 text-rose-500 shrink-0" aria-hidden="true" />
                     <span>Captured by interested party</span>
                   </td>
                   <td className="py-3.5 pl-4 font-semibold text-slate-900">
                     <span className="inline-flex items-center space-x-1.5 text-emerald-700">
-                      <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" aria-hidden="true" />
                       <span>Autonomous cloud agent with neutral profile</span>
                     </span>
                   </td>
                 </tr>
                 <tr>
-                  <td className="py-3.5 pr-4 font-medium">Tamper Resistance</td>
+                  <th scope="row" className="py-3.5 pr-4 font-medium text-left">Tamper Resistance</th>
                   <td className="py-3.5 px-4 text-slate-500 flex items-center space-x-1.5">
-                    <XCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                    <XCircle className="w-4 h-4 text-rose-500 shrink-0" aria-hidden="true" />
                     <span>Easily altered via browser DevTools or photo editor</span>
                   </td>
                   <td className="py-3.5 pl-4 font-semibold text-slate-900">
                     <span className="inline-flex items-center space-x-1.5 text-emerald-700">
-                      <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" aria-hidden="true" />
                       <span>SHA-256 fingerprint anchored to Polygon blockchain</span>
                     </span>
                   </td>
                 </tr>
                 <tr>
-                  <td className="py-3.5 pr-4 font-medium">Verifiable Timestamp</td>
+                  <th scope="row" className="py-3.5 pr-4 font-medium text-left">Verifiable Timestamp</th>
                   <td className="py-3.5 px-4 text-slate-500 flex items-center space-x-1.5">
-                    <XCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                    <XCircle className="w-4 h-4 text-rose-500 shrink-0" aria-hidden="true" />
                     <span>Local device clock (can be manually adjusted)</span>
                   </td>
                   <td className="py-3.5 pl-4 font-semibold text-slate-900">
                     <span className="inline-flex items-center space-x-1.5 text-emerald-700">
-                      <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" aria-hidden="true" />
                       <span>Decentralized block timestamp on Polygon Amoy</span>
                     </span>
                   </td>
                 </tr>
                 <tr>
-                  <td className="py-3.5 pr-4 font-medium">BSA 2023 s.63(4) Alignment</td>
+                  <th scope="row" className="py-3.5 pr-4 font-medium text-left">BSA 2023 s.63(4) Alignment</th>
                   <td className="py-3.5 px-4 text-slate-500 flex items-center space-x-1.5">
-                    <XCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                    <XCircle className="w-4 h-4 text-rose-500 shrink-0" aria-hidden="true" />
                     <span>No hash value disclosure or custody logs</span>
                   </td>
                   <td className="py-3.5 pl-4 font-semibold text-slate-900">
                     <span className="inline-flex items-center space-x-1.5 text-emerald-700">
-                      <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" aria-hidden="true" />
                       <span>Automated Part A draft certificate with full hash schedule</span>
                     </span>
                   </td>
                 </tr>
                 <tr>
-                  <td className="py-3.5 pr-4 font-medium">Third-Party Verification</td>
+                  <th scope="row" className="py-3.5 pr-4 font-medium text-left">Third-Party Verification</th>
                   <td className="py-3.5 px-4 text-slate-500 flex items-center space-x-1.5">
-                    <XCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                    <XCircle className="w-4 h-4 text-rose-500 shrink-0" aria-hidden="true" />
                     <span>Impossible to prove exact state retrospectively</span>
                   </td>
                   <td className="py-3.5 pl-4 font-semibold text-slate-900">
                     <span className="inline-flex items-center space-x-1.5 text-emerald-700">
-                      <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" aria-hidden="true" />
                       <span>Zero-upload client-side verifier via W3C WebCrypto</span>
                     </span>
                   </td>

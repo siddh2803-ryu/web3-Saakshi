@@ -678,7 +678,7 @@ export default function PublicVerifyPage() {
         }}
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
-        className={`border-2 border-dashed rounded-2xl p-10 text-center transition-all bg-white shadow-sm ${
+        className={`border-2 border-dashed rounded-2xl p-6 sm:p-10 text-center transition-all bg-white shadow-sm ${
           dragOver ? "border-emerald-600 bg-emerald-50/20" : "border-slate-300 hover:border-slate-400"
         }`}
       >
@@ -707,6 +707,7 @@ export default function PublicVerifyPage() {
         <div className="mt-6 flex items-center justify-center gap-3">
           <button
             type="button"
+            aria-controls="verify-file-input"
             onClick={() => fileInputRef.current?.click()}
             className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors focus:ring-2 focus:ring-slate-900 focus:outline-none"
           >
