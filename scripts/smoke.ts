@@ -34,11 +34,18 @@ async function runSmokeTest() {
       const base = inputArg.replace(/\/+$/, "");
       targetUrl = `${base}/sandbox/post/internship-scam-alert`;
     }
-  } else if (process.env.NEXT_PUBLIC_APP_URL) {
+  } else if (process.env.NEXT_PUBLIC_APP_URL && !process.env.NEXT_PUBLIC_APP_URL.includes("trycloudflare.com")) {
     const base = process.env.NEXT_PUBLIC_APP_URL.replace(/\/+$/, "");
     targetUrl = `${base}/sandbox/post/internship-scam-alert`;
   } else {
-    targetUrl = "https://chirp.local/sandbox/post/internship-scam-alert";
+    targetUrl = "http://localhost:3000/sandbox/post/internship-scam-alert";
+  }
+
+  const isLocalTarget = /^(https?:\/\/)?(localhost|127\.0\.0\.1|0\.0\.0\.0|.*\.local)(:\d+)?(\/.*)?$/i.test(targetUrl);
+  if (isLocalTarget && process.env.TINYFISH_MODE === "live") {
+    console.warn(
+      `⚠️ Note: Target URL "${targetUrl}" is a local host. TinyFish cloud browser requires a publicly accessible URL unless running in fixture/tunnel mode.\n`
+    );
   }
 
   const captureId = `cap_smoke_${Date.now()}`;
