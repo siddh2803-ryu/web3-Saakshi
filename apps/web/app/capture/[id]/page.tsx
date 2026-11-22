@@ -332,7 +332,7 @@ export default function CaptureDetailPage() {
       }
     }, 3000);
     return () => clearInterval(interval);
-  }, [fetchCapture, capture?.status]);
+  }, [fetchCapture, captureId, capture?.status]);
 
   useEffect(() => {
     if (activeTab === "custody") {
