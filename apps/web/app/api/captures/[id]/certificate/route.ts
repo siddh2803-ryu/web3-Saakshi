@@ -3,6 +3,7 @@ import { getCaptureRecord, listCustodyEvents } from "@/lib/firebase/admin";
 import { renderCertificatePdf } from "@/lib/pdf/certificate";
 import QRCode from "qrcode";
 import { requireAuth, requireOwner } from "@/lib/auth/server";
+import { getVerifyUrl } from "@/lib/config/url";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -33,8 +34,7 @@ export async function GET(
     );
     if (authError) return authError;
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    const verifyUrl = `${appUrl}/v/${captureId}`;
+    const verifyUrl = getVerifyUrl(captureId);
     const qrDataUrl = await QRCode.toDataURL(verifyUrl, { margin: 1, width: 200 }).catch(
       () => null
     );

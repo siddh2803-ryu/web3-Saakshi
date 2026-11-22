@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { isFixtureMode, sanitizeUrl, tinyFishFetch } from "./client";
 import { FIXTURE_MONITOR_RESPONSE } from "./fixtures";
+import { getMonitorWebhookUrl } from "@/lib/config/url";
 
 export const DEFAULT_MONITOR_PURPOSE =
   "Evidence watch. Flag any change to the main post text, author, media or comments, and flag if the page is removed, made private or shows 'content unavailable'.";
@@ -133,10 +134,9 @@ export interface UpdateMonitorInput {
 // ---------------------------------------------------------------------------
 
 function getDefaultWebhookUrl(): string | undefined {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   const webhookSecret = process.env.WEBHOOK_SECRET;
   if (!webhookSecret) return undefined;
-  return `${appUrl}/api/webhooks/monitor?token=${webhookSecret}`;
+  return getMonitorWebhookUrl(webhookSecret);
 }
 
 // ---------------------------------------------------------------------------
