@@ -86,17 +86,22 @@ When victims capture screenshots using their phone or desktop browser, courts an
 
 ## Statutory Legal Foundation (Section 63(4) BSA, 2023)
 
-Under **Section 63(4) of the Bharatiya Sakshya Adhiniyam, 2023 (BSA)**, electronic records submitted as secondary evidence in Indian courts must be accompanied by a formal certificate that:
-- Identifies the electronic record and describes the manner in which it was produced.
-- Discloses the cryptographic hash value (SHA-256) of the preserved record.
-- Details the particulars of the device and lawful custody conditions.
-- Adheres to the Supreme Court of India's precedent in *Pune Bar Association v. Union of India* (May 2026).
+In July 2024, India's landmark criminal justice reforms came into effect, replacing the Indian Evidence Act, 1872 with the **Bharatiya Sakshya Adhiniyam, 2023 (BSA)**. Under **Section 63(4) of the BSA**, electronic records (including social media posts, chats, emails, and website records) submitted as secondary evidence in Indian courts must be accompanied by a formal statutory certificate.
 
-Saakshi produces a court-formatted **draft Part A Certificate** (`certificate_part_a_draft.pdf`) containing:
+In *Pune Bar Association v. Union of India* (May 2026), the Supreme Court of India reaffirmed that standard screenshots, screen recordings, and client-side browser printouts lack evidentiary weight unless accompanied by proof of lawful custody and cryptographic verification of hash integrity.
+
+### Mandatory Evidentiary Requirements Automated by Saakshi:
+1. **Device Particulars & Lawful Custody:** Automated documentation of cloud Chromium agent execution environment, IP addresses, and neutral custodian parameters.
+2. **Cryptographic Algorithm & Hash Disclosures:** Precise algorithm specification (`SHA-256`) and disclosure of individual hashes for all plaintext artifacts (`screenshot.png`, `dom_html.html`, `network_log.json`, `tls_info.json`).
+3. **Canonical Manifest Fingerprint:** Computing an RFC 8785 (JCS) deterministic manifest hash representing the immutable evidence bundle.
+4. **Dual IST / UTC Timestamps:** Recording exact server and block timestamps formatted in dual UTC and Indian Standard Time (IST, UTC+05:30).
+
+### Court-Formatted Section 63(4) BSA Certificate
+Saakshi produces a court-ready **draft Part A Certificate** (`certificate_part_a_draft.pdf`) containing:
 - Preserved record identifiers, source URLs, dual IST/UTC timestamps.
 - Algorithm identification (`SHA-256`) with hash values for each artifact.
 - Polygon transaction hash, block number, and Merkle root verification annex with a scannable QR link to `/v/{captureId}`.
-- Clear statutory separation: Part A is generated as a drafting aid for the declarant, while Part B remains reserved for signing by a certified electronic evidence examiner.
+- Clear statutory separation: Part A is generated as a drafting aid for the declarant, while Part B remains reserved for signing by a certified electronic evidence examiner under Section 63(4)(c) BSA.
 
 ---
 
@@ -212,25 +217,32 @@ Saakshi deeply integrates all 5 products across the TinyFish cloud automation pl
 
 ### 1. Artifact Hashing & RFC 8785 Canonical Manifest
 - Raw plaintext artifacts (`screenshot.png`, `page.html`, `network_log.json`, `tls_info.json`, `trace.json`) are hashed using standard SHA-256 (`crypto.createHash("sha256")`).
-- The evidence manifest is structured strictly adhering to **RFC 8785 (JSON Canonicalization Scheme - JCS)**. This guarantees identical bit-for-bit serialization across distinct operating systems and runtimes:
+- The evidence manifest is structured strictly adhering to **RFC 8785 (JSON Canonicalization Scheme - JCS)** under schema `saakshi.evidence/v1`. This guarantees identical bit-for-bit serialization across distinct operating systems and runtimes:
   ```ts
   const canonicalJson = canonicalize(manifestObject);
   const manifestSha256 = crypto.createHash("sha256").update(canonicalJson).digest("hex");
   ```
+- **Guaranteed Immutability:** Because JCS sorts dictionary keys lexicographically, standardizes whitespace, and normalizes floating-point numbers, calculating the SHA-256 of the JCS string yields an unforgeable manifest fingerprint:
+  $$\text{manifestHash} = \text{SHA-256}\Big(\text{JCS}(\text{Manifest}_{\text{v1}})\Big)$$
 
-### 2. Envelope Encryption (AES-256-GCM)
-- Every capture generates a unique 256-bit Data Encryption Key (DEK).
-- Artifacts are encrypted via `AES-256-GCM` with a 96-bit random initialization vector (IV) and a 128-bit authentication tag.
-- The DEK is encrypted using the master key (`MASTER_KEY_B64`), ensuring stored IPFS data cannot be decrypted without master authority.
+### 2. Envelope Encryption Architecture (AES-256-GCM)
+To protect victim privacy while using public decentralized storage (IPFS), Saakshi enforces envelope encryption:
+- Every capture generates an ephemeral 256-bit Data Encryption Key (DEK):
+  $$\text{DEK} \leftarrow \text{SecureRandom}(32)$$
+- Each plaintext artifact is encrypted independently with `AES-256-GCM` using a unique 96-bit random Initialization Vector (IV) and a 128-bit authentication tag.
+- The DEK is encrypted using the server's Master Key (`MASTER_KEY_B64`) via `AES-256-GCM` and stored alongside the record as `wrappedDek`:
+  $$\text{wrappedDek} = \text{AES-GCM-Encrypt}_{\text{MasterKey}}(\text{DEK})$$
+- Only authorized users and valid share-link holders can request temporary decryption via server route handlers. Raw unencrypted evidence is never exposed on IPFS.
 
 ### 3. Merkle Tree Batch Anchoring
-- Manifest hashes are grouped into batches and converted into cryptographic leaves using OpenZeppelin's `StandardMerkleTree` with `["bytes32"]` leaf encoding.
+- Manifest hashes are grouped into batches and converted into cryptographic leaves using OpenZeppelin's `StandardMerkleTree` with double-hashed `["bytes32"]` leaf encoding:
+  $$\text{leaf} = \text{keccak256}\Big(\text{bytes.concat}(\text{keccak256}(\text{abi.encode}(\text{manifestHash})))\Big)$$
 - The resulting Merkle root is committed to Polygon Amoy via `EvidenceRegistry.anchorRoot(bytes32 root)`.
 - Proof inclusion allows proving that any individual manifest is part of an anchored root:
   $$\text{Verify}(P, L, R) \rightarrow \text{true}$$
 
 ### 4. Hash-Chained Digital Chain of Custody
-Every lifecycle event (`CREATE`, `VIEW`, `EXPORT`, `SHARE`, `VERIFY`) is canonically serialized and chained:
+Every lifecycle event (`CREATE`, `VIEW`, `EXPORT`, `SHARE`, `VERIFY`) is canonically serialized and chained from genesis:
 $$\text{eventHash}_n = \text{SHA-256}\Big(\text{JCS}\big(\{ \text{captureId}, \text{action}, \text{actorHash}, \text{at}, \text{prevEventHash} \}\big)\Big)$$
 - **Privacy Preservation:** Actor identities are hashed with a server salt: `actorHash = SHA-256(salt + ":" + uid)`. PII and raw IP addresses are never written to the chain.
 - **On-Chain Custody Transactions:** High-impact events (`EXPORT` code 1, `SHARE` code 2) are published directly to the smart contract via `logCustody(manifestSha256, eventHash, actionCode)`.
