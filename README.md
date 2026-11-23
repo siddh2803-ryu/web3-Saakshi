@@ -47,7 +47,7 @@
 13. [Comprehensive API Endpoint Reference](#comprehensive-api-endpoint-reference)
 14. [Testing & Quality Assurance Suite](#testing--quality-assurance-suite)
 15. [Limitations & Legal Note](#limitations--legal-note)
-16. [Team Eclipse](#team-eclipse-kritical-hacks-26)
+16. [Hackathon Recognition & Team Eclipse](#hackathon-recognition--team-eclipse)
 17. [Security & Secrecy Policy](#security--secrecy-policy)
 18. [License](#license)
 
@@ -576,14 +576,11 @@ The following atomic commits represent the production engineering and hardening 
 
 ---
 
-## Team Eclipse (KRITICAL HACKS '26)
+## Hackathon Recognition & Team Eclipse
 
-Built with pride by **Team Eclipse** for the **KRITICAL HACKS '26** Finale (AssetMerkle &times; IGDTUW):
+Built with pride by **Team Eclipse** for the **KRITICAL HACKS '26** Finale (AssetMerkle &times; IGDTUW), Web3 Track, earning the **Runner-Up (2nd Place)** distinction. 🥈🏆
 
-- **Siddharth Dhawan** — Blockchain Architecture, Smart Contracts & Cryptographic Custody
-- **Pratham Jaiswal** — Full-Stack Next.js Architecture, API Routes & Forensic Verifier
-- **Parnika Agarwal** — TinyFish Agent Automation, Browser CDP Integration & Page Monitoring
-- **Navya Khurana** — UI/UX Design, AI Evidence Structuring & Legal Compliance Engineering
+Saakshi was engineered during the hackathon to solve a critical real-world challenge: providing victims of cyber fraud, harassment, and defamation with tamper-proof, court-admissible electronic evidence anchored on decentralized infrastructure under India's Bharatiya Sakshya Adhiniyam, 2023.
 
 ---
 
