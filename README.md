@@ -545,6 +545,16 @@ npm run dev
 ```
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
+### 7. Developer Runbook & Troubleshooting Matrix
+
+| Issue / Symptom | Root Cause | Recommended Resolution |
+|---|---|---|
+| **Build failure:** `operation not permitted, stat /Users/adnan/package.json` | Next.js cssnano walking up parent directories | Ensure root [`.browserslistrc`](.browserslistrc) is present with `defaults`. |
+| **API error:** `MASTER_KEY_B64 is not configured` | Missing or malformed 32-byte encryption key | Run `node -e 'console.log(require("crypto").randomBytes(32).toString("base64"))'` and set `MASTER_KEY_B64` in `.env.local`. |
+| **Capture stays in `PENDING` indefinitely** | Network firewall blocking TinyFish WebSocket or missing API key | Set `TINYFISH_MODE=fixture` in `.env.local` to execute deterministic local mock runs. |
+| **On-chain anchor failure:** `missing ANCHOR_ROLE` or `insufficient funds` | Relayer account unfunded or ungranted on Amoy | Request Amoy testnet tokens from Polygon Faucet or enable `CHAIN_MODE=mock` for unit testing. |
+| **Firebase Admin initialization warning** | `FIREBASE_SERVICE_ACCOUNT_B64` unset | Expected in development: Saakshi automatically falls back to its high-performance in-memory store. |
+
 ---
 
 ## Comprehensive API Endpoint Reference
