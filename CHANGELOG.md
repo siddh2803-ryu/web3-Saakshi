@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.0] - 2026-11-23
+
+### Summary
+Production-ready completion release. Consolidates the complete autonomous evidence custody lifecycle, air-gapped forensic verification runbooks, hardened security gates, exhaustive REST API specifications, and multi-path verification guides.
+
+### Added
+- **Air-Gapped Bundle Verification:** Documented POSIX CLI verification methodology using `sha256sum`, `jq`, and standard file utilities on offline machines.
+- **Interactive Verification Walkthrough:** Added visual Mermaid diagram mapping the 3 independent verification pathways (In-browser WebCrypto, CLI verify script, and on-chain RPC lookup).
+- **Developer Runbook & Troubleshooting Matrix:** Documented operational resolutions for common local development questions (master key generation, mock chain mode, TinyFish fixture fallback, and rate limit management).
+- **Security Defense Gate:** Strengthened `.gitignore` defense patterns to explicitly block certificates, private keys, service accounts, and build artifacts.
+- **Deterministic Next.js Build:** Configured root `.browserslistrc` ensuring zero parent directory traversal regressions during production compilation.
+
+---
+
 ## [0.9.0] - 2026-11-22
 
 ### Summary
