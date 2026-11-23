@@ -192,18 +192,19 @@ sequenceDiagram
 
 Saakshi deeply integrates all 5 products across the TinyFish cloud automation platform to provide autonomous, objective evidence capture:
 
-| Product | What it does | Source File |
-|---|---|---|
-| **TinyFish Web Agent** | Autonomous Chromium agent that navigates to the target URL, dismisses cookie/consent modals, clicks "see more" on long text, expands comment sections up to a configured limit, records action filmstrip screenshots, and extracts structured data. | [`apps/web/lib/tinyfish/agent.ts`](apps/web/lib/tinyfish/agent.ts) |
-| **TinyFish Browser API** | Direct managed Chromium session over Chrome DevTools Protocol (CDP) capturing full-page PNG screenshots, PDF renders, DOM HTML snapshot, HTTP network HAR response logs, and TLS cipher/certificate details. | [`apps/web/lib/tinyfish/browser.ts`](apps/web/lib/tinyfish/browser.ts) |
-| **TinyFish Fetch API** | Token-efficient clean markdown extraction for quick textual diffing, noise filtering, and baseline content hash generation. | [`apps/web/lib/tinyfish/fetch.ts`](apps/web/lib/tinyfish/fetch.ts) |
-| **TinyFish Monitor API** | Scheduled recurring cloud cron monitor observing URLs down to 1-minute intervals, triggering automated re-captures and webhook alerts upon content mutation or HTTP 404 deletion. | [`apps/web/lib/tinyfish/monitor.ts`](apps/web/lib/tinyfish/monitor.ts) |
-| **TinyFish Search API** | Exact-phrase reverse search agent scanning the open web to identify reposted mirrors, unauthorized re-uploads, or defamatory replicas across platforms. | [`apps/web/lib/tinyfish/search.ts`](apps/web/lib/tinyfish/search.ts) |
+| Product | Operational Role & Capabilities | Forensics & Architecture | Source Location |
+|---|---|---|---|
+| **TinyFish Web Agent** | Autonomous cloud Chromium agent navigating to target URLs, dismissing cookie/consent banners, expanding truncated social text, scrolling threads, compiling step filmstrips, and recording action traces. | Dispatched asynchronously via `/v1/automation/run-async` with a 120s timeout and dedicated webhook callbacks. Never interacts with forms, likes, or user data. | [`apps/web/lib/tinyfish/agent.ts`](apps/web/lib/tinyfish/agent.ts) |
+| **TinyFish Browser API** | Direct managed Chromium sessions controlled via Chrome DevTools Protocol (CDP) through `playwright-core`. | Collects full-page lossless PNGs, printable PDFs, complete DOM HTML snapshots, comprehensive HTTP network HAR logs, and TLS cipher/certificate handshakes. | [`apps/web/lib/tinyfish/browser.ts`](apps/web/lib/tinyfish/browser.ts) |
+| **TinyFish Fetch API** | Lightweight clean markdown extraction endpoint (`api.fetch.tinyfish.ai`). | Fast token-efficient content extraction used for rapid text diffing, NLP baseline extraction, and noise-stripped semantic content hashing. | [`apps/web/lib/tinyfish/fetch.ts`](apps/web/lib/tinyfish/fetch.ts) |
+| **TinyFish Monitor API** | Continuous cloud surveillance engine configurable down to 1-minute intervals (`/v1/monitors`). | Detects unauthorized deletions (HTTP 404/410) and post modifications (`EDITED`), powering automated re-captures and custody chaining. | [`apps/web/lib/tinyfish/monitor.ts`](apps/web/lib/tinyfish/monitor.ts) |
+| **TinyFish Search API** | Quoted exact-phrase discovery engine (`api.search.tinyfish.ai`). | Scans the open web for unauthorized mirrors, viral reposts, and screenshot re-uploads using distinctive phrases extracted from the original evidence. | [`apps/web/lib/tinyfish/search.ts`](apps/web/lib/tinyfish/search.ts) |
 
 ### Page Monitoring & Intelligent Diff Engine
-- **Noise Filtering:** Automatically strips volatile counters (like counts, retweets, view statistics) and relative timestamps ("3 minutes ago") before computing content hashes.
+- **Noise Filtering:** Automatically strips volatile engagement counters (likes, retweets, views) and relative time strings ("2 minutes ago") before computing content hashes.
 - **Confirm-Before-Acting Protocol:** Monitor webhook notifications (`EDITED` or `DELETED`) trigger an immediate independent verification check (`runNow`) before altering custody status or dispatching alerts.
 - **Automated Re-Capture Chain:** Confirmed page modifications trigger an autonomous agent re-capture linked via `previousCaptureId`, recording the lifecycle transition from live to edited or deleted state.
+- **Forensic Word-Level Diffs:** Implements Myers LCS (Longest Common Subsequence) diffing algorithm capped at 20 KB to generate granular word-level visual highlights for courtroom exhibits.
 
 ---
 
