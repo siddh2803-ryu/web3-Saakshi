@@ -528,7 +528,17 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## Comprehensive API Endpoint Reference
 
-All API endpoints are strictly protected by input validation (OWASP A03) using Zod schemas and return standardized RFC 7807 error responses upon failure.
+All API endpoints are strictly protected by input validation (OWASP A03) using Zod schemas and return standardized RFC 7807 error envelopes upon failure:
+```json
+{
+  "error": {
+    "code": "VALIDATION_FAILED",
+    "message": "Invalid URL provided. Must start with http:// or https://"
+  }
+}
+```
+
+### Complete Route Matrix
 
 | Method | Endpoint | Auth | Purpose | Request Body / Query | Success Response |
 |---|---|---|---|---|---|
@@ -550,6 +560,36 @@ All API endpoints are strictly protected by input validation (OWASP A03) using Z
 | `GET` | `/api/verify/[sha256]` | Public | Query on-chain Merkle proof for hash | URL Param: `sha256` | `200 OK` with `{ proof, root, block }` |
 | `POST` | `/api/webhooks/tinyfish` | TinyFish Webhook | Process agent run completion event | TinyFish Webhook JSON Payload | `200 OK` `{ received: true }` |
 | `POST` | `/api/webhooks/monitor` | TinyFish Webhook | Process page alteration/deletion alerts | TinyFish Monitor Webhook Payload | `200 OK` `{ processed: true }` |
+
+### Selected cURL Invocation Examples
+
+#### 1. Dispatch New Evidence Capture
+```bash
+curl -X POST http://localhost:3000/api/captures \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session=<SESSION_TOKEN>" \
+  -d '{
+    "targetUrl": "https://example.com/harassing-post",
+    "goal": "Capture the full defamatory post, comments, and engagement metrics",
+    "aiOptIn": true
+  }'
+```
+
+#### 2. Query On-Chain Merkle Proof (Public & Unauthenticated)
+```bash
+curl -X GET http://localhost:3000/api/verify/8f4e2c8a19cf7b6d13e01928374a5b6c7d8e9f0123456789abcdef0123456789
+```
+
+#### 3. Create Expiring Public Share Link
+```bash
+curl -X POST http://localhost:3000/api/captures/cap_123456789/shares \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session=<SESSION_TOKEN>" \
+  -d '{
+    "expiryHours": 168,
+    "includeAi": true
+  }'
+```
 
 ---
 
