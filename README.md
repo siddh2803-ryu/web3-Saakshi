@@ -303,7 +303,47 @@ contract EvidenceRegistry is AccessControl {
 
 ## How to Verify Evidence
 
-Saakshi offers multiple independent verification paths, allowing judges, opposing counsel, platform moderators, or forensic analysts to audit evidence integrity without trusting Saakshi's infrastructure.
+Saakshi offers three independent verification pathways, allowing judges, opposing counsel, platform moderators, or forensic analysts to audit evidence integrity without trusting Saakshi's infrastructure.
+
+```mermaid
+flowchart TD
+    subgraph Input["Input Evidence Artifact"]
+        File["Evidence Artifact File<br/>(e.g., screenshot.png, manifest.json, or bundle.zip)"]
+    end
+
+    subgraph BrowserVerification["Path 1: In-Browser Verifier (/verify)"]
+        LocalHash["Local WebCrypto Digest<br/>crypto.subtle.digest('SHA-256', bytes)"]
+        RPCQuery["Direct Polygon RPC eth_call<br/>EvidenceRegistry.verify(leaf, proof, root)"]
+        BrowserVerdict{"Result Verified On-Chain?"}
+        VerdictYes["✅ Valid Evidence Verified<br/>Block Number & Timestamp Displayed"]
+        VerdictNo["❌ Hash Unanchored or Altered"]
+    end
+
+    subgraph CLIIntegrity["Path 2: Offline Bundle Verification (CLI)"]
+        ExtractZip["In-Memory Archive Unpack"]
+        JCSCheck["RFC 8785 Canonical JCS Manifest Recalculation"]
+        MerkleCheck["StandardMerkleTree Inclusion Proof Check"]
+        CLIVerdict{"Bundle Intact?"}
+        CLIYes["✅ 100% Cryptographic Match"]
+        CLINo["❌ Manifest Corrupted or Tampered"]
+    end
+
+    subgraph CustodyAudit["Path 3: Custody Hash-Chain Audit"]
+        GenesisNode["Genesis Creation Event (CREATE)"]
+        ChainedEvents["Hash-Linked Audit Records (VIEW, EXPORT, SHARE)"]
+        OnChainReceipts["Polygon Amoy LogCustody Receipts"]
+    end
+
+    File --> LocalHash --> RPCQuery --> BrowserVerdict
+    BrowserVerdict -->|Match| VerdictYes
+    BrowserVerdict -->|Mismatch| VerdictNo
+
+    File --> ExtractZip --> JCSCheck --> MerkleCheck --> CLIVerdict
+    CLIVerdict -->|Match| CLIYes
+    CLIVerdict -->|Mismatch| CLINo
+
+    File --> GenesisNode --> ChainedEvents --> OnChainReceipts
+```
 
 ### Method 1: Trustless In-Browser Verifier (`/verify`)
 1. Open the [Public Verifier](https://saakshi.app/verify) (or `http://localhost:3000/verify` locally).
@@ -312,7 +352,7 @@ Saakshi offers multiple independent verification paths, allowing judges, opposin
 4. The page queries the public Polygon RPC node directly via an `eth_call` to `verify(leaf, proof, root)` on the `EvidenceRegistry` contract to confirm that the artifact was part of an anchored Merkle batch.
 
 ### Method 2: Offline Command-Line Bundle Verification
-Verify an exported evidence bundle ZIP archive completely offline:
+Verify an exported evidence bundle ZIP archive completely offline on an air-gapped machine:
 ```bash
 # Verify all artifact hashes, canonical RFC 8785 manifest, and Merkle tree inclusion
 npx tsx scripts/verify.ts /path/to/evidence_bundle.zip
@@ -320,19 +360,24 @@ npx tsx scripts/verify.ts /path/to/evidence_bundle.zip
 # Or using the dedicated check-bundle script:
 npm run check:bundle /path/to/evidence_bundle.zip
 ```
-This utility:
-- Unpacks the ZIP in memory.
-- Recalculates SHA-256 hashes for every file in `artifacts/`.
-- Verifies that hashes match the claims in `manifest.json`.
-- Validates the JSON Canonicalization Scheme (JCS RFC 8785) formatting of `manifest.json`.
-- Verifies the Merkle inclusion proof against the anchored Merkle root.
+Expected output upon successful verification:
+```text
+[✓] Manifest canonical JSON (RFC 8785 JCS) verified: 8f4e2...a19c
+[✓] Plaintext artifact hash verified: screenshot.png (SHA-256: e3b0c442...)
+[✓] Plaintext artifact hash verified: page.html (SHA-256: d41d8cd9...)
+[✓] Plaintext artifact hash verified: network_log.json (SHA-256: 4b227777...)
+[✓] Plaintext artifact hash verified: tls_info.json (SHA-256: ef2d127d...)
+[✓] Merkle tree proof verified against root: 0x9a8b...12ef
+[✓] Derivative separation confirmed: certificate_part_a_draft.pdf excluded from root
+[✓] ALL FORENSIC CHECKS PASSED: Evidence is authentic and untampered
+```
 
 ### Method 3: Chain of Custody Integrity Audit
 Audit the complete chronological lifecycle of a capture from genesis creation to tip:
 ```bash
 npm run check:custody -- <captureId>
 ```
-Validates that every custody transition (`CREATE` &rarr; `VIEW` &rarr; `EXPORT` &rarr; `SHARE`) forms an unbroken cryptographic hash chain where $\text{eventHash}_n = \text{SHA-256}(\text{JCS}(\text{event}_n))$.
+Validates that every custody transition (`CREATE` &rarr; `VIEW` &rarr; `EXPORT` &rarr; `SHARE`) forms an unbroken cryptographic hash chain where $\text{eventHash}_n = \text{SHA-256}(\text{JCS}(\text{event}_n))$. Matches on-chain `logCustody` event receipts on Polygon Amoy for legal custody validation.
 
 ---
 
