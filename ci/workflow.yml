@@ -1,0 +1,111 @@
+name: Saakshi CI Pipeline (Reference Specification)
+
+# This workflow definition serves as a portable reference specification for CI/CD environments.
+# To prevent GitHub Personal Access Token (PAT) scope rejection errors when pushing via limited-scope
+# tokens, this definition is maintained in ci/workflow.yml rather than .github/workflows/.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  security:
+    name: Secret Defense Scan (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks Secret Scanner
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .gitleaks.toml
+
+  web:
+    name: Web Application (Lint, Typecheck, Tests, Build)
+    runs-on: ubuntu-latest
+    env:
+      TINYFISH_MODE: fixture
+      TINYFISH_API_KEY: ci_dummy_tinyfish_key
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      WEBHOOK_SECRET: ci_dummy_webhook_secret
+      CRON_SECRET: ci_dummy_cron_secret
+      SANDBOX_ADMIN_SECRET: ci_dummy_admin_secret
+      NEXT_PUBLIC_FIREBASE_API_KEY: ci_dummy_firebase_api_key
+      NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: saakshi-ci.firebaseapp.com
+      NEXT_PUBLIC_FIREBASE_PROJECT_ID: saakshi-ci
+      NEXT_PUBLIC_FIREBASE_APP_ID: 1:000000000000:web:0000000000000000000000
+      FIREBASE_SERVICE_ACCOUNT_B64: ""
+      MASTER_KEY_B64: DoJBQTTy+d9ncfCa7etwiFCqD+QNlp9MlfBslTwxYQ4=
+      UID_HASH_SALT: ci_dummy_salt_for_testing
+      PINATA_JWT: ""
+      PINATA_GATEWAY: https://gateway.pinata.cloud/ipfs
+      AMOY_RPC_URL: https://rpc-amoy.polygon.technology
+      ANCHOR_PRIVATE_KEY: ""
+      CHAIN_MODE: mock
+      NEXT_PUBLIC_REGISTRY_ADDRESS: 0x0000000000000000000000000000000000000000
+      NEXT_PUBLIC_CHAIN_ID: 80002
+      NEXT_PUBLIC_AMOY_RPC_URL: https://rpc-amoy.polygon.technology
+      NEXT_PUBLIC_EXPLORER_URL: https://amoy.polygonscan.com
+      POLYGONSCAN_API_KEY: ""
+      GEMINI_API_KEY: ci_dummy_gemini_key
+      GEMINI_MODEL: gemini-2.5-flash
+      AI_FALLBACK: mock
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js Runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Run TypeScript Typecheck
+        run: npm run typecheck
+
+      - name: Run Web Application Tests (Vitest)
+        run: npm run test:web
+
+      - name: Compile Production Build
+        run: npm run build
+
+  contracts:
+    name: Smart Contracts (Compile & Test)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js Runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Compile Solidity Contracts
+        run: npm run contracts:compile
+
+      - name: Run Contract Test Suite (Hardhat)
+        run: npm run test:contracts
