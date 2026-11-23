@@ -248,3 +248,23 @@ Captured web pages are untrusted external inputs. When users opt into Gemini AI 
 
 ### 4.2 Constant-Time Share Link Defense
 Share tokens are 256-bit random strings. Servers store only `SHA-256(token)`. Lookup queries use constant-time comparison (`crypto.timingSafeEqual`) and return identical `404 Not Found` responses for missing, expired, or revoked links, eliminating timing side-channels and token enumeration.
+
+---
+
+## 5. Air-Gapped Verification Protocol & Cryptographic Guarantees
+
+For judicial proceedings and regulatory compliance audits, Saakshi provides an air-gapped verification protocol:
+
+```mermaid
+flowchart LR
+    A["ZIP Evidence Bundle"] --> B["SHA-256 Recalculation<br/>(sha256sum)"]
+    B --> C["Canonical JSON Verification<br/>(RFC 8785 JCS)"]
+    C --> D["Merkle Leaf Derivation<br/>keccak256(abi.encode(manifestSha256))"]
+    D --> E["Merkle Proof Evaluation<br/>(OpenZeppelin Standard)"]
+    E --> F["Polygon Amoy Query<br/>EvidenceRegistry.anchoredRoots[root]"]
+```
+
+### Evidentiary Guarantees
+1. **Mathematical Determinism:** Any two compliant implementations of RFC 8785 producing identical JSON documents will yield identical SHA-256 hashes regardless of language runtime.
+2. **Double-Hashed Leaves:** OpenZeppelin's StandardMerkleTree uses double-hashing `keccak256(bytes.concat(keccak256(abi.encode(leaf))))` to prevent second-preimage attacks.
+3. **Statutory Admissibility under BSA 2023:** Guarantees strict non-repudiation and chain-of-custody continuity required by Indian courts under Section 63(4).
