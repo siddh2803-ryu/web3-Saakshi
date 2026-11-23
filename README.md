@@ -392,6 +392,27 @@ npm run check:custody -- <captureId>
 ```
 Validates that every custody transition (`CREATE` &rarr; `VIEW` &rarr; `EXPORT` &rarr; `SHARE`) forms an unbroken cryptographic hash chain where $\text{eventHash}_n = \text{SHA-256}(\text{JCS}(\text{event}_n))$. Matches on-chain `logCustody` event receipts on Polygon Amoy for legal custody validation.
 
+### Method 4: Air-Gapped Manual Verification (Standard POSIX CLI)
+For strict evidentiary audits on air-gapped forensic workstations without Node.js or network connectivity, verify the evidence bundle using standard Unix utilities:
+
+```bash
+# 1. Unpack the evidence bundle archive
+unzip -q evidence_bundle_cap_example.zip -d bundle && cd bundle
+
+# 2. Recalculate SHA-256 checksums of all preserved artifacts
+sha256sum artifacts/*
+
+# 3. Verify each hash against manifest.json entries
+cat manifest.json | grep -A 2 -B 1 "sha256"
+
+# 4. Confirm strict derivative exclusion (FR-9.3)
+# Neither certificate_part_a_draft.pdf nor ai_analysis.json may appear in manifest.artifacts
+grep -E "(certificate_part_a_draft|ai_analysis)" manifest.json || echo "Confirmed: Derivatives excluded from root"
+
+# 5. Verify the on-chain Merkle root on Polygonscan using the parameters in proof.json
+cat proof.json
+```
+
 ---
 
 ## Tech Stack Breakdown
