@@ -47,6 +47,17 @@ During live integration and stress-testing, we identified five critical document
 - **Mismatch:** The `streaming_url` returned from `run-async` requires 3-5 seconds to initialize after run creation and is abruptly terminated by the host upon run completion.
 - **Solution:** The frontend iframe component renders a graceful loading skeleton while `streaming_url` is initializing, and automatically switches to the full forensic filmstrip carousel as soon as the run transitions to `COMPLETED`.
 
+---
+
+## Production Deployment Checklist for TinyFish Cloud
+
+To ensure zero dropped sessions and uninterrupted forensic operation in production:
+
+1. **Guaranteed Session Termination:** Always invoke `DELETE https://api.browser.tinyfish.ai/{id}` in a `try...finally` block to prevent stranded Chromium sessions and excessive credit consumption.
+2. **Deterministic Fallback Modes:** Always configure `TINYFISH_MODE=fixture` in CI/CD pipelines to prevent flaky tests and unexpected third-party rate limiting during automated pull request builds.
+3. **Out-of-Band Webhook Validation:** Always verify webhook notifications with an out-of-band `GET /v1/runs/{id}` query before triggering downstream blockchain anchoring or sending notifications.
+4. **Adaptive Backoff on HTTP 429:** When encountering TinyFish rate limits (HTTP 429), respect the `Retry-After` header or apply exponential backoff starting at 1,000ms with jitter.
+
 ## Phase 1 Acceptance & Verification Status
 
 | Criterion (PRD Section 17) | Status | Verification Method | Action to Turn PASS |
